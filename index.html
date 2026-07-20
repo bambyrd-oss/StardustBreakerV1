@@ -675,7 +675,7 @@ function genChunk(ci){
       hp: ty==='box'?1:ty==='dumpster'?3:2, w: ty==='dumpster'?18:11, shake:0, dead:false, chunk:ci}); }
   // street furniture against the storefronts — trees (procedural), hydrants, benches, mailboxes, signs, crates.
   // (gate + lamp dropped — gate sprite has baked-in graffiti; lamps not wanted)
-  for(let i=0;i<8;i++){ const ty=['tree','tree','tree','hydrant','bench','mailbox','sign','bench'][Math.floor(R()*8)];
+  for(let i=0;i<8;i++){ const ty=['tree','tree','tree','hydrant','bench','mailbox','sign','bench','newsbox','bikerack'][Math.floor(R()*10)];
     props.push({x:x0+30+R()*(CHUNK-60), z:FLOOR_N-2+R()*22, type:ty, ph:R()*9, chunk:ci}); }
   for(let i=0;i<8;i++) crowd.push({x:x0+R()*CHUNK, z:FLOOR_N-9+R()*7, ph:R()*9, blob:true, chunk:ci});
   if(ci>0) { const gx = x0+240+R()*280; GATES.push({x:gx, done:false, chunk:ci}); console.log("GATE created at x=" + gx + " chunk=" + ci); }
@@ -2108,7 +2108,8 @@ function bg(){
         ctx.fillStyle=GLASS[Math.floor(hsh(b.x+w*11+h*3)*3)]; ctx.fillRect(sx+10+w*28,top+10+h*22,16,14);
         // a few windows have someone moving behind the blind
         if(hsh(b.x+w*7+h*13)<0.35){ ctx.fillStyle='rgba(30,26,20,.5)';
-          ctx.fillRect(sx+12+w*28+Math.sin(t*0.01+w+h)*2,top+12+h*22,5,10); } }
+          ctx.fillRect(sx+12+w*28+Math.sin(t*0.01+w+h)*2,top+12+h*22,5,10); }
+        ctx.fillStyle='rgba(0,0,0,.15)'; ctx.fillRect(sx+9+w*28,top+24+h*22,18,2); }   // sill
     // sign — colorful storefront lettering, anchored to the ground floor, not the roofline
     ctx.font='bold 8px "JetBrains Mono",monospace'; ctx.textAlign='center';
     ctx.fillStyle=b.hue; ctx.fillText(b.name,sx+b.w/2,groundTop+18);
@@ -2139,6 +2140,22 @@ function bg(){
     const dw=b.kind==='club'?54:40, dx=b.doorX-camX;
     ctx.fillStyle='#2a2018'; ctx.fillRect(dx-dw/2,FLOOR_N-58,dw,58);
     ctx.fillStyle='#8a7860'; ctx.fillRect(dx-dw/2-3,FLOOR_N-60,3,60); ctx.fillRect(dx+dw/2,FLOOR_N-60,3,60);
+    // a striped storefront awning over the door — the commercial-strip signature.
+    // burger joints skip it — their sign box already occupies that spot.
+    if(b.kind!=='burger'){
+      const awW=dw+16, ay=FLOOR_N-72;
+      ctx.fillStyle=b.hue;
+      ctx.beginPath(); ctx.moveTo(dx-awW/2,ay+10); ctx.lineTo(dx-awW/2+4,ay); ctx.lineTo(dx+awW/2-4,ay);
+      ctx.lineTo(dx+awW/2,ay+10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(dx-awW/2,ay+9,awW,2);
+      const teeth=Math.floor(awW/8);                     // scalloped fringe
+      for(let i=0;i<teeth;i++){ const tx=dx-awW/2+i*8;
+        ctx.fillStyle= i%2? b.hue : 'rgba(255,255,255,.55)';
+        ctx.beginPath(); ctx.moveTo(tx,ay+10); ctx.lineTo(tx+4,ay+15); ctx.lineTo(tx+8,ay+10); ctx.closePath(); ctx.fill(); }
+    }
+    // a couple of stoop steps up to the door
+    ctx.fillStyle='#c2b490'; ctx.fillRect(dx-dw/2-5,FLOOR_N-3,dw+10,3);
+    ctx.fillStyle='#a89870'; ctx.fillRect(dx-dw/2-2,FLOOR_N-6,dw+4,3);
   }
 
   //---- sidewalk / curb / road
@@ -2149,6 +2166,11 @@ function bg(){
   ctx.fillStyle='#4a4552'; ctx.fillRect(0,ROAD,W,H-ROAD);            // asphalt
   ctx.fillStyle='#fff0c2';
   for(let i=0;i<14;i++) ctx.fillRect(i*120-(camX*1.35)%120,ROAD+22,54,2);  // lane dashes, faster parallax
+
+  // a crosswalk every few blocks, corner-of-the-block detail
+  ctx.fillStyle='#e8e2d4';
+  for(let i=0;i<10;i++){ const cwx=i*900-camX%900;
+    for(let j=0;j<7;j++) ctx.fillRect(cwx+j*11-33,ROAD+4,7,H-ROAD-8); }
 
   // grates
   for(const gr of GRATES){ const sx=gr.x-camX; if(sx<-30||sx>W+30)continue;
@@ -2187,7 +2209,7 @@ function drawCrowd(cw){
   const sx=cw.x-camX; if(sx<-40||sx>W+40) return;
   const bob=Math.sin(cw.ph*1.6)*1.2 + (cw.flinch>0?-2:0);
   if(cw.blob){
-    ctx.globalAlpha=.72; ctx.fillStyle='#0a0812';
+    ctx.globalAlpha=.72; ctx.fillStyle='#6a5a8a';
     ctx.fillRect(sx-7,cw.z-40+bob,14,40); ctx.beginPath();
     ctx.ellipse(sx,cw.z-44+bob,6,6,0,0,7); ctx.fill(); ctx.globalAlpha=1; return;
   }
@@ -2305,9 +2327,15 @@ function drawProp(pr){ const sx=pr.x-camX, z=pr.z;
     ctx.fillStyle='#0b0a10'; ctx.fillRect(sx-5,z-14,10,7);            // window
   } else if(pr.type==='bench'){
     shadow(pr.x,pr.z,14);
-    ctx.fillStyle='#2c2419'; ctx.fillRect(sx-14,z-16,28,3);          // back rail
-    ctx.fillStyle='#3a2f22'; ctx.fillRect(sx-14,z-9,28,3);           // seat
-    ctx.fillStyle='#241d14'; ctx.fillRect(sx-12,z-9,3,9); ctx.fillRect(sx+9,z-9,3,9);   // legs
+    ctx.fillStyle='#8a6540'; ctx.fillRect(sx-14,z-16,28,3);          // back rail
+    ctx.fillStyle='#a8794a'; ctx.fillRect(sx-14,z-9,28,3);           // seat
+    ctx.fillStyle='#5a3f26'; ctx.fillRect(sx-12,z-9,3,9); ctx.fillRect(sx+9,z-9,3,9);   // legs
+  } else if(pr.type==='bikerack'){
+    shadow(pr.x,pr.z,12);
+    ctx.strokeStyle='#6a6560'; ctx.lineWidth=2;
+    for(let i=0;i<2;i++){ const bx2=sx-7+i*14;
+      ctx.beginPath(); ctx.arc(bx2,z-9,7,Math.PI,0); ctx.stroke();
+      ctx.fillStyle='#6a6560'; ctx.fillRect(bx2-7,z-9,1.6,9); ctx.fillRect(bx2+5.4,z-9,1.6,9); }
   }
 }
 
