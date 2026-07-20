@@ -33,6 +33,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 |---|---|---|---|
 | Move | `WASD` / arrows | Stick / D-pad | Left stick |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
+| Kick | `I` | **LB** | KICK |
 | Jump | `K` / `Space` | **A** | JUMP |
 | Imagination attack | `L` | **B** | IMAGINE |
 | Interact / eat | `E` | **Y** | TALK |
@@ -41,7 +42,12 @@ only place the landscape lock behaves properly, so on a phone, install it.
 Plug in a pad and the touch controls hide themselves. Unplug and they come back.
 
 **Mash punch** — it's a 4-hit string, not one button, and the last hit launches
-enemies into the air. **Jump then punch** is a dive attack.
+enemies into the air. Two special attacks come off direction + button:
+
+- **Uppercut** — hold **up** and punch (`W`+`J`). BamBam crouches and launches
+  straight up with a rising fist, popping enemies into the air.
+- **Drop kick** — **jump, then kick** (`K` then `I`). A feet-first flying kick
+  that drives forward through the crowd.
 
 ## The design
 

@@ -60,10 +60,37 @@ def pack_frames(prefix, folder, frame_files, ref_file=None):
         key=f"{prefix}.{i}"
         PREFRAMED[key]=reframe_fixed(p,ref_h); add(key,p)
 
+def reframe_centered(path, cell_h):
+    # scale the whole art (character + any comic-book burst) to cell_h and
+    # centre it in the 92px cell. used for the uppercut burst frames, whose art
+    # is much taller than the character — foot-anchoring would clip the burst off
+    # the top, and shrinking to the normal 46px hero height leaves the character
+    # tiny. centring at a near-full-cell height keeps the whole thing as big as
+    # the cell allows, so these frames read slightly larger than the rest.
+    im=Image.open(path).convert("RGBA")
+    bb=im.getchannel("A").getbbox()
+    if not bb: return im.resize((S,S),Image.LANCZOS)
+    crop=im.crop(bb)
+    f=cell_h/crop.height
+    w=max(1,round(crop.width*f)); h=max(1,round(crop.height*f))
+    sm=crop.resize((w,h),Image.LANCZOS)
+    cell=Image.new("RGBA",(S,S),(0,0,0,0))
+    cell.paste(sm,(round((S-w)/2),round((S-h)/2)),sm)
+    return cell
+
+def pack_one(key, folder, fname, im):
+    PREFRAMED[key]=im; add(key, os.path.join(ROOT,folder,fname))
+
 pack_frames("hero.walk", "BamBamRun",      ["frame0.png","frame1.png","frame2.png","frame3.png"])
 pack_frames("hero.punch","BamBamPunch",    ["frame0.png","frame1.png","frame2.png","frame2.png","frame3.png","frame3.png"])
 pack_frames("hero.jump", "BamBamJump",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
-pack_frames("hero.uppercut","BamBamUppercut",["frame0.png","frame1.png","frame2.png","frame3.png"], ref_file="frame3.png")
+# uppercut: crouch/landing are clean (just the character) so foot-anchor them a
+# touch bigger than the normal 46px hero; the two burst frames fill the cell.
+UC="BamBamUppercut"
+pack_one("hero.uppercut.0", UC, "frame0.png", reframe_solo(os.path.join(ROOT,UC,"frame0.png")))   # crouch: normal 46px hero, foot-anchored
+pack_one("hero.uppercut.1", UC, "frame1.png", reframe_centered(os.path.join(ROOT,UC,"frame1.png"), 90))
+pack_one("hero.uppercut.2", UC, "frame2.png", reframe_centered(os.path.join(ROOT,UC,"frame2.png"), 90))
+pack_one("hero.uppercut.3", UC, "frame3.png", reframe_solo(os.path.join(ROOT,UC,"frame3.png"), hero_h=54))
 pack_frames("hero.kick", "BamBamKick",     ["frame1.png","frame2.png","frame2.png","frame3.png"], ref_file="frame3.png")  # frame0 (run start) is grounded, never shown — 'kick' state starts mid-air
 pack_frames("hero.swag", "BamBamSwag",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
 
@@ -95,24 +122,30 @@ PREFRAMED["hero.portrait"]=reframe_portrait(PB); add("hero.portrait", PB)
 # Politicians, Corporate Mascots, Robotic Police — see README) gets generated. Source art for
 # all of them stays on disk under art/ in case it's wanted again.
 
-# environment props (92x92)
-PROPS=["dumpster","hydrant","mailbox","sign"]
-for prop in PROPS:
-    if os.path.exists(os.path.join(ROOT,f"props/{prop}.png")):
-        add(f"prop.{prop}", f"props/{prop}.png")
+# environment props are no longer packed — the dumpster/hydrant/mailbox/sign
+# sprites were removed to keep this a clean character-only atlas. The dumpster
+# still renders via its procedural fallback (drawCan), and the decorative
+# hydrant/mailbox/sign were swapped out of genChunk's spawn table for
+# procedural props, so nothing references the dropped keys anymore.
 
 FOOT=70   # matches game.html: feet sit on this row of the 92px cell
 
+# each sprite still occupies a 92x92 region, but cells are spaced apart by GUTTER
+# transparent pixels so the sheet is easy to eyeball / crop by hand. The game only
+# ever reads a fixed 92x92 region from each recorded (x,y), so the gutter is
+# invisible to spr() and the in-place flip builder alike.
+GUTTER=20
+CW=S+GUTTER
 n=len(entries)
 rows=(n+COLS-1)//COLS
-sheet=Image.new("RGBA",(COLS*S,rows*S),(0,0,0,0))
+sheet=Image.new("RGBA",(COLS*CW-GUTTER, rows*CW-GUTTER),(0,0,0,0))
 index={}
 for i,(key,path) in enumerate(entries):
     if key in PREFRAMED: im=PREFRAMED[key]           # hero combat anims, already reframed to 92px
     else:
         im=Image.open(path).convert("RGBA")
         if im.size!=(S,S): im=im.resize((S,S), Image.NEAREST)
-    cx,cy=(i%COLS)*S,(i//COLS)*S
+    cx,cy=(i%COLS)*CW,(i//COLS)*CW
     sheet.paste(im,(cx,cy))
     index[key]=[cx,cy]
 

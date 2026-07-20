@@ -1,12 +1,55 @@
 # Handoff — 2026-07-20
 
-**Live build:** https://samayiat.github.io/bambam/ (auto-deploys on push to `main` via
-`.github/workflows/pages.yml`, gated by the test harness — a failing build does not ship)
+**Repo note:** this project now lives in `bambyrd-oss/StardustBreakerV1` (imported with full
+history from the old `samayiat/bambam`; the game was mid-rename to "Stardust Breaker"). Active
+branch: `claude/new-session-qlphac`.
 
 **Build locally:** `python3 src/build.py` (packs `art/` into the atlas, inlines everything into
 `index.html`, then runs `node src/harness.js` — the build fails if any scenario fails).
 
-## What's done
+## Latest session — real hero art + kick/uppercut, co-op deprecated
+
+- **Real hero sprites are in.** Replaced the single static placeholder pose with six real
+  drawn animation sets, cropped/keyed from reference sheets into
+  `art/BamBam{Run,Punch,Jump,Uppercut,Kick,Swag}/` and packed by `src/pack.py`:
+  - `hero.walk` (run cycle), `hero.punch` (jab combo), `hero.jump`, `hero.swag` (imagination),
+    plus two attack sheets below. `hero.rot.east/south` (idle/facing) reuse the punch idle pose.
+  - The uppercut sheet's two "burst" frames carry a full comic-book BAM! explosion much bigger
+    than the character, so `pack.py` packs those with `reframe_centered()` (whole art fills the
+    92px cell) while the clean crouch/landing frames stay foot-anchored. Everything else uses
+    `reframe_fixed()` (scaled against the set's neutral frame so limbs don't rescale the body).
+  - Atlas cells are now spaced by a 20px `GUTTER` (transparent) so the sheet crops cleanly by
+    hand. The game only ever reads a fixed 92×92 region from each recorded (x,y), so the gutter
+    is invisible to `spr()` and the in-place flip builder.
+- **New KICK button** (`I` / gamepad LB / on-screen KICK), wired alongside punch/jump/etc.
+- **Two new moves** (see README + pause menu):
+  - **Uppercut** — hold **up + punch** (`W`+`J`): grounded launcher, rises straight up, `upper`
+    state, uses the BAM! uppercut art. Connects with a launch.
+  - **Drop kick** — **jump then kick** (`K` then `I`): forward-driving aerial kick, reuses the
+    old dive `air` state (retriggered on KICK not PUNCH), uses the kick art.
+  - The old jump+punch dive is gone; aerial attack is now the drop kick.
+- **Animation frame-count formulas fixed** in `drawPlayer()` and `drawRemotePlayer()` for the new
+  4-frame sets (walk/jump/swag were assuming 6–8 old placeholder frames; `down` no longer refers
+  to removed `hero.jump.5/6`).
+- **Env props removed from the atlas** — dumpster/hydrant/mailbox/sign sprites are gone. The
+  dumpster falls back to its procedural drawing (`drawCan`); hydrant/mailbox/sign were swapped
+  out of `genChunk`'s decorative spawn table for procedural props (**array kept 10 long so the
+  shared `R()` call-order — and every downstream gate/wave seed — is unchanged**; see the
+  load-bearing `R()` gotcha in the older notes below).
+- **Co-op is DEPRECATED (off), not removed.** `startCoop()` is now a shim that starts solo,
+  `MP` can never become true, and the PlayroomKit `<script>` is commented out (game is fully
+  self-contained/offline again). All the `coop*`/`drawRemotePlayer` machinery is left in place
+  and dormant (every branch guards on `MP`), ready to revive later.
+
+Harness stays green; verified the two new moves both trigger + connect in a real browser
+(Playwright) as well.
+
+**Still a placeholder / TODO from before:** enemy art (guards/politicians/mascots/police are
+still flat silhouettes), music, XP-unlocked movement abilities. A 4-frame **standing/ground
+kick** reference sheet was also provided but is NOT wired in yet (the current KICK is the aerial
+drop kick) — awaiting direction on whether to add a grounded kick.
+
+## What's done (earlier)
 
 - Hero placeholder sprite + a dedicated HUD portrait, cropped from uploaded reference art
   (`art/BamBamHero/`, `art/BamBamPortrait/`).
