@@ -1,0 +1,109 @@
+{
+  "group_id": null,
+  "states": [
+    {
+      "character": {
+        "id": "f088cc9e-58ea-4cdb-8348-ae4c8a95815c",
+        "name": "This character is 5'11\". He",
+        "prompt": "This character is 5'11\". He is a brown skinned African American man. He has a 2 inch long black curly mini Afro, that is faded at his temples. He is wearing a short sleeve black graphic t shirt over a long sleeved white thermal. He is also wearing baggy khaki cargos and very chunky brown skateboarding shoes. He has an ambitious smirk on his face, thick eyebrows, and a trimmed mustache and beard that don't connect to each other. He is not fat, but also not skinny, kind of a stocky muscular build",
+        "size": {
+          "width": 92,
+          "height": 92
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-07-17T04:42:28.039349+00:00"
+      },
+      "folder": "This_character_is_5_11_._He",
+      "frames": {
+        "rotations": {
+          "south": "This_character_is_5_11_._He/rotations/south.png",
+          "south-east": "This_character_is_5_11_._He/rotations/south-east.png",
+          "east": "This_character_is_5_11_._He/rotations/east.png",
+          "north-east": "This_character_is_5_11_._He/rotations/north-east.png",
+          "north": "This_character_is_5_11_._He/rotations/north.png",
+          "north-west": "This_character_is_5_11_._He/rotations/north-west.png",
+          "west": "This_character_is_5_11_._He/rotations/west.png",
+          "south-west": "This_character_is_5_11_._He/rotations/south-west.png"
+        },
+        "animations": {
+          "Drinking": {
+            "east": [
+              "This_character_is_5_11_._He/animations/Drinking/east/frame_000.png",
+              "This_character_is_5_11_._He/animations/Drinking/east/frame_001.png",
+              "This_character_is_5_11_._He/animations/Drinking/east/frame_002.png",
+              "This_character_is_5_11_._He/animations/Drinking/east/frame_003.png",
+              "This_character_is_5_11_._He/animations/Drinking/east/frame_004.png",
+              "This_character_is_5_11_._He/animations/Drinking/east/frame_005.png"
+            ]
+          },
+          "Scary_Walk": {
+            "east": [
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_000.png",
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_001.png",
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_002.png",
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_003.png",
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_004.png",
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_005.png",
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_006.png",
+              "This_character_is_5_11_._He/animations/Scary_Walk/east/frame_007.png"
+            ]
+          },
+          "Jumping": {
+            "east": [
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_000.png",
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_001.png",
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_002.png",
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_003.png",
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_004.png",
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_005.png",
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_006.png",
+              "This_character_is_5_11_._He/animations/Jumping/east/frame_007.png"
+            ]
+          },
+          "Cross_Punch": {
+            "east": [
+              "This_character_is_5_11_._He/animations/Cross_Punch/east/frame_000.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch/east/frame_001.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch/east/frame_002.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch/east/frame_003.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch/east/frame_004.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch/east/frame_005.png"
+            ]
+          },
+          "Cross_Punch-8c2c64c6": {
+            "south": [
+              "This_character_is_5_11_._He/animations/Cross_Punch-8c2c64c6/south/frame_000.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch-8c2c64c6/south/frame_001.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch-8c2c64c6/south/frame_002.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch-8c2c64c6/south/frame_003.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch-8c2c64c6/south/frame_004.png",
+              "This_character_is_5_11_._He/animations/Cross_Punch-8c2c64c6/south/frame_005.png"
+            ]
+          },
+          "Walking": {
+            "east": [
+              "This_character_is_5_11_._He/animations/Walking/east/frame_000.png",
+              "This_character_is_5_11_._He/animations/Walking/east/frame_001.png",
+              "This_character_is_5_11_._He/animations/Walking/east/frame_002.png",
+              "This_character_is_5_11_._He/animations/Walking/east/frame_003.png",
+              "This_character_is_5_11_._He/animations/Walking/east/frame_004.png",
+              "This_character_is_5_11_._He/animations/Walking/east/frame_005.png"
+            ]
+          },
+          "Walking-deb204dd": {
+            "south": [
+              "This_character_is_5_11_._He/animations/Walking-deb204dd/south/frame_000.png",
+              "This_character_is_5_11_._He/animations/Walking-deb204dd/south/frame_001.png",
+              "This_character_is_5_11_._He/animations/Walking-deb204dd/south/frame_002.png",
+              "This_character_is_5_11_._He/animations/Walking-deb204dd/south/frame_003.png"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-07-17T05:40:21.472508"
+}

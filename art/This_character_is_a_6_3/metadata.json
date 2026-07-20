@@ -1,0 +1,82 @@
+{
+  "group_id": "542f23b1-398c-4ef1-b01b-c13c2501033b",
+  "states": [
+    {
+      "character": {
+        "id": "307c7b0a-00b5-4785-872d-4187dc332f4c",
+        "name": "This character is a 6'3\"",
+        "prompt": "This character is a 6'3\" African American vampire. He is wearing a long black leather trench coat and has black sunglasses and a pointy chin. He is wearing platform boots and skinny black leather pants. He has intricately designed braids in his hair. He is frowning. He is also smoking a cigarette.",
+        "size": {
+          "width": 92,
+          "height": 92
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-07-17T06:02:30.107413+00:00"
+      },
+      "folder": "This_character_is_a_6_3",
+      "frames": {
+        "rotations": {
+          "south": "This_character_is_a_6_3/rotations/south.png",
+          "south-east": "This_character_is_a_6_3/rotations/south-east.png",
+          "east": "This_character_is_a_6_3/rotations/east.png",
+          "north-east": "This_character_is_a_6_3/rotations/north-east.png",
+          "north": "This_character_is_a_6_3/rotations/north.png",
+          "north-west": "This_character_is_a_6_3/rotations/north-west.png",
+          "west": "This_character_is_a_6_3/rotations/west.png",
+          "south-west": "This_character_is_a_6_3/rotations/south-west.png"
+        },
+        "animations": {
+          "Walking": {
+            "west": [
+              "This_character_is_a_6_3/animations/Walking/west/frame_000.png",
+              "This_character_is_a_6_3/animations/Walking/west/frame_001.png",
+              "This_character_is_a_6_3/animations/Walking/west/frame_002.png",
+              "This_character_is_a_6_3/animations/Walking/west/frame_003.png"
+            ]
+          },
+          "Hurricane_Kick": {
+            "west": [
+              "This_character_is_a_6_3/animations/Hurricane_Kick/west/frame_000.png",
+              "This_character_is_a_6_3/animations/Hurricane_Kick/west/frame_001.png",
+              "This_character_is_a_6_3/animations/Hurricane_Kick/west/frame_002.png",
+              "This_character_is_a_6_3/animations/Hurricane_Kick/west/frame_003.png"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "character": {
+        "id": "513c8c3b-d9c9-494f-ba5b-2ae209f1017d",
+        "name": "Smoking a cigarette.",
+        "prompt": "This character is a 6'3\" African American vampire. He is wearing a long black leather trench coat and has black sunglasses and a pointy chin. He is wearing platform boots and skinny black leather pants. He has intricately designed braids in his hair. He is frowning. He is also smoking a cigarette.",
+        "size": {
+          "width": 92,
+          "height": 92
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-07-17T06:07:58.481259+00:00"
+      },
+      "folder": "Smoking_a_cigarette.",
+      "frames": {
+        "rotations": {
+          "south": "Smoking_a_cigarette./rotations/south.png",
+          "south-east": "Smoking_a_cigarette./rotations/south-east.png",
+          "east": "Smoking_a_cigarette./rotations/east.png",
+          "north-east": "Smoking_a_cigarette./rotations/north-east.png",
+          "north": "Smoking_a_cigarette./rotations/north.png",
+          "north-west": "Smoking_a_cigarette./rotations/north-west.png",
+          "west": "Smoking_a_cigarette./rotations/west.png",
+          "south-west": "Smoking_a_cigarette./rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-07-17T06:13:03.693345"
+}
