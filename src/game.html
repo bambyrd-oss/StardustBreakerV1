@@ -830,21 +830,33 @@ function rat(x,z,fromGrate,o){
     spd: big?0.92:(fire?1.15:1.4), dmg: big?16:(fire?5:4),
     flash:0,face:-1,state:'walk',st:0,anim:0,tok:false,hitstun:0,dead:0,
     cd:rnd(20,70), enter:fromGrate?(big?54:26):0}; }
-function vamp(x,z,fromDoor,forceElite,skin){
-  skin = skin||'vamp';   // 'darnell' reuses this whole entity — same AI/collision/damage, different sprites
+// four named street-enemy types from the spec (Security Guards, Corrupt Politicians,
+// Corporate Mascots, Robotic Police) — flat-color placeholder silhouettes until real
+// generated art replaces them (see README "Art pipeline"). REGULAR_TYPES is the everyday
+// mix; robocop is the rarer "mixed in" unit (same slot the old Darnell reskin used).
+const REGULAR_TYPES=['guard','politician','mascot'];
+const ENEMY_PAL={
+  guard:      {body:'#2a3a52', skin:'#c98a5a'},   // navy uniform
+  politician: {body:'#4a4650', skin:'#e0a370'},   // charcoal suit
+  mascot:     {body:'#ff8a1a', skin:'#ffe6b0'},   // bright mascot fur
+  robocop:    {body:'#5a6a78', skin:'#8fa4b0'},   // steel plating
+};
+function vamp(x,z,fromDoor,forceElite,type){
+  type = type || REGULAR_TYPES[Math.floor(Math.random()*REGULAR_TYPES.length)];
   // every sixth guy is just built different. double health, double damage, and he knows it.
-  // for Darnell, "built different" IS his dark/evil form — same roll, doubles as a skin swap.
+  // for Robotic Police, "built different" IS its dark/malfunctioning drone form — same roll,
+  // doubles as a skin swap.
   const E = forceElite!==undefined ? forceElite : Math.random()<0.17;
-  // a separate, independent roll — some Darnells are just bigger. stacks with elite/dark.
-  const big = skin==='darnell' && Math.random()<0.18;
+  // a separate, independent roll — some robocops are just bigger. stacks with elite/dark.
+  const big = type==='robocop' && Math.random()<0.18;
   const bigM = big?1.5:1;
-  return {id:entId(),k:'vamp',x,z,y:0,vy:0,vx:0, elite:E, skin, big,
+  return {id:entId(),k:'vamp',x,z,y:0,vy:0,vx:0, elite:E, type, big,
   hp:Math.round((E?76:38)*(big?1.6:1)), maxhp:Math.round((E?76:38)*(big?1.6:1)),
   dmg:Math.round((E?18:9)*(big?1.3:1)), spd:E?0.58:0.64, sc:(E?1.16:1)*bigM,
   flash:0,face:-1,w:Math.round((E?30:26)*bigM),d:Math.round((E?12:10)*bigM),h:74*bigM,
   state:fromDoor?'enter':'walk',st:0,anim:0,tok:false,hitstun:0,dead:0,cd:rnd(40,120),
   enterZ:z+rnd(26,60)}; }
-function darnell(x,z,fromDoor,forceElite){ return vamp(x,z,fromDoor,forceElite,'darnell'); }
+function robocop(x,z,fromDoor,forceElite){ return vamp(x,z,fromDoor,forceElite,'robocop'); }
 
 // boss backup — security guards, nurses, soldiers. small, driven by the generic enemy AI.
 function sammich(x,z){ return {k:'sammich',x,z,y:0,vy:0,vx:0,
@@ -987,7 +999,7 @@ function nearestPlayerDX(x){                     // closest of me + any teammate
 }
 
 const ENT_FIELDS=['id','k','x','z','y','face','state','st','anim','dead','hp','maxhp','w','d','h',
-  'skin','elite','big','fire','dmg','flash','hitAnimT','recoil','recoilT','tok','hitstun','enter','plasmaCd'];
+  'type','elite','big','fire','dmg','flash','hitAnimT','recoil','recoilT','tok','hitstun','enter','plasmaCd'];
 // Enemies ride the SAME channel as player positions — player-state — because that's the one
 // proven to sync every frame (global room state only carries the small, infrequent
 // cans/drops maps; a per-frame enemy blob never reached the guest). The host writes the
@@ -1105,7 +1117,7 @@ function spawnWave(T){
   }
   for(let i=0;i<nVamps;i++){ const b=pick(); if(!b) break;
     setTimeout(()=>{ if(!paused){ b.open=60;
-      const spawn = Math.random()<0.35 ? darnell : vamp;   // Darnell mixed in alongside vampires
+      const spawn = Math.random()<0.35 ? robocop : vamp;   // Robotic Police mixed in alongside the regular enforcers
       ents.push(spawn(b.doorX+rnd(-14,14),FLOOR_N-10,true)); } }, 240+i*380);
   }
   if(bigRat){ const g=grates.length?grates[grates.length-1]:{x:camX+W-80,z:FLOOR_S-20};
@@ -1143,8 +1155,8 @@ function updateBusMob(){
         for(let i=0;i<bm.total;i++){
           setTimeout(()=>{ if(paused||busMob!==bm) return;
             const x=bm.x+rnd(-70,70), z=rnd(FLOOR_N+10,FLOOR_S-6);
-            // straight off the tour bus, no rats — Darnell mixed in alongside the vamps, same odds as a wave
-            const spawn=Math.random()<0.35 ? darnell : vamp;
+            // straight off the tour bus, no rats — Robotic Police mixed in alongside the regular enforcers, same odds as a wave
+            const spawn=Math.random()<0.35 ? robocop : vamp;
             const e=spawn(x,z); e.flash=12; ents.push(e); puff(x,z,20,5,'#6b6478');
           }, 260+i*140);
         }
@@ -1855,7 +1867,7 @@ function update(){
     // dark form: a ranged plasma lob on its own cooldown, independent of the melee state
     // machine — too menacing to just be another haymaker bruiser up close.
     if(e.plasmaCd>0) e.plasmaCd--;
-    if(e.skin==='darnell' && e.elite && !e.dead && e.state!=='stun' && e.state!=='launch'
+    if(e.type==='robocop' && e.elite && !e.dead && e.state!=='stun' && e.state!=='launch'
        && d>50 && d<260 && (e.plasmaCd||0)<=0){
       e.plasmaCd=rnd(110,170); const dd=Math.max(1,d);
       fires.push({x:e.x, z:e.z, y:34, vx:(dx/dd)*4.2, vz:(dz/dd)*2.2, vy:0, r:6, life:100, max:100,
@@ -1875,8 +1887,8 @@ function update(){
       if(e.big && e.st===15){ shake=Math.max(shake,4); rumble(120,.7,.3); }
       if(act&&!e.hitDone){ const rw=e.k==='rat'?(e.big?34:18):34;
         if(Math.abs(P.x-(e.x+e.face*rw*0.7))<rw && Math.abs(P.z-e.z)<16){
-          // the haymaker always drops you — Darnell's one punch clears heavyHitAt() no matter what, mad knockback every time
-          const dmg = e.skin==='darnell' ? Math.max(e.dmg, heavyHitAt()+4) : e.dmg;
+          // the haymaker always drops you — a Robotic Police unit's one punch clears heavyHitAt() no matter what, mad knockback every time
+          const dmg = e.type==='robocop' ? Math.max(e.dmg, heavyHitAt()+4) : e.dmg;
           hurtPlayer(dmg,e.x); e.hitDone=true; } }
       if(e.st>(e.k==='rat'?(e.big?40:26):44)){ e.state='walk'; e.tok=false; e.cd=rnd(50,150); }
       continue;
@@ -2596,7 +2608,7 @@ function drawSammich(e){ const sx=e.x-camX, y=e.z-e.y, bob=Math.sin(e.anim*2)*1.
 // generic placeholder foe — a flat colored silhouette standing in for real BamBam enemy art
 // (Security Guards, Corrupt Politicians, Corporate Mascots, Robotic Police — see README) which
 // hasn't been generated yet. Anchored the same way spr() is: (sx,by) is the ground/feet point.
-function drawFoePlaceholder(sx,by,face,scale,body,skin,phase,atk,tint,tintAmt){
+function drawFoePlaceholder(sx,by,face,scale,body,skin,phase,atk,tint,tintAmt,type){
   const s=scale, sw=Math.sin(phase*1.6)*4*s;
   ctx.fillStyle=body;
   ctx.fillRect(sx-6*s, by-16*s+Math.max(0,sw), 4*s, 16*s-Math.max(0,sw));
@@ -2606,6 +2618,25 @@ function drawFoePlaceholder(sx,by,face,scale,body,skin,phase,atk,tint,tintAmt){
   else { ctx.fillRect(sx-12*s, by-40*s, 3*s, 14*s); ctx.fillRect(sx+9*s, by-40*s, 3*s, 14*s); }   // arms
   ctx.fillStyle=skin;
   ctx.beginPath(); ctx.ellipse(sx, by-52*s, 7*s, 7*s, 0,0,7); ctx.fill();   // head
+  // one small accessory per type — enough to tell the four apart at a glance until
+  // real generated art (Security Guards / Corrupt Politicians / Corporate Mascots /
+  // Robotic Police, see README) replaces these flat silhouettes.
+  if(type==='guard'){
+    ctx.fillStyle='#0e1420'; ctx.fillRect(sx-8*s, by-58*s, 16*s, 5*s);            // cap brim
+    ctx.fillStyle='#e8c23a'; ctx.fillRect(sx-1.5*s, by-40*s, 3*s, 3*s);           // badge
+  } else if(type==='politician'){
+    ctx.fillStyle='#c9c9d0'; ctx.beginPath(); ctx.ellipse(sx, by-57*s, 7.5*s, 3.5*s, 0,0,7); ctx.fill();   // gray hair swoop
+    ctx.fillStyle='#a8283c'; ctx.fillRect(sx-1.5*s, by-44*s, 3*s, 12*s);          // tie
+  } else if(type==='mascot'){
+    ctx.fillStyle='#2f7a3f'; ctx.fillRect(sx-3*s, by-46*s, 6*s, 4*s);             // bowtie
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.ellipse(sx-4*s, by-53*s, 2.2*s,2.2*s,0,0,7);
+    ctx.ellipse(sx+4*s, by-53*s, 2.2*s,2.2*s,0,0,7); ctx.fill();                 // big cartoon eyes
+  } else if(type==='robocop'){
+    ctx.fillStyle='#0e1420'; ctx.fillRect(sx-7*s, by-55*s, 14*s, 4*s);            // visor band
+    ctx.fillStyle='#2fd8ff'; ctx.fillRect(sx-5*s, by-54*s, 10*s, 2*s);            // visor glow
+    ctx.fillRect(sx-0.7*s, by-61*s, 1.4*s, 5*s);                                 // antenna
+  }
   if(tint && tintAmt>0){
     ctx.globalAlpha=clamp(tintAmt,0,1); ctx.fillStyle=tint;
     ctx.fillRect(sx-9*s, by-46*s, 18*s, 32*s);
@@ -2615,10 +2646,10 @@ function drawFoePlaceholder(sx,by,face,scale,body,skin,phase,atk,tint,tintAmt){
 }
 
 function drawVamp(e){ const sx=e.x-camX;
-  const isDarnell = e.skin==='darnell';
-  // Darnell's "built different" roll doubles as his dark/evil form — same slot vampires
-  // use for their tougher 1-in-6, reused instead of a new mechanic.
-  const dark = isDarnell && e.elite;
+  const isRobocop = e.type==='robocop';
+  // Robotic Police's "built different" roll doubles as its dark/malfunctioning drone form —
+  // same slot every enemy type uses for its tougher 1-in-6, reused instead of a new mechanic.
+  const dark = isRobocop && e.elite;
   const f = e.face>0?-1:1;
   const spin = e.state==='launch'||e.dead;
   // the dark form doesn't walk — it hovers. shadow stays pinned to the ground while
@@ -2661,9 +2692,10 @@ function drawVamp(e){ const sx=e.x-camX;
   if(e.recoilT>0 && !spin && !dark){
     const k=e.recoilT/9; rx=(e.recoil||1)*k*6; rlean=(e.recoil||1)*k*0.22; }
   if(rlean){ ctx.save(); ctx.translate(sx+rx,e.z); ctx.rotate(rlean); ctx.translate(-(sx+rx),-e.z); }
-  const body = dark?'#241a38':(isDarnell?'#7a5a3a':'#3f6fae');
-  const skin = dark?'#3a2a52':(isDarnell?'#c98a5a':'#e0a370');
-  drawFoePlaceholder(sx+rx, e.z-e.y-hover, f, e.sc||1, body, skin, e.anim, e.state==='atk', et, ea);
+  const pal = ENEMY_PAL[e.type]||ENEMY_PAL.guard;
+  const body = dark?'#241a38':pal.body;
+  const skin = dark?'#3a2a52':pal.skin;
+  drawFoePlaceholder(sx+rx, e.z-e.y-hover, f, e.sc||1, body, skin, e.anim, e.state==='atk', et, ea, dark?null:e.type);
   if(rlean) ctx.restore();
   if(spin) ctx.restore();
   ctx.globalAlpha=1;

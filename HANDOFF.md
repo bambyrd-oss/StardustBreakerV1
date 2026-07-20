@@ -13,8 +13,15 @@
 - Full daytime reskin: sunset sky that drifts hue with world-x (no hard seams), saturated
   tall/skinny apartment towers with cafe storefronts (coffee/matcha/smoothie names), awnings,
   stoop steps, crosswalks, and street furniture — a Scott Pilgrim commercial-strip look.
-- Street enemies and crowd bystanders are generic placeholder silhouettes now — the old
+- Street enemies and crowd bystanders are placeholder silhouettes now — the old
   vampire/Darnell FATBACK art is fully unpacked (not just hidden) in `src/pack.py`.
+- Street enemies are differentiated into the four named types from the spec (Security
+  Guards, Corrupt Politicians, Corporate Mascots, Robotic Police) — distinct flat-color
+  bodies plus a small accessory each (cap+badge, tie+gray hair, bowtie+big eyes,
+  visor+antenna), see `ENEMY_PAL`/`REGULAR_TYPES` and `drawFoePlaceholder()` in
+  `src/game.html`. Robotic Police is still the rarer "mixed in" unit and the only type
+  with an elite dark/hovering drone form (ranged plasma) — same slot the old Darnell
+  reskin used, just renamed (`e.type==='robocop'`).
 - Boss-backup mobs reskinned from a walking burger to a living eviction notice
   (`drawSammich()` in `src/game.html`).
 - Finger guns: every punch pops a small dot projectile. "POW" is the only combat floating-text
@@ -31,11 +38,11 @@ Everything above is committed to `main` and green under `node src/harness.js`.
 ## Known gaps vs. the game spec (not started)
 
 1. **Real art** — BamBam and all enemies are still placeholders (one static hero pose, flat-color
-   enemy shapes). The four named enemy types (Security Guards, Corrupt Politicians, Corporate
-   Mascots, Robotic Police) don't exist visually yet. `.mcp.json` has a PixelLab MCP server
-   already configured for generating this — see the README's "Art pipeline" section for the
-   direction-count rules before generating more (don't generate 8 directions for a 3-direction
-   need).
+   enemy shapes). The four named enemy types now read apart from each other by silhouette/color/
+   accessory (see above), but none of them are real generated sprites yet. `.mcp.json` has a
+   PixelLab MCP server already configured for generating this — see the README's "Art pipeline"
+   section for the direction-count rules before generating more (don't generate 8 directions for
+   a 3-direction need).
 2. **Music** — no soundtrack system at all, only WebAudio SFX blips (`blip()` in `src/game.html`).
    The spec calls for a jazz/hip-hop soundtrack that evolves per stage.
 3. **Kick** — the combo string is punch-only (jab, jab 2, cross, launcher — see `COMBO` in

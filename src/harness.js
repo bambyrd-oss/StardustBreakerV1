@@ -172,9 +172,9 @@ if(!err){
     let ticks=0;
     while(g.busMob && g.busMob.phase==='arrive' && ticks<200){ g.updateBusMob(); ticks++; }
     if(!g.busMob || g.busMob.phase!=='stopped') throw new Error('bus never reached its stop, phase='+(g.busMob&&g.busMob.phase));
-    const dropped=g.ents.filter(e=>e.k==='vamp').length;   // vamps + Darnells only, both ride the 'vamp' entity type — no rats off this bus
+    const dropped=g.ents.filter(e=>e.k==='vamp').length;   // all four street-enemy types ride the 'vamp' entity kind — no rats off this bus
     if(dropped<20) throw new Error('bus mob dropped too few enemies: '+dropped);
-    if(g.ents.some(e=>e.k==='rat')) throw new Error('bus mob spawned a rat — should be vamps/Darnells only');
+    if(g.ents.some(e=>e.k==='rat')) throw new Error('bus mob spawned a rat — should be street enemies only');
     console.log('        bus stopped and dropped '+dropped+' enemies');
     while(g.busMob && ticks<3000){ g.updateBusMob(); ticks++; }
     if(g.busMob) throw new Error('bus never left after '+ticks+' ticks');
@@ -200,11 +200,11 @@ if(!err){
   scene('Freedom Meter: fills on kills, and a full meter unleashes the Imagination attack', ()=>{
     const g=__G(); g.releaseArena();
     g.P.x=1200; g.P.z=300; g.P.state='idle'; g.P.y=0; g.P.vy=0; g.setCamLock(0);
-    g.P.freedom=0; const e=g.vamp(g.P.x+18,g.P.z,false,false); e.hp=e.maxhp=1; g.spawn(e);
+    g.P.freedom=0; const e=g.vamp(g.P.x+18,g.P.z,false,false,'guard'); e.hp=e.maxhp=1; g.spawn(e);
     g.connect(e,{name:'jab',dmg:20,push:0,stun:20,y:0});
     if(!(g.P.freedom>0)) throw new Error('a kill should fill the Freedom Meter');
     g.P.freedom=g.P.maxFreedom; __tick(20); g.P.state='idle'; g.P.y=0; g.P.vy=0;   // let the kill's hitstop settle, then re-plant on the ground
-    const e2=g.vamp(g.P.x+20,g.P.z,false,false); g.spawn(e2); const hp0=e2.hp;
+    const e2=g.vamp(g.P.x+20,g.P.z,false,false,'guard'); g.spawn(e2); const hp0=e2.hp;
     __key('KeyL',true); __tick(1); __key('KeyL',false);
     if(g.P.state!=='imagine') throw new Error('a full meter should trigger the Imagination attack on press');
     __tick(3);
@@ -241,7 +241,7 @@ if(!err){
     console.log('        peak fire particles alive: '+peak);
   });
   scene('elite vamp full lifecycle', ()=>{
-    const g=__G(); g.ents.push(g.vamp(g.P.x+40,300,false,true)); __tick(500); __draw();
+    const g=__G(); g.ents.push(g.vamp(g.P.x+40,300,false,true,'guard')); __tick(500); __draw();
   });
   scene('take a hit / knockdown', ()=>{
     const g=__G(); g.P.iframes=0; g.hurtPlayer(20,g.P.x+30); __tick(120); __draw();
@@ -355,7 +355,7 @@ if(!err){
     const miss={x:b.x + (b.w+40), z:b.z, rw:2, rd:6};       // 40px past → beyond the +25 pad, should whiff
     if(g.hits(miss,b)) throw new Error('40px past the edge should be out of the padded hurtbox');
     // an ordinary street enemy gets NO pad
-    const e=g.vamp(1000,300,false,false);
+    const e=g.vamp(1000,300,false,false,'guard');
     const near={x:e.x + (e.w+22), z:e.z, rw:2, rd:6};
     if(g.hits(near,e)) throw new Error('the pad is boss-only — a vamp should not get it');
     console.log('        boss hurtbox pads +25px horizontally; street enemies unchanged');
@@ -364,7 +364,7 @@ if(!err){
     const g=__G(); g.releaseArena();
     g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=280; g.P.y=0; g.P.state='idle'; g.P.iframes=999;
     g.setCamLock(Math.max(0,g.P.x-170)); g.night.slams=0;
-    const mk=()=>{ const e=g.vamp(g.P.x+24,278,false); e.state='walk'; e.hitstun=0; g.spawn(e); return e; };
+    const mk=()=>{ const e=g.vamp(g.P.x+24,278,false,undefined,'guard'); e.state='walk'; e.hitstun=0; g.spawn(e); return e; };
     // START the grab — works anywhere now, no curb requirement
     let e=mk();
     if(!g.grabbable()) throw new Error('should be able to grab nearby');
@@ -395,7 +395,7 @@ if(!err){
     const g=__G(); g.releaseArena();
     g.P.hp=g.P.maxhp=1000; g.P.x=1200; g.P.z=280; g.P.y=0; g.P.state='idle'; g.P.iframes=0;
     g.setCamLock(Math.max(0,g.P.x-170));
-    const grabYou=()=>{ const e=g.vamp(g.P.x+22,278,false); e.state='grabbing'; e.grabT=0; e.face=-1; g.spawn(e);
+    const grabYou=()=>{ const e=g.vamp(g.P.x+22,278,false,undefined,'guard'); e.state='grabbing'; e.grabT=0; e.face=-1; g.spawn(e);
       g.P.state='grabbed'; g.P.grabbedBy=e; g.P.struggle=0; return e; };
     // DON'T mash → you get slammed down (heavy, but you survive) — anywhere, not just at a curb
     let e=grabYou(); const hp0=g.P.hp;
@@ -435,7 +435,7 @@ if(!err){
     const g=__G(); g.releaseArena();
     g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=260; g.P.y=0; g.P.state='idle'; g.P.iframes=99999; g.P.face=1;
     g.setCamLock(Math.max(0,g.P.x-170));
-    const mk=()=>{ const e=g.vamp(g.P.x+30,260,false,false); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e); return e; };
+    const mk=()=>{ const e=g.vamp(g.P.x+30,260,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e); return e; };
     const swing=()=>{ __key('KeyJ',true); __tick(1); __key('KeyJ',false); for(let i=0;i<22;i++) __tick(1); };
     let e=mk(); g.P.weapon=null; let hp0=e.hp; swing(); const unarmed=hp0-e.hp;
     if(!(unarmed>0)) throw new Error('unarmed jab did not connect ('+unarmed+')');
@@ -451,7 +451,7 @@ if(!err){
     const g=__G(); g.releaseArena();
     g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=260; g.P.y=0; g.P.state='idle'; g.P.iframes=99999; g.P.face=1;
     g.setCamLock(Math.max(0,g.P.x-170));
-    const e=g.vamp(g.P.x+28,260,false,false); e.state='walk'; e.hp=e.maxhp=1000; g.spawn(e);
+    const e=g.vamp(g.P.x+28,260,false,false,'guard'); e.state='walk'; e.hp=e.maxhp=1000; g.spawn(e);
     g.P.weapon={type:'bottle',dur:g.WEAPONS.bottle.dur};
     __key('KeyJ',true); __tick(1); __key('KeyJ',false); for(let i=0;i<22;i++) __tick(1);
     if(g.P.weapon) throw new Error('a bottle (dur 1) should shatter on the first connect');
@@ -461,7 +461,7 @@ if(!err){
     const g=__G(); g.releaseArena();
     g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=260; g.P.y=0; g.P.state='idle'; g.P.iframes=99999; g.P.face=1;
     g.setCamLock(Math.max(0,g.P.x-170));
-    const e=g.vamp(g.P.x+90,260,false,false); e.state='walk'; e.hp=e.maxhp=1000; g.spawn(e); const hp0=e.hp;
+    const e=g.vamp(g.P.x+90,260,false,false,'guard'); e.state='walk'; e.hp=e.maxhp=1000; g.spawn(e); const hp0=e.hp;
     g.P.weapon={type:'pipe',dur:g.WEAPONS.pipe.dur};
     __key('KeyJ',true);                                    // press and KEEP holding
     let sawFire=false; for(let i=0;i<50 && g.P.weapon;i++){ __tick(1); if(g.fires.some(f=>f.weapon)) sawFire=true; }
@@ -505,7 +505,7 @@ if(!err){
   });
   scene('death does NOT wipe the screen', ()=>{
     const g=__G(); g.clearEnts();
-    g.spawn(g.vamp(g.P.x+80,300,false,false));
+    g.spawn(g.vamp(g.P.x+80,300,false,false,'guard'));
     g.spawn(g.rat(g.P.x+120,300,false,{big:true}));
     const bigBefore=g.ents.find(e=>e.big); bigBefore.hp=70;   // half-killed big rat
     const before=g.ents.length;
@@ -562,7 +562,7 @@ if(!err){
     const meP={ id:'me', setState:(k,v)=>{s[k]=v;}, getState:k=>s[k] };
     global.Playroom={ myPlayer:()=>meP, getState:()=>null, setState:()=>{} };
     __setMP(true);
-    g.clearEnts(); g.spawn(g.vamp(500,306,false)); g.spawn(g.rat(560,310));
+    g.clearEnts(); g.spawn(g.vamp(500,306,false,undefined,'guard')); g.spawn(g.rat(560,310));
     g.coopBroadcastEnts();
     const ok = s.ents && !Array.isArray(s.ents) && Object.keys(s.ents).length===2;
     g.clearEnts(); g.coopMirrorEnts();
