@@ -608,9 +608,9 @@ function lerpHex(a,b,t){   // '#rrggbb' blend — used to drift the sky's hue as
   return '#'+_hx(ar+(br-ar)*t)+_hx(ag+(bg-ag)*t)+_hx(ab+(bb-ab)*t);
 }
 // the whole strip is walkable — sidewalk AND road, no cars, no curb line. FLOOR_S/CURB/ROAD
-// still mark where the ground texture changes from sidewalk to asphalt; ROAD_TARGET is just
-// the deepest a grab-toss/knockdown can push someone.
-const FLOOR_N=228, FLOOR_S=312, CURB=316, ROAD=320, ROAD_TARGET=340;
+// still mark where the ground texture changes from sidewalk to asphalt (a slim sidewalk, a
+// wide street); ROAD_TARGET is just the deepest a grab-toss/knockdown can push someone.
+const FLOOR_N=228, FLOOR_S=268, CURB=272, ROAD=276, ROAD_TARGET=344;
 
 let debugFD='';
 
@@ -719,7 +719,7 @@ let bestScore=(()=>{ try{ return +(localStorage.getItem('bambam_best')||0)||0; }
 
 const P={};
 function reset(){
-  Object.assign(P,{x:120,z:300,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
+  Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
     dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,
     stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
@@ -2005,7 +2005,7 @@ function update(){
 }
 // put the player back on their feet in place — no money loss; lives are the cost now.
 function respawn(){
-  P.hp=P.maxhp; P.x=Math.max(20,camX+40); P.z=300; P.y=0; P.vy=0; P.state='idle';
+  P.hp=P.maxhp; P.x=Math.max(20,camX+40); P.z=245; P.y=0; P.vy=0; P.state='idle';
   P.downed=false;                                  // respawn puts you on your feet — never leave the down flag set (continue path relies on this)
   P.step=0; P.buf=0; P.downT=0; P.iframes=110;
   P.cageB=null; P.struggle=0; if(boss) boss.caged=false;   // spring the briefcase if you died inside it
