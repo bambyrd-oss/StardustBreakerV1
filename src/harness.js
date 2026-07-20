@@ -87,14 +87,17 @@ const driver = `
    get lives(){return lives}, get night(){return night}, get dawnShown(){return dawnShown},
    get continueOn(){return continueOn}, get DAWN_X(){return DAWN_X},
    get busMob(){return busMob},
+   get stageNum(){return stageNum}, get wavesThisStage(){return wavesThisStage},
+   get shopOpen(){return shopOpen}, get BOSS_ARCH(){return BOSS_ARCH},
    spawn:(e)=>ents.push(e), clearEnts:()=>{ ents.length=0; },
    setCamLock:(v)=>{ camLock=v; camX=v; }, setBest:(v)=>{ best=v; }, setLives:(v)=>{ lives=v; },
+   setWaves:(n)=>{ wavesThisStage=n; }, setStage:(n)=>{ stageNum=n; }, setBossDone:(n)=>{ bossDone=n; },
    setBusMobAt:(v)=>{ busMobAt=v; },   // deterministic suite: park the once-a-run roll so it can't fire mid-scene
    releaseArena:()=>{ ents.length=0; camLock=null; boss=null; bossDone=0; hitstop=0; fires.length=0; },
    rat,vamp,connect,hurtPlayer,setShop,buy,spawnWave,tier,stream,update,render,aggro,coopApply,coopBroadcastEnts,coopMirrorEnts,
    tryGrab,grabbable,atCurb,splatInTraffic,dropGrab,launchGrabbed,tossPlayerToStreet,
    throwWeapon,drop, get WEAPONS(){return WEAPONS},
-   genBoss,spawnBoss,updateBoss,killBoss,hits,atkBox,
+   genBoss,spawnBoss,updateBoss,killBoss,hits,atkBox,stageCleared,
    buyContinue,callItNight,continueCost,
    gainFreedom,gainXp,loseHeart,heavyHitAt,maxComboStep,xpToLevel,
    spawnBusMob,updateBusMob});
@@ -142,12 +145,12 @@ function scene(name, fn){
 if(!err){
   const G=globalThis.__G();
   console.log('\nscenarios:');
-  scene('title screen runs 900 ticks (drink loop, ambient, card)', ()=>{
+  scene('title screen runs 900 ticks (Imagination demo loop, ambient, card)', ()=>{
     if(__mode()!=='title') throw new Error('did not boot to title, got: '+__mode());
-    let peak=0;
-    for(let i=0;i<900;i++){ __titleTick(); __titleRender(); peak=Math.max(peak,__G().P.drunk); }
-    if(peak<70) throw new Error('title never reaches the warp; peak drunk '+peak.toFixed(0));
-    console.log('        peak drunk on the loop: '+Math.round(peak));
+    let sawImagine=false;
+    for(let i=0;i<900;i++){ __titleTick(); __titleRender(); if(__G().P.state==='imagine') sawImagine=true; }
+    if(!sawImagine) throw new Error('title screen never demoed the Imagination attack');
+    console.log('        title loop demoed the Imagination attack');
   });
   scene('PRESS START -> play', ()=>{
     __start();
@@ -181,13 +184,51 @@ if(!err){
   scene('mash punch 600 ticks (full combo, connects)', ()=>{
     for(let i=0;i<600;i++){ if(i%7===0) __key('KeyJ',true); else __key('KeyJ',false); __tick(1); }
   });
-  scene('drink to empty then dry-fire', ()=>{
-    const g=__G(); g.P.bottles=3;
-    for(let i=0;i<400;i++){ __key('KeyL', i%40===0); __tick(1); }
-    if(g.P.bottles>0) throw new Error('bottles not spent: '+g.P.bottles);
+  scene('hearts: a light hit costs half a heart (no knockdown), a heavy hit costs a full heart (knockdown)', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.hp=g.P.maxhp; g.P.iframes=0; g.P.state='idle';
+    const hp0=g.P.hp;
+    g.hurtPlayer(5, g.P.x+30);                          // below heavyHitAt() (10) -> half heart
+    if(g.P.hp!==hp0-0.5) throw new Error('light hit should cost half a heart, hp '+hp0+'->'+g.P.hp);
+    if(g.P.state==='down') throw new Error('a half-heart hit should not knock you down');
+    g.P.iframes=0; const hp1=g.P.hp;
+    g.hurtPlayer(20, g.P.x+30);                         // above heavyHitAt() -> full heart + knockdown
+    if(g.P.hp!==hp1-1) throw new Error('heavy hit should cost a full heart, hp '+hp1+'->'+g.P.hp);
+    if(g.P.state!=='down') throw new Error('a full-heart hit should knock you down');
+    console.log('        half heart (no kd) then full heart (kd) — hp ended at '+g.P.hp);
   });
-  scene('drunk to 100 + render (composite, warp, lean, stumble)', ()=>{
-    const g=__G(); g.P.drunk=100; __tick(200); __draw();
+  scene('Freedom Meter: fills on kills, and a full meter unleashes the Imagination attack', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=300; g.P.state='idle'; g.P.y=0; g.P.vy=0; g.setCamLock(0);
+    g.P.freedom=0; const e=g.vamp(g.P.x+18,g.P.z,false,false); e.hp=e.maxhp=1; g.spawn(e);
+    g.connect(e,{name:'jab',dmg:20,push:0,stun:20,y:0});
+    if(!(g.P.freedom>0)) throw new Error('a kill should fill the Freedom Meter');
+    g.P.freedom=g.P.maxFreedom; __tick(20); g.P.state='idle'; g.P.y=0; g.P.vy=0;   // let the kill's hitstop settle, then re-plant on the ground
+    const e2=g.vamp(g.P.x+20,g.P.z,false,false); g.spawn(e2); const hp0=e2.hp;
+    __key('KeyL',true); __tick(1); __key('KeyL',false);
+    if(g.P.state!=='imagine') throw new Error('a full meter should trigger the Imagination attack on press');
+    __tick(3);
+    if(g.P.freedom>1) throw new Error('using the attack should drain the meter, left '+g.P.freedom);
+    if(!(e2.hp<hp0)) throw new Error('the Imagination burst should hit nearby enemies');
+    __tick(60); __draw();
+    console.log('        Freedom Meter filled on kill, drained on use, hit enemies in range');
+  });
+  scene('XP leveling unlocks the combo string (level 1: 2 hits, level 3: the full launcher)', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=300; g.P.state='idle'; g.P.y=0; g.setCamLock(0); g.P.xp=0;
+    // force level 1 and confirm the chain caps at step 1 (jab, jab2 — no cross/launcher)
+    const P=g.P; P.level=1; P.step=0; P.st=0; P.buf=0; P.state='punch'; P.hitDone=false; P.connected=true;
+    let maxStep=0;
+    for(let i=0;i<200;i++){ __key('KeyJ',true); __tick(1); __key('KeyJ',false); __tick(1); maxStep=Math.max(maxStep,P.step); }
+    if(maxStep>1) throw new Error('level 1 should cap the combo at step 1 (jab2), reached step '+maxStep);
+    // level up to 3 and confirm the launcher (step 3) becomes reachable
+    for(let i=0;i<20 && P.level<3;i++) g.gainXp(g.xpToLevel(P.level));
+    if(P.level<3) throw new Error('gainXp did not reach level 3');
+    P.step=0; P.st=0; P.buf=0; P.state='punch'; P.hitDone=false; P.connected=true; maxStep=0;
+    for(let i=0;i<200;i++){ __key('KeyJ',true); __tick(1); __key('KeyJ',false); __tick(1); maxStep=Math.max(maxStep,P.step); }
+    if(maxStep<3) throw new Error('level 3 should unlock the launching 4th hit, only reached step '+maxStep);
+    __key('KeyJ',false);
+    console.log('        level 1 capped at step 1; level '+P.level+' reached the launcher (step 3)');
   });
   scene('fire rats + big rat', ()=>{
     const g=__G();
@@ -205,195 +246,109 @@ if(!err){
   scene('take a hit / knockdown', ()=>{
     const g=__G(); g.P.iframes=0; g.hurtPlayer(20,g.P.x+30); __tick(120); __draw();
   });
-  scene('date: nail the rhythm flirt → resolves with conf', ()=>{
-    const g=__G(); g.ents.length=0;
-    const n=g.npcs.find(q=>!q.talked && !q.scammer) || g.npcs[0];
-    n.talked=false; n.scammer=false; n.trueTier=7; n.blown=false;
-    g.P.x=n.x; g.P.z=n.z; g.P.conf=50; g.P.drunk=0;
-    g.startDate(n);                                  // (talk-init calls this; drive it directly for a clean test)
-    if(!g.dateOn) throw new Error('startDate did not begin the date');
-    const conf0=g.P.conf, KEYS=['KeyJ','KeyK','KeyL','KeyE'];
-    let guard=0;
-    while(g.dateOn && guard++<3000){
-      const d=g.date;
-      for(const nt of d.notes){ if(!nt.hit&&!nt.miss && Math.abs(nt.hitT-d.t)<=2) __key(KEYS[nt.lane],true); }
-      __tick(1); __draw();
-      for(const k of KEYS) __key(k,false);
-    }
-    if(g.dateOn) throw new Error('date never ended');
-    if(!n.talked) throw new Error('date did not resolve');
-    if(g.P.conf<=conf0) throw new Error('a nailed date gave no confidence');
-    console.log('        nailed date; conf '+conf0+' -> '+Math.round(g.P.conf));
-  });
-  scene('date: bombing the rhythm blows her off', ()=>{
-    const g=__G(); g.ents.length=0;
-    const n=g.npcs.find(q=>!q.talked) || g.npcs[0];
-    n.talked=false; n.blown=false; n.trueTier=7;
-    g.P.x=n.x; g.P.z=n.z; g.P.conf=60; g.P.drunk=0;
-    g.startDate(n);
-    if(!g.dateOn) throw new Error('startDate did not begin the date');
-    let guard=0; while(g.dateOn && guard++<3000){ __tick(1); }   // press nothing → miss everything
-    if(!n.talked) throw new Error('bombed date did not resolve');
-    if(!n.blown) throw new Error('bombing should blow her off');
-    __draw();
-  });
-  scene('deli boss: henchmen → boot → gun, renders every phase', ()=>{
+  scene('Landlord D. Evict: guards → eviction notices → exhausted and dizzy', ()=>{
     const g=__G(); g.clearEnts();
     g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle';
     g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'deli'); const b=g.boss;
-    if(!b||b.arch!=='deli') throw new Error('deli did not spawn');
+    g.spawnBoss(1,'landlord'); const b=g.boss;
+    if(!b||b.arch!=='landlord') throw new Error('landlord did not spawn');
     for(let i=0;i<60;i++){ __tick(1); __draw(); }               // intro + guard
-    if(g.ents.filter(e=>e.k==='sammich'&&!e.dead).length<3) throw new Error('deli spawned no henchmen');
-    if(b.phase!=='guard') throw new Error('deli not in guard phase');
-    for(const e of g.ents) if(e.k==='sammich') e.dead=1;         // beat the sandwiches
-    for(let i=0;i<40;i++){ __tick(1); __draw(); }               // boot phase
-    if(b.phase!=='boot') throw new Error('deli did not enter boot phase, got '+b.phase);
-    b.hp=Math.round(b.maxhp*0.2);                                // trip the gun
-    let sawBullet=false;
-    for(let i=0;i<200;i++){ __tick(1); __draw(); if(g.fires.some(f=>f.bullet)) sawBullet=true; }
-    if(b.phase!=='gun') throw new Error('deli did not pull the gun under 25%');
-    if(!sawBullet) throw new Error('gun phase fired no bullets');
-    console.log('        deli guard→boot→gun ok; bullets sprayed');
-  });
-  scene('subway boss: the train sweeps the rail and ends cleanly (no softlock)', ()=>{
-    const g=__G(); g.clearEnts();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=232; g.P.y=0; g.P.vy=0; g.P.drunk=80; g.P.state='idle';
-    g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'subway'); const b=g.boss;
-    if(!b||b.arch!=='subway') throw new Error('subway boss did not spawn');
-    for(let i=0;i<50;i++){ __tick(1); __draw(); }
-    b.trainCd=1; let sawTrain=false; const hp0=g.P.hp;
-    for(let i=0;i<220;i++){ if(g.P.hp>=hp0){ g.P.z=232; g.P.iframes=0; } __tick(1); __draw(); if(b.state==='train') sawTrain=true; }
-    if(!sawTrain) throw new Error('the train never swept');
-    if(b.state==='train') throw new Error('train never ended — softlock');   // regression guard for the dir bug
-    if(!(g.P.hp<hp0)) throw new Error('the train did not hit a player on the rail');
-    if(!(g.P.drunk<80)) throw new Error('the train should sober you');
-    console.log('        train swept + ended; drunk 80→'+Math.round(g.P.drunk));
-  });
-  scene('halal boss: throws skewers, ducks behind the cart (shielded)', ()=>{
-    const g=__G(); g.clearEnts();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle';
-    g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'halal'); const b=g.boss;
-    if(!b||b.arch!=='halal') throw new Error('halal boss did not spawn');
-    __tick(60);
-    let sawSkewer=false;
-    for(let i=0;i<220;i++){ __tick(1); __draw(); if(g.fires.some(f=>f.skewer)) sawSkewer=true; }
-    if(!sawSkewer) throw new Error('the cart man threw no skewers');
-    b.duckCd=1; let ticks=0; while(b.state!=='duck' && ticks++<160){ __tick(1); __draw(); }
-    if(b.state!=='duck') throw new Error('cart man never ducked');
-    const hp0=b.hp; g.P.x=b.x-24; g.P.face=1; g.P.iframes=0;
-    g.connect(b,{dmg:40,stun:10});
-    if(b.hp<hp0) throw new Error('ducked cart man took damage through the cart');
-    console.log('        skewers thrown; ducked = shielded');
-  });
-  scene('auteur boss: clapper/tornado + the tidy window is vulnerable', ()=>{
-    const g=__G(); g.clearEnts();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle';
-    g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'auteur'); const b=g.boss;
-    if(!b||b.arch!=='auteur') throw new Error('auteur did not spawn');
-    for(let i=0;i<40;i++){ __tick(1); __draw(); }
-    b.tidyCd=999;
-    const force=(mv,wl,al)=>{ b.state='wind'; b.st=0; b.move=mv; b.windLen=wl; b.atkLen=al;
-      for(let i=0;i<wl+al+6;i++){ __tick(1); __draw(); } };
-    force('clap',16,22); if(!g.fires.some(f=>f.clap)) throw new Error('no clapperboard');
-    force('tornado',26,24); if(!g.fires.some(f=>f.tornado)) throw new Error('no tornado');
-    b.tidyCd=1; let ticks=0; while(b.state!=='tidy' && ticks++<200){ __tick(1); __draw(); }
-    if(b.state!=='tidy') throw new Error('auteur never tidied');
+    if(g.ents.filter(e=>e.k==='sammich'&&!e.dead).length<3) throw new Error('landlord summoned no security');
+    if(b.phase!=='guard') throw new Error('landlord not in guard phase');
+    for(const e of g.ents) if(e.k==='sammich') e.dead=1;         // clear his security
+    for(let i=0;i<40;i++){ __tick(1); __draw(); }               // notices phase
+    if(b.phase!=='notices') throw new Error('landlord did not move to the notices phase, got '+b.phase);
+    let sawNotice=false;
+    for(let i=0;i<200;i++){ __tick(1); __draw(); if(g.fires.some(f=>f.paper)) sawNotice=true; }
+    if(!sawNotice) throw new Error('landlord never threw an eviction notice');
+    b.hp=Math.round(b.maxhp*0.2); __tick(2);                     // exhaust him
+    if(b.phase!=='dizzy') throw new Error('landlord did not get dizzy under 25% hp');
     const hp0=b.hp; g.P.x=b.x-24; g.P.face=1; g.P.iframes=0;
     g.connect(b,{dmg:30,stun:10});
-    if(!(b.hp<hp0)) throw new Error('the tidy window must be vulnerable');
-    console.log('        clap + tornado + tidy-window-open ok');
+    if(!(b.hp<hp0)) throw new Error('a dizzy landlord should be fully vulnerable');
+    console.log('        guards→notices→dizzy ok; wide open once exhausted');
   });
-  scene('the night: 3 lives → continue curve → clutch revive → dawn recap', ()=>{
+  scene('B.I.G. Farma: pills/syringes → self-inject buff → crashes when it wears off', ()=>{
+    const g=__G(); g.clearEnts();
+    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle';
+    g.setCamLock(Math.max(0,g.P.x-170));
+    g.spawnBoss(2,'farma'); const b=g.boss;
+    if(!b||b.arch!=='farma') throw new Error('farma did not spawn');
+    for(let i=0;i<40;i++){ __tick(1); __draw(); }
+    const force=(mv,wl,al)=>{ b.state='wind'; b.st=0; b.move=mv; b.windLen=wl; b.atkLen=al;
+      for(let i=0;i<wl+al+6;i++){ __tick(1); __draw(); } };
+    force('throw',16,22); if(!g.fires.some(f=>f.clap)) throw new Error('farma never threw pills');
+    const dmg0=b.dmg;
+    force('inject',20,16);
+    if(!(b.dmg>dmg0) || b.buffT<=0) throw new Error('self-injecting should buff his strength');
+    b.buffT=1; __tick(3); __draw();                     // fast-forward straight to the buff running out
+    if(b.state!=='crash') throw new Error('farma should crash once the high wears off, got '+b.state);
+    const hp0=b.hp; g.P.x=b.x-24; g.P.face=1; g.P.iframes=0;
+    g.connect(b,{dmg:30,stun:10});
+    if(!(b.hp<hp0)) throw new Error('the crash window must be vulnerable');
+    console.log('        pills + self-inject buff + crash-window-open ok');
+  });
+  scene('The President: runs from you, calls in a missile strike, then one punch ends him', ()=>{
+    const g=__G(); g.clearEnts();
+    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle';
+    g.setCamLock(Math.max(0,g.P.x-170));
+    g.spawnBoss(3,'president'); const b=g.boss;
+    if(!b||b.arch!=='president') throw new Error('the president did not spawn');
+    for(let i=0;i<40;i++){ __tick(1); __draw(); }
+    // he runs when you close the distance
+    g.P.x=b.x-40; const x0=b.x;
+    for(let i=0;i<30;i++){ __tick(1); g.P.x=b.x-40; }
+    if(!(Math.abs(b.x-x0)>10)) throw new Error('the president should run rather than stand and fight up close');
+    // three missile strikes end in the one-punch final phase
+    for(let k=0;k<3;k++){ b.strikeCd=1; let ticks=0; while(b.state!=='idle'&&ticks++<120){ __tick(1); __draw(); }
+      while(b.state==='idle'&&!b.finalPhase&&ticks++<400){ __tick(1); __draw(); if(b.strikeCd<=1) break; } }
+    let guard=0; while(!b.finalPhase && guard++<2000){ if(b.strikeCd<=0) b.strikeCd=1; __tick(1); __draw(); }
+    if(!b.finalPhase) throw new Error('the president never reached his one-punch final phase');
+    if(b.hp!==1) throw new Error('final phase should leave him at 1 hp for the finishing punch');
+    const hp0=b.hp; g.P.x=b.x-24; g.P.face=1; g.P.iframes=0;
+    g.connect(b,{dmg:5,stun:10});
+    if(b.hp>0) throw new Error('a single punch should finish him in the final phase');
+    console.log('        ran from a close player; 3 strikes -> final phase -> one punch');
+  });
+  scene('lives → continue cost curve → calling it ends the run on the recap', ()=>{
     const g=__G(); g.releaseArena();
-    g.P.hp=g.P.maxhp=100; g.P.conf=0; g.P.money=1000; g.P.x=200; g.P.z=300; g.setLives(3); g.U.rep=0;
+    g.P.hp=g.P.maxhp=8; g.P.bucks=1000; g.P.x=200; g.P.z=300; g.setLives(3);
     const die=()=>{ g.P.hp=0; __tick(1); };
     die(); die(); if(g.lives!==1) throw new Error('two deaths should leave 1 life, got '+g.lives);
     die(); if(!g.continueOn) throw new Error('continue prompt did not open at 0 lives');
-    if(g.continueCost()!==50) throw new Error('first continue should be $50');
-    g.buyContinue(); die(); if(g.continueCost()!==100) throw new Error('second continue should be $100');
-    g.buyContinue(); die(); if(g.continueCost()!==250) throw new Error('third should be $250');
-    g.buyContinue(); die(); if(g.continueCost()!==500) throw new Error('fourth+ should be $500');
-    // clutch revive: die at full confidence with no money
-    g.buyContinue(); g.P.money=0; g.P.conf=100; g.P.hp=0; __tick(1);
-    if(!g.builtOn) throw new Error('built-different did not fire at full confidence');
-    if(g.continueOn) throw new Error('should skip the money gate at full confidence');
-    g.clutchRevive();
-    if(!(g.lives===1 && g.P.dmgMul===2.5 && g.P.builtT>3000)) throw new Error('clutch should grant a free life + 2.5x');
-    if(g.P.conf!==g.confFloor()) throw new Error('clutch should spend your confidence');
-    // dawn ends the night on the recap (fresh arena + low x so no boss re-triggers)
-    g.releaseArena(); g.P.x=200; g.P.z=300;
-    g.night.bosses=2; g.night.women=3; g.night.cash=200; g.night.reach=g.DAWN_X+10; __tick(1);
-    if(!g.dawnShown) throw new Error('reaching dawn did not fire the recap');
-    console.log('        lives/continue + clutch revive + dawn recap all ok');
+    if(g.continueCost()!==50) throw new Error('first continue should be 50 BB');
+    g.buyContinue(); die(); if(g.continueCost()!==100) throw new Error('second continue should be 100 BB');
+    g.buyContinue(); die(); if(g.continueCost()!==250) throw new Error('third should be 250 BB');
+    g.buyContinue(); die(); if(g.continueCost()!==500) throw new Error('fourth+ should be 500 BB');
+    g.callItNight();
+    if(!g.dawnShown) throw new Error('calling it should show the recap');
+    console.log('        lives/continue curve + call-it recap all ok');
   });
-  scene('tourist boss: bus parks, photo hits in-frame and misses out-of-frame', ()=>{
-    const g=__G(); g.clearEnts();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle';
-    g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'tourist'); const b=g.boss;
-    if(!b||b.arch!=='tourist') throw new Error('tourist did not spawn');
-    for(let i=0;i<60;i++){ __tick(1); __draw(); }
-    if(Math.abs(b.busX-b.busPark)>50) throw new Error('the tour bus never parked');
-    b.state='wind'; b.st=0; b.move='photo'; b.windLen=30; b.photo=null; g.P.iframes=0;
-    const hp0=g.P.hp;
-    for(let i=0;i<50;i++){ __tick(1); __draw(); }
-    if(!(g.P.hp<hp0)) throw new Error('in-frame photo did no damage');
-    g.P.hp=g.P.maxhp; g.P.z=300; g.P.iframes=0;
-    b.state='wind'; b.st=0; b.move='photo'; b.windLen=30; b.photo=null; __tick(2);
-    const f=b.photo, safeZ=f.z-f.rd-10, hp1=g.P.hp;
-    for(let i=0;i<50;i++){ g.P.z=safeZ; g.P.iframes=0; __tick(1); __draw(); }
-    if(g.P.hp<hp1) throw new Error('out-of-frame still ate the photo');
-    console.log('        bus parked; in-frame flashed, out-of-frame safe');
-  });
-  scene('bosses can only sober you twice a fight, and drink softens their hits', ()=>{
-    const g=__G(); g.clearEnts();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.state='idle';
-    g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'bouncer'); const b=g.boss;                 // spawnBoss resets the per-fight sober count
-    const heavy=()=>{ g.P.drunk=100; g.P.iframes=0; g.P.state='idle'; g.hurtPlayer(10,b.x,50); };
-    heavy(); const after1=g.P.drunk;                          // #1 sobers
-    heavy();                                                  // #2 sobers
-    heavy();                                                  // #3 must NOT sober
-    if(!(after1<100)) throw new Error('the first heavy hit should sober you');
-    if(g.P.drunk!==100) throw new Error('a third heavy hit must not sober you (cap is 2), drunk='+g.P.drunk);
-    // light pokes/projectiles do NOT sober you at all during a boss fight (only the 2 heavy hits do)
-    g.P.drunk=100; g.P.iframes=0; g.P.state='idle'; g.hurtPlayer(6,b.x,10);
-    if(g.P.drunk!==100) throw new Error('light pokes must not sober you during a boss fight, drunk='+g.P.drunk);
-    // alcohol dulls the pain: the same hit costs less HP when you're lit
-    g.P.drunk=0;   g.P.iframes=0; g.P.state='idle'; g.P.hp=1000; g.hurtPlayer(100,b.x,0); const soberDmg=1000-g.P.hp;
-    g.P.drunk=100; g.P.iframes=0; g.P.state='idle'; g.P.hp=1000; g.hurtPlayer(100,b.x,0); const drunkDmg=1000-g.P.hp;
-    if(!(drunkDmg<soberDmg)) throw new Error('being drunk should reduce damage taken: '+drunkDmg+' vs '+soberDmg);
-    console.log('        sober cap = 2; drunk softens the blow ('+Math.round(drunkDmg)+' vs '+Math.round(soberDmg)+' HP)');
-  });
-  scene('boss enrage: ~20% roll a second wind under 25%; it heals to 50% once, then faster', ()=>{
-    const g=__G();
-    // RATE — over many bosses dropped under 25%, roughly 1 in 5 gets the second wind (not every time, not never)
-    let enr=0; const N=40;
-    for(let k=0;k<N;k++){ g.clearEnts(); g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.state='idle'; g.P.iframes=999;
-      g.setCamLock(Math.max(0,g.P.x-170)); g.spawnBoss(2,'bouncer'); const bb=g.boss;
-      for(let i=0;i<50;i++) __tick(1); bb.hp=Math.round(bb.maxhp*0.20); __tick(1); if(bb.enraged) enr++; }
-    if(enr===0) throw new Error('the second wind never fired over '+N+' bosses');
-    if(enr>N*0.55) throw new Error('the second wind fires too often ('+enr+'/'+N+') — should be ~20%, not near-always');
-    // EFFECTS — force one and check the heal-once + faster cooldown
-    g.clearEnts(); g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.state='idle'; g.P.iframes=999;
-    g.setCamLock(Math.max(0,g.P.x-170)); g.spawnBoss(2,'bouncer'); const b=g.boss;
-    for(let i=0;i<50;i++) __tick(1);
-    b.hp=Math.round(b.maxhp*0.20); g.enrageBoss(b);
-    if(!b.enraged || Math.abs(b.hp-b.maxhp*0.5)>2) throw new Error('the second wind should heal back to ~50%');
-    for(let i=0;i<14;i++) __tick(1);
-    b.hp=Math.round(b.maxhp*0.10); for(let i=0;i<3;i++) __tick(1);
-    if(b.hp>b.maxhp*0.15) throw new Error('the second wind must not heal a second time, got '+Math.round(b.hp/b.maxhp*100)+'%');
-    b.state='idle'; b.cd=40; const cd0=b.cd; __tick(1); const drained=cd0-b.cd;
-    if(!(drained>1)) throw new Error('enraged boss should burn its cooldown faster (got '+drained.toFixed(1)+'/frame)');
-    console.log('        second wind ~20% ('+enr+'/'+N+'); heals to 50% once, cd drains '+drained.toFixed(1)+'/frame');
+  scene('stage flow: two waves then a boss; clearing the boss opens the shop and advances the stage', ()=>{
+    const g=__G(); g.releaseArena(); g.setStage(1); g.setWaves(0); g.setBossDone(0);
+    g.P.hp=g.P.maxhp; g.P.x=200; g.P.z=300; g.P.y=0; g.P.state='idle';
+    g.setWaves(2);                                     // two waves already cleared
+    let ticks=0; while(!g.boss && ticks++<200){ __tick(1); }
+    if(!g.boss) throw new Error('the stage boss never spawned after 2 waves');
+    if(g.boss.arch!=='landlord') throw new Error('stage 1 should spawn Landlord D. Evict, got '+g.boss.arch);
+    g.killBoss(g.boss); for(const e of g.ents) e.dead=1;   // clear him + any of his guards still standing
+    ticks=0; while(g.boss && ticks++<60){ __tick(1); }
+    if(g.shopOpen!==true) throw new Error('clearing the stage boss should open the between-stage shop');
+    g.setShop(false);
+    if(g.stageNum!==2) throw new Error('closing the shop should advance to stage 2, got '+g.stageNum);
+    if(g.wavesThisStage!==0) throw new Error('the new stage should start with 0 waves cleared');
+    // clearing stage 3's boss wins the run instead of opening another shop
+    g.setStage(3); g.setBossDone(2); g.setWaves(2);
+    ticks=0; while(!g.boss && ticks++<200){ __tick(1); }
+    if(!g.boss || g.boss.arch!=='president') throw new Error('stage 3 should spawn The President');
+    g.killBoss(g.boss); for(const e of g.ents) e.dead=1;
+    ticks=0; while(g.boss && ticks++<60){ __tick(1); }
+    if(!g.dawnShown) throw new Error('clearing stage 3 should end the run on the win recap');
+    console.log('        2 waves -> named boss -> shop -> next stage; stage 3 wins the run');
   });
   scene('boss hurtbox reaches ≥25px past its side (easier to hit)', ()=>{
     const g=__G(); g.clearEnts();
-    g.spawnBoss(2,'bouncer'); const b=g.boss;
+    g.spawnBoss(1,'landlord'); const b=g.boss;
     // a punch box just past the boss's own half-width should still connect thanks to the fat hurtbox
     const swing={x:b.x + (b.w+22), z:b.z, rw:2, rd:6};      // arc sits 22px beyond the boss body edge, only 2px wide
     if(!g.hits(swing,b)) throw new Error('a swing 22px past the boss edge should land (hurtbox pads +25)');
@@ -404,51 +359,6 @@ if(!err){
     const near={x:e.x + (e.w+22), z:e.z, rw:2, rd:6};
     if(g.hits(near,e)) throw new Error('the pad is boss-only — a vamp should not get it');
     console.log('        boss hurtbox pads +25px horizontally; street enemies unchanged');
-  });
-  scene('lawyer boss: serves a subpoena fan, gavel sends a shockwave, open on recover', ()=>{
-    const g=__G(); g.clearEnts();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle';
-    g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'lawyer'); const b=g.boss;
-    if(!b||b.arch!=='lawyer') throw new Error('lawyer did not spawn');
-    for(let i=0;i<40;i++){ __tick(1); __draw(); }
-    // force a subpoena — expect a fan of three papers in the air at once
-    b.state='wind'; b.st=0; b.move='subpoena'; b.windLen=16; b.atkLen=22; b.hitDone=false;
-    let fan=0; for(let i=0;i<50;i++){ __tick(1); __draw(); fan=Math.max(fan,g.fires.filter(f=>f.paper).length); }
-    if(fan<3) throw new Error('the lawyer did not serve a 3-paper fan, saw '+fan);
-    // force a gavel slam — expect ground shockwave rings
-    b.state='wind'; b.st=0; b.move='gavel'; b.windLen=22; b.atkLen=30; b.hitDone=false;
-    let sawShock=false; for(let i=0;i<60;i++){ __tick(1); __draw(); if(g.fires.some(f=>f.shock)) sawShock=true; }
-    if(!sawShock) throw new Error('the gavel produced no shockwave');
-    // the recover window is the opening — a clean hit must land
-    b.state='recover'; b.st=0; __tick(1);
-    const hp0=b.hp; g.P.x=b.x-24; g.P.face=1; g.P.iframes=0;
-    g.connect(b,{dmg:30,stun:10});
-    if(!(b.hp<hp0)) throw new Error('lawyer recover window must be vulnerable');
-    console.log('        subpoena fan + gavel shockwave + open on recover');
-  });
-  scene('lawyer boss: the briefcase lockup cages you, bangs you, mash to break out', ()=>{
-    const g=__G(); g.clearEnts();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=8020; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle'; g.P.iframes=0;
-    g.setCamLock(Math.max(0,g.P.x-170));
-    g.spawnBoss(2,'lawyer'); const b=g.boss;
-    if(!b||b.arch!=='lawyer') throw new Error('lawyer did not spawn');
-    for(let i=0;i<50;i++){ __tick(1); __draw(); }         // settle past the intro + entrance i-frames
-    // force the grab from point-blank — expect to get caged
-    g.P.state='idle'; g.P.cageB=null; b.caged=false;      // clear anything the settle loop started
-    b.x=g.P.x+50; b.z=g.P.z; b.face=-1; g.P.iframes=0;
-    b.state='wind'; b.st=0; b.move='lockup'; b.windLen=18; b.atkLen=74; b.hitDone=false;
-    let caged=false; for(let i=0;i<30;i++){ __tick(1); __draw(); if(g.P.state==='caged') caged=true; g.P.iframes=0; }
-    if(!caged) throw new Error('the point-blank lockup did not cage the player');
-    const hp0=g.P.hp;
-    for(let i=0;i<40;i++){ __tick(1); __draw(); }        // let the case get banged
-    if(!(g.P.hp<hp0)) throw new Error('the briefcase slams did no damage');
-    // out-of-range: the grab must whiff (not cage), and he opens on recover
-    g.P.hp=g.P.maxhp; g.P.state='idle'; g.P.x=b.x-300; g.P.z=g.P.z; g.P.iframes=0; b.caged=false;
-    b.state='wind'; b.st=0; b.move='lockup'; b.windLen=18; b.atkLen=74; b.hitDone=false;
-    let everCaged=false; for(let i=0;i<30;i++){ __tick(1); __draw(); if(g.P.state==='caged') everCaged=true; }
-    if(everCaged) throw new Error('a far-away grab should whiff, not cage');
-    console.log('        lockup cages + bangs you; out-of-range whiffs');
   });
   scene('grab-toss: hold ↓+punch to grab, wind up, hurl into traffic; a hit mid-windup breaks it', ()=>{
     const g=__G(); g.releaseArena();
@@ -526,7 +436,7 @@ if(!err){
   });
   scene('weapon: swing hits harder than a fist, wears out, and breaks', ()=>{
     const g=__G(); g.releaseArena();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=260; g.P.y=0; g.P.state='idle'; g.P.iframes=99999; g.P.drunk=0; g.P.face=1;
+    g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=260; g.P.y=0; g.P.state='idle'; g.P.iframes=99999; g.P.face=1;
     g.setCamLock(Math.max(0,g.P.x-170));
     const mk=()=>{ const e=g.vamp(g.P.x+30,260,false,false); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e); return e; };
     const swing=()=>{ __key('KeyJ',true); __tick(1); __key('KeyJ',false); for(let i=0;i<22;i++) __tick(1); };
@@ -542,7 +452,7 @@ if(!err){
   });
   scene('weapon: a bottle shatters on the first hit', ()=>{
     const g=__G(); g.releaseArena();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=260; g.P.y=0; g.P.state='idle'; g.P.iframes=99999; g.P.drunk=0; g.P.face=1;
+    g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=260; g.P.y=0; g.P.state='idle'; g.P.iframes=99999; g.P.face=1;
     g.setCamLock(Math.max(0,g.P.x-170));
     const e=g.vamp(g.P.x+28,260,false,false); e.state='walk'; e.hp=e.maxhp=1000; g.spawn(e);
     g.P.weapon={type:'bottle',dur:g.WEAPONS.bottle.dur};
@@ -583,30 +493,13 @@ if(!err){
     if(g.drops.filter(d=>d.kind==='weapon').length<=before) throw new Error('the dropped weapon should land on the street');
     console.log('        knocked down → dropped the pipe');
   });
-  scene('scam scales with confidence: broke on a 10/10 empties pockets, confident keeps it', ()=>{
-    const g=__G(); g.clearEnts(); g.setCamLock(0);     // camLock non-null suppresses the 'her man' boss side-effect
-    g.P.z=300; g.P.drunk=0;
-    const mk=()=>({x:0,z:0,trueTier:10,scammer:false,talked:false,blown:false,listening:false,laugh:0,tellPh:0,lie:0,lieT:0,revealed:false});
-    g.P.conf=0; g.P.money=1000; g.resolveTalk(mk());
-    if(g.P.money>60) throw new Error('0-conf 10/10 should empty pockets, left $'+g.P.money);
-    g.P.conf=100; g.P.money=1000; g.resolveTalk(mk());
-    if(g.P.money<1000) throw new Error('confident player got played, lost $'+(1000-g.P.money));
-    console.log('        broke → cleaned out; confident → kept it');
-  });
-  scene('confidence bleeds over time', ()=>{
-    const g=__G(); g.clearEnts();
-    g.U.rep=0; g.P.conf=80; g.P.drunk=0; g.P.x=400; g.P.z=300;
-    const c0=g.P.conf; __tick(250);
-    if(!(g.P.conf<c0-3)) throw new Error('confidence did not bleed: '+c0+'→'+g.P.conf);
-    console.log('        conf '+c0+' → '+Math.round(g.P.conf)+' over 250 ticks');
-  });
   scene('shop: open, buy every rank of everything', ()=>{
     const g=__G();
     const b=g.BUILDINGS.find(q=>q.kind==='burger');
     if(!b) throw new Error('no burger shop generated in 4000px');
-    g.P.money=99999; g.setShop(true,b);
+    g.P.bucks=99999; g.setShop(true,b);
     for(const k in g.UPG) for(let i=0;i<g.UPG[k].max+2;i++) g.buy(k);
-    g.P.hp=1; g.buy('burger'); g.buy('burger');
+    g.P.hp=1; g.buy('burger'); g.buy('burger'); g.buy('life');
     g.setShop(false);
     for(const k in g.UPG) if(g.U[k]!==g.UPG[k].max) throw new Error(k+' stuck at '+g.U[k]);
   });
@@ -628,21 +521,6 @@ if(!err){
     if(g.P.iframes<60) throw new Error('no respawn grace: '+g.P.iframes);
     __tick(200); __draw();
     console.log('        survived: '+after+' enemies, big rat still at '+big.hp+'/'+big.maxhp);
-  });
-  scene('knocked down in front of her = permanently done', ()=>{
-    const g=__G(); g.clearEnts();
-    const n=g.npcs.find(q=>!q.talked&&!q.blown);
-    if(!n) throw new Error('no fresh npc');
-    g.P.x=n.x+20; g.P.z=n.z; g.P.conf=100; g.P.iframes=0; g.P.hp=200; g.P.maxhp=200;
-    g.hurtPlayer(30,g.P.x+30); __tick(140);
-    if(!n.blown) throw new Error('she did not close off');
-    if(!n.talked) throw new Error('blown npc still approachable');
-    // and pressing talk gets you nothing
-    g.P.x=n.x; g.P.state='idle'; g.P.downT=0;
-    __key('KeyE',true); __tick(1); __key('KeyE',false); __tick(5);
-    if(g.P.state==='talk') throw new Error('still able to talk to her after she saw it');
-    __draw();
-    console.log('        conf after: '+Math.round(g.P.conf)+'  (was 100)');
   });
   scene('render every frame for 600 ticks', ()=>{
     for(let i=0;i<600;i++){ __tick(1); __draw(); }
@@ -666,7 +544,7 @@ if(!err){
     // Enemies are host-authoritative. The GUEST must not spawn or simulate its own — it
     // mirrors the host snapshot (empty here). Walk a long way as guest and assert ents
     // stays empty, and that bosses never spawn in co-op.
-    const g=__G();
+    const g=__G(); g.releaseArena();          // a prior scenario's boss may still be sitting in 'dead', unswept
     global.Playroom={ myPlayer:()=>({ id:'me', setState:()=>{}, getState:()=>null }),
       getState:()=>null, setState:()=>{} };
     __others().length=0; __others().push({id:'aaa', getState:()=>null, onQuit:()=>{}});   // a lower id → 'me' is the GUEST (host = lowest id)
@@ -677,17 +555,6 @@ if(!err){
     __setMP(false); delete global.Playroom; g.clearEnts(); __others().length=0;
     if(spawned) throw new Error(spawned+' local enemies on the guest (should mirror host)');
     if(gotBoss) throw new Error('a boss spawned in co-op');
-  });
-  scene('co-op: women are deterministic (same door → same woman + crew)', ()=>{
-    // mkNpc must be a pure function of position so every client in a room generates the
-    // identical woman/crew at each door. Was Math.random() — the reason women desynced.
-    const g=__G();
-    const a=g.mkNpc(1234,306), b=g.mkNpc(1234,306);
-    if(a.who!==b.who) throw new Error('mkNpc.who not deterministic: '+a.who+' vs '+b.who);
-    if(a.crew.length!==b.crew.length) throw new Error('mkNpc.crew size not deterministic');
-    if(a.scammer!==b.scammer || a.trueTier!==b.trueTier) throw new Error('mkNpc tier/scammer not deterministic');
-    const seen=new Set(); for(let x=200;x<6000;x+=520) seen.add(g.mkNpc(x,306).who);
-    if(seen.size<2) throw new Error('mkNpc gives the same woman at every door — not seeded by position');
   });
   scene('co-op: enemy snapshot round-trips via player-state (id-keyed object)', ()=>{
     // Enemies ride the host's PLAYER-state (same channel as 'pos'), not global room state.
@@ -719,9 +586,9 @@ if(!err){
     if(!g.cans[0].dead) throw new Error('synced can not marked dead');
     if(!g.drops.length || g.drops[0].nid==null) throw new Error('synced can spawned no id-tagged loot');
     // a teammate then picked up a cash drop worth 20 → the drop vanishes for us AND we get paid 20
-    const nid=g.drops[0].nid, before=g.P.money;
+    const nid=g.drops[0].nid, before=g.P.bucks;
     store.dropsGone={[nid]:{by:'other', m:20}}; g.coopApply();
-    if(g.P.money!==before+20) throw new Error('teammate cash not credited: money '+g.P.money+' expected '+(before+20));
+    if(g.P.bucks!==before+20) throw new Error('teammate cash not credited: bucks '+g.P.bucks+' expected '+(before+20));
     if(!g.drops[0].gone) throw new Error('picked-up drop not removed for teammate');
     __setMP(false); delete global.Playroom;
   });
