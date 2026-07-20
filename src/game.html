@@ -2865,17 +2865,16 @@ function hud(){
     ctx.restore(); ctx.textAlign='left'; }
 
   ctx.font='7px "JetBrains Mono",monospace';
-  // health — a battery-style bar (BamBam's own reference art), not hearts
-  const HY=BY-8, HH=15, HW=BW-10;
-  const hpPct=clamp(P.maxhp>0?P.hp/P.maxhp:0,0,1);
-  const hpCol = P.hitFlash>0?'#ff5a5a':'#008f00';
-  ctx.fillStyle='#0b0a10'; ctx.fillRect(LX-1,HY-1,HW+2,HH+2);        // case
-  ctx.fillStyle='#fff'; ctx.fillRect(LX+1,HY+1,HW-2,HH-2);            // empty charge
-  ctx.fillStyle=hpCol; ctx.fillRect(LX+1,HY+1,(HW-2)*hpPct,HH-2);     // charge
-  ctx.strokeStyle=hpCol; ctx.lineWidth=1; ctx.strokeRect(LX+1.5,HY+1.5,HW-3,HH-3);
-  ctx.fillStyle='#0b0a10'; ctx.fillRect(LX+HW+1,HY+HH*0.26,4,HH*0.48);   // terminal nub
-  ctx.fillStyle='#0b0a10'; ctx.font='bold 7px "JetBrains Mono",monospace'; ctx.textAlign='left';
-  ctx.fillText(Math.round(hpPct*100)+'% HP', LX+4, HY+HH-4);
+  // health — 4 hearts, each worth 2 half-heart units. a light hit costs half a heart
+  // (no knockdown), a heavy hit costs a full heart (knockdown) — see heavyHitAt().
+  const nHearts=Math.min(12,Math.ceil(P.maxhp/2));
+  for(let i=0;i<nHearts;i++){
+    const hx=LX+i*13, fill=clamp(P.hp-i*2,0,2);   // 0=empty, 1=half, 2=full
+    ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillStyle='#3a2030'; ctx.fillText('♥',hx,BY+9);
+    if(fill>0){ ctx.save(); ctx.beginPath(); ctx.rect(hx,BY-8,fill>=2?9:4.5,17); ctx.clip();
+      ctx.fillStyle= P.hitFlash>0?'#ff5a5a':'#ff2e88'; ctx.fillText('♥',hx,BY+9); ctx.restore(); }
+  }
   ctx.font='7px "JetBrains Mono",monospace';
 
   // FREEDOM — Imagination meter
