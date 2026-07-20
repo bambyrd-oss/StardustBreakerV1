@@ -12,52 +12,39 @@ entries=[]
 def add(key, path):
     entries.append((key, os.path.join(ROOT,path)))
 
-F="This_character_is_5_11_._He"
-for d in ["south","south-east","east","north-east","north","north-west","west","south-west"]:
-    add(f"hero.rot.{d}", f"{F}/rotations/{d}.png")
-for name,cnt,folder in [("walk",6,"Walking"),("punch",6,"Cross_Punch"),("drink",6,"Drinking"),("jump",8,"Jumping"),("swag",8,"Scary_Walk")]:
-    for i in range(cnt):
-        add(f"hero.{name}.{i}", f"{F}/animations/{folder}/east/frame_{i:03d}.png")
-for i in range(6):
-    add(f"hero.punchS.{i}", f"{F}/animations/Cross_Punch-8c2c64c6/south/frame_{i:03d}.png")
-for i in range(4):
-    add(f"hero.walkS.{i}", f"{F}/animations/Walking-deb204dd/south/frame_{i:03d}.png")
-
-# --- the hero's east-facing combat anims (jab/cross/uppercut/knockback/kick) ---
-# These came from the 160px PixelLab re-import, not the 92px local export, so they
-# need a consistent reframe: one transform (derived from frame 0's body) applied to
-# EVERY frame, so the torso stays anchored and only the limbs extend. Per-frame
-# bbox centering (what the women use) would make the body jitter as the punch
-# reaches. Feet seat on row FOOT, matching the rest of the hero. Held in PREFRAMED
-# so the main pack loop uses the already-92px result instead of the raw file.
+# --- hero: a single placeholder pose (no animation set yet) ---
+# Stands in for every hero.* key game.html actually needs unguarded: hero.rot.south
+# (portrait()/buildManifest() read it directly, no fallback), hero.rot.east (idle/walk
+# facing), hero.walk.*/hero.jump.* (repeated — static, no cycle), and hero.punch.*
+# (comboKey()'s hard fallback when a named combat sheet isn't packed). Everything else
+# (hero.swag.*, hero.uppercut.*, hero.knockback.*, hero.jab.*, hero.cross.*, hero.swing.*)
+# is deliberately left unpacked — drawPlayer() already guards those with IDX[...] checks
+# and falls back to rot.east/jump cleanly. West-facing is free: spr() mirrors east frames
+# into a pre-flipped atlas canvas at load time.
 PREFRAMED={}
 FOOT=70
-def reframe_hero_anim(paths, hero_h=46):   # measured off the real walk/rotation sprites — was 50, ~9% too tall, made punches jarring next to idle/walk
-    ims=[Image.open(p).convert("RGBA") for p in paths]
-    bb0=ims[0].getchannel("A").getbbox()          # frame 0 = the standing reference
-    if not bb0: return [im.resize((S,S),Image.LANCZOS) for im in ims]
-    f=hero_h/(bb0[3]-bb0[1])                       # scale so the body matches the hero
-    cx0=(bb0[0]+bb0[2])/2                          # body centre x (fixed anchor)
-    foot0=bb0[3]                                    # feet y (fixed ground line)
-    out=[]
-    for im in ims:
-        sm=im.resize((max(1,round(im.width*f)),max(1,round(im.height*f))),Image.LANCZOS)
-        cell=Image.new("RGBA",(S,S),(0,0,0,0))
-        cell.paste(sm,(round(S/2-cx0*f),round(FOOT-foot0*f)),sm)
-        out.append(cell)
-    return out
+def reframe_solo(path, hero_h=46):   # same anchor-and-scale approach as the combat anims below, for one frame
+    im=Image.open(path).convert("RGBA")
+    bb=im.getchannel("A").getbbox()
+    if not bb: return im.resize((S,S),Image.LANCZOS)
+    f=hero_h/(bb[3]-bb[1])
+    cx=(bb[0]+bb[2])/2
+    foot=bb[3]
+    sm=im.resize((max(1,round(im.width*f)),max(1,round(im.height*f))),Image.LANCZOS)
+    cell=Image.new("RGBA",(S,S),(0,0,0,0))
+    cell.paste(sm,(round(S/2-cx*f),round(FOOT-foot*f)),sm)
+    return cell
 
-# folder -> hero key stem, all east-facing 6-frame
-HERO_COMBAT=[("jab_east","jab"),("cross_east","cross"),("uppercut_east","uppercut"),
-             ("knockback_east","knockback"),("flykick_east","kick"),("bigswing_east","swing")]
-for folder,stem in HERO_COMBAT:
-    fdir=os.path.join(ROOT,F,"animations",folder,"east")
-    if os.path.isdir(fdir):
-        paths=[os.path.join(fdir,f"frame_{i:03d}.png") for i in range(6)]
-        if all(os.path.exists(p) for p in paths):
-            frames=reframe_hero_anim(paths)
-            for i,img in enumerate(frames):
-                key=f"hero.{stem}.{i}"; PREFRAMED[key]=img; add(key, paths[i])
+HB=os.path.join(ROOT,"BamBamHero","placeholder.png")
+_hero_cell=reframe_solo(HB)
+for key in (["hero.rot.south","hero.rot.east"]
+            + [f"hero.walk.{i}" for i in range(6)]
+            + [f"hero.jump.{i}" for i in range(8)]
+            + [f"hero.punch.{i}" for i in range(6)]):
+    PREFRAMED[key]=_hero_cell; add(key, HB)
+# combat-specific sheets (hero.jab.*, hero.cross.*, hero.uppercut.*, hero.knockback.*,
+# hero.swing.*) aren't packed yet — comboKey() falls back to hero.punch.* until BamBam
+# has real combat frames to reframe the same way reframe_solo() does above.
 
 V="This_character_is_a_6_3"
 for d in ["south","south-east","east","north-east","north","north-west","west","south-west"]:
