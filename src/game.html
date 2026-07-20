@@ -162,6 +162,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
         <div class="btn" id="bB">JUMP</div>
         <div class="btn" id="bC">IMAGINE</div>
         <div class="btn" id="bD">TALK</div>
+        <div class="btn" id="bE">KICK</div>
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
@@ -526,7 +527,7 @@ function tap(c){ if(pressed[c]){pressed[c]=false;return true;} return false; }
 //====================== gamepad ======================
 // xbox 'standard' mapping. X is attack, A is jump — same as every brawler on this pad.
 const PAD={idx:null, prev:[], ax:0, az:0};
-const XB={ PUNCH:[2,5,7], JUMP:[0], DRINK:[1], TALK:[3], PAUSE:[9,8] };
+const XB={ PUNCH:[2,5,7], JUMP:[0], DRINK:[1], TALK:[3], KICK:[4], PAUSE:[9,8] };
 const DEAD=0.24;
 let hadTouch=false;
 addEventListener('gamepadconnected',e=>{
@@ -559,7 +560,7 @@ function pollPad(){
 const heldDrink=()=> !!(key.KeyL || T.C || (PAD.now && PAD.now.DRINK));
 
 // virtual stick + buttons
-const T={ax:0,az:0, A:false,B:false,C:false,D:false, Ap:false,Bp:false,Cp:false,Dp:false};
+const T={ax:0,az:0, A:false,B:false,C:false,D:false,E:false, Ap:false,Bp:false,Cp:false,Dp:false,Ep:false};
 let stickId=null, sBase={x:0,y:0,r:60};
 const stick=$('stick'), nub=$('nub'), stickzone=$('stickzone');
 // floating pad: press anywhere in the left half and the stick spawns under your thumb
@@ -590,7 +591,7 @@ function bindBtn(id,k){ const el=$(id);
   const up=e=>{T[k]=false; el.classList.remove('hit');};
   el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up); el.addEventListener('pointerleave',up);
 }
-bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bD','D');
+bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bD','D'); bindBtn('bE','E');
 function tapT(k){ if(T[k+'p']){T[k+'p']=false;return true;} return false; }
 if(matchMedia('(hover:hover)').matches && !('ontouchstart' in window)){
   OPT.touch=false; $('o_touch').classList.remove('on');
@@ -1731,7 +1732,8 @@ function update(){
   const jPunch=tap('KeyJ')||tapT('A')||(pad&&pad.PUNCH),
         jJump =tap('KeyK')||tap('Space')||tapT('B')||(pad&&pad.JUMP),
         jDrink=tap('KeyL')||tapT('C')||(pad&&pad.DRINK),
-        jTalk =tap('KeyE')||tapT('D')||(pad&&pad.TALK);
+        jTalk =tap('KeyE')||tapT('D')||(pad&&pad.TALK),
+        jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK);
   if(pad&&pad.PAUSE) setPause(true);
 
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.

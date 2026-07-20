@@ -12,18 +12,15 @@ entries=[]
 def add(key, path):
     entries.append((key, os.path.join(ROOT,path)))
 
-# --- hero: a single placeholder pose (no animation set yet) ---
-# Stands in for every hero.* key game.html actually needs unguarded: hero.rot.south
-# (portrait()/buildManifest() read it directly, no fallback), hero.rot.east (idle/walk
-# facing), hero.walk.*/hero.jump.* (repeated — static, no cycle), and hero.punch.*
-# (comboKey()'s hard fallback when a named combat sheet isn't packed). Everything else
-# (hero.swag.*, hero.uppercut.*, hero.knockback.*, hero.jab.*, hero.cross.*, hero.swing.*)
-# is deliberately left unpacked — drawPlayer() already guards those with IDX[...] checks
-# and falls back to rot.east/jump cleanly. West-facing is free: spr() mirrors east frames
-# into a pre-flipped atlas canvas at load time.
+# --- hero: real drawn frames, one folder of raw crops per animation ---
+# Each key game.html needs unguarded (hero.rot.south/east, hero.walk.*, hero.jump.*,
+# hero.punch.*) plus the ones it guards with IDX[...] checks (hero.uppercut.*,
+# hero.kick.*, hero.swag.*) now come from art/BamBam{Run,Punch,Jump,Uppercut,Kick,Swag}.
+# hero.knockback.*/hero.jab.*/hero.cross.*/hero.swing.* stay unpacked — comboKey()
+# falls back to hero.punch.* until BamBam has dedicated combat sheets for those.
 PREFRAMED={}
 FOOT=70
-def reframe_solo(path, hero_h=46):   # same anchor-and-scale approach as the combat anims below, for one frame
+def reframe_solo(path, hero_h=46):
     im=Image.open(path).convert("RGBA")
     bb=im.getchannel("A").getbbox()
     if not bb: return im.resize((S,S),Image.LANCZOS)
@@ -35,16 +32,45 @@ def reframe_solo(path, hero_h=46):   # same anchor-and-scale approach as the com
     cell.paste(sm,(round(S/2-cx*f),round(FOOT-foot*f)),sm)
     return cell
 
-HB=os.path.join(ROOT,"BamBamHero","placeholder.png")
+def bbox_h(path):
+    im=Image.open(path).convert("RGBA")
+    bb=im.getchannel("A").getbbox()
+    return (bb[3]-bb[1]) if bb else S
+
+def reframe_fixed(path, ref_h, hero_h=46):
+    # same anchor as reframe_solo, but scaled against a shared reference height
+    # (usually the set's own standing/neutral frame) instead of this frame's own
+    # bbox — a horizontal kick or a raised fist would otherwise have a short/tall
+    # bbox and get scaled to the wrong size relative to its neighbours.
+    im=Image.open(path).convert("RGBA")
+    bb=im.getchannel("A").getbbox()
+    if not bb: return im.resize((S,S),Image.LANCZOS)
+    f=hero_h/ref_h
+    cx=(bb[0]+bb[2])/2
+    foot=bb[3]
+    sm=im.resize((max(1,round(im.width*f)),max(1,round(im.height*f))),Image.LANCZOS)
+    cell=Image.new("RGBA",(S,S),(0,0,0,0))
+    cell.paste(sm,(round(S/2-cx*f),round(FOOT-foot*f)),sm)
+    return cell
+
+def pack_frames(prefix, folder, frame_files, ref_file=None):
+    ref_h=bbox_h(os.path.join(ROOT,folder,ref_file or frame_files[0]))
+    for i,fname in enumerate(frame_files):
+        p=os.path.join(ROOT,folder,fname)
+        key=f"{prefix}.{i}"
+        PREFRAMED[key]=reframe_fixed(p,ref_h); add(key,p)
+
+pack_frames("hero.walk", "BamBamRun",      ["frame0.png","frame1.png","frame2.png","frame3.png"])
+pack_frames("hero.punch","BamBamPunch",    ["frame0.png","frame1.png","frame2.png","frame2.png","frame3.png","frame3.png"])
+pack_frames("hero.jump", "BamBamJump",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
+pack_frames("hero.uppercut","BamBamUppercut",["frame0.png","frame1.png","frame2.png","frame3.png"], ref_file="frame3.png")
+pack_frames("hero.kick", "BamBamKick",     ["frame1.png","frame2.png","frame2.png","frame3.png"], ref_file="frame3.png")  # frame0 (run start) is grounded, never shown — 'kick' state starts mid-air
+pack_frames("hero.swag", "BamBamSwag",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
+
+HB=os.path.join(ROOT,"BamBamPunch","frame0.png")   # idle stance doubles as both facings
 _hero_cell=reframe_solo(HB)
-for key in (["hero.rot.south","hero.rot.east"]
-            + [f"hero.walk.{i}" for i in range(6)]
-            + [f"hero.jump.{i}" for i in range(8)]
-            + [f"hero.punch.{i}" for i in range(6)]):
+for key in ("hero.rot.south","hero.rot.east"):
     PREFRAMED[key]=_hero_cell; add(key, HB)
-# combat-specific sheets (hero.jab.*, hero.cross.*, hero.uppercut.*, hero.knockback.*,
-# hero.swing.*) aren't packed yet — comboKey() falls back to hero.punch.* until BamBam
-# has real combat frames to reframe the same way reframe_solo() does above.
 
 # a dedicated face-only crop for the HUD portrait / PWA icon (portrait()/buildManifest() in
 # game.html) — a plain body-sprite crop reads muddy at 28px, so this is packed separately
