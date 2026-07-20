@@ -2202,8 +2202,9 @@ function bg(){
     for(let w=0;w<Math.floor(b.w/28);w++)
       for(let h=0; top+10+h*22 < groundTop-6; h++){
         const glass=GLASS[Math.floor(hsh(b.x+w*11+h*3)*3)];
-        shadedRect(sx+10+w*28,top+10+h*22,16,14, glass, 0.28, 0.28);
-        ctx.fillStyle=INK; ctx.fillRect(sx+17+w*28,top+10+h*22,1,14); ctx.fillRect(sx+10+w*28,top+16+h*22,16,1);   // mullion cross
+        const wx=Math.round(sx+10+w*28), wy=Math.round(top+10+h*22);
+        shadedRect(wx,wy,16,14, glass, 0.28, 0.28);
+        ctx.fillStyle=INK; ctx.fillRect(wx+8,wy,1,14);   // single vertical mullion, pixel-snapped so it stays crisp
         // a few windows have someone moving behind the blind
         if(hsh(b.x+w*7+h*13)<0.35){ ctx.fillStyle='rgba(30,26,20,.5)';
           ctx.fillRect(sx+12+w*28+Math.sin(t*0.01+w+h)*2,top+12+h*22,5,10); }
@@ -2267,8 +2268,13 @@ function bg(){
   shadedRect(0,CURB,W,4,'#a8823a',0.35,0.05); ctx.fillStyle=INK; ctx.fillRect(0,CURB,W,1);   // curb lip, lit top face + dark riser
   shadedRect(0,ROAD,W,H-ROAD,'#4a4552',0.08,0.08);                  // asphalt — subtle sheen, it shouldn't gradient much
   ctx.globalAlpha=0.4; ctx.fillStyle=ASPHALT_PAT; ctx.fillRect(0,ROAD,W,H-ROAD); ctx.globalAlpha=1;
+  // lane dashes — faster fake parallax (not real world position, a stylized sense-of-speed
+  // effect), so a dash can coincidentally land on top of a crosswalk below; skip any that would
+  const cwCenters=[]; for(let i=0;i<10;i++) cwCenters.push(i*900-camX%900);
   ctx.fillStyle='#fff0c2';
-  for(let i=0;i<14;i++) ctx.fillRect(i*120-(camX*1.35)%120,ROAD+22,54,2);  // lane dashes, faster parallax
+  for(let i=0;i<14;i++){ const dx2=i*120-(camX*1.35)%120;
+    if(cwCenters.some(cx=>dx2+54>cx-35 && dx2<cx+55)) continue;
+    ctx.fillRect(dx2,ROAD+22,54,2); }
 
   // cracks — a handful of fixed world-position marks in the asphalt. Keyed off a world-x
   // tile index (floor(worldX/tileW)), NOT a screen-relative loop index like the crosswalk/
@@ -2285,11 +2291,12 @@ function bg(){
       ctx.globalAlpha=1;
     } }
 
-  // a crosswalk every few blocks, corner-of-the-block detail — slightly worn paint per stripe
+  // a crosswalk every few blocks, corner-of-the-block detail — slightly worn paint per stripe.
+  // full stripe height always; only alpha varies, so wear reads as tonal, not a jagged cut.
   for(let i=0;i<10;i++){ const cwx=i*900-camX%900;
     for(let j=0;j<7;j++){ const wear=hsh(i*7+j*3+21.4);
-      ctx.globalAlpha=0.75+wear*0.25; ctx.fillStyle='#e8e2d4';
-      ctx.fillRect(cwx+j*11-33,ROAD+4,7,(H-ROAD-8)*(0.82+wear*0.18)); ctx.globalAlpha=1; } }
+      ctx.globalAlpha=0.85+wear*0.15; ctx.fillStyle='#e8e2d4';
+      ctx.fillRect(cwx+j*11-33,ROAD+4,7,H-ROAD-8); ctx.globalAlpha=1; } }
 
   // grates
   for(const gr of GRATES){ const sx=gr.x-camX; if(sx<-30||sx>W+30)continue;
