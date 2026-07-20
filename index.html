@@ -1672,6 +1672,11 @@ function update(){
     if(P.fireT>0 && P.st===s.su+1){                   // FISTS OF FIRE — each swing hurls a fireball
       fires.push({x:P.x+P.face*18, z:P.z, y:20, vx:P.face*5.4, vz:0, vy:0.03, r:7, life:46, max:48, foe:false});
       blip(90,.05); }
+    // finger guns — a placeholder ranged weapon: every swing also pops off a little dot,
+    // BANG-style, no real gun art yet so it's just imagination made literal
+    if(P.st===s.su+1){
+      fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
+      blip(520,.02); }
     if(active && !P.hitDone){
       const b=atkBox();
       const W = P.weapon && WEAPONS[P.weapon.type];    // a weapon reshapes the hit — heavier, longer stun, it launches
@@ -1967,7 +1972,7 @@ function update(){
   //---- fire lives on the pavement for a second after it leaves the mouth
   for(const f of fires){ f.x+=f.vx; f.z+=f.vz; f.y+=f.vy;
     if(f.weapon){ f.spin=(f.spin||0)+0.5; }              // a thrown weapon flies straight, tumbling
-    else if(!f.clap && !f.paper && !f.plasma){ f.vx*=0.965; f.r+=0.30; }   // plain fire spreads; claps/papers/plasma fly straight
+    else if(!f.clap && !f.paper && !f.plasma && !f.dot){ f.vx*=0.965; f.r+=0.30; }   // plain fire spreads; claps/papers/plasma/dots fly straight
     f.life--;
     if(f.life<0){ f.gone=true; continue; }
     if(f.foe===false){                                 // your fireball / thrown weapon — hits whoever it catches
@@ -2548,8 +2553,16 @@ function drawFires(){
     ctx.fillStyle='#b3aa98'; for(let i=0;i<4;i++) ctx.fillRect(-4,-6+i*3,8,1);   // lines of text
     ctx.fillStyle='#c9d13a'; ctx.fillRect(-4,4,5,3);          // eviction stamp
     ctx.restore(); }
+  // finger-gun dots — a tiny bright BANG, comic-style, no gun art yet
   ctx.globalCompositeOperation='lighter';
-  for(const f of fires){ if(f.clap||f.paper||f.weapon) continue; const a=clamp(f.life/22,0,1)*.85;
+  for(const f of fires){ if(!f.dot) continue; const bx=f.x-camX, by=f.z-f.y, a=clamp(f.life/32,0,1);
+    ctx.globalAlpha=a*0.5; ctx.fillStyle='#ffe066';
+    ctx.beginPath(); ctx.ellipse(bx,by,4.2,4.2,0,0,7); ctx.fill();
+    ctx.globalAlpha=a; ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.ellipse(bx,by,2,2,0,0,7); ctx.fill(); }
+  ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='lighter';
+  for(const f of fires){ if(f.clap||f.paper||f.weapon||f.dot) continue; const a=clamp(f.life/22,0,1)*.85;
     ctx.globalAlpha=a; ctx.drawImage(fireC, f.x-camX-f.r, f.z-f.y-f.r*.9, f.r*2, f.r*2); }
   ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
 }
