@@ -91,6 +91,10 @@ pack_one("hero.uppercut.0", UC, "frame0.png", reframe_solo(os.path.join(ROOT,UC,
 pack_one("hero.uppercut.1", UC, "frame1.png", reframe_centered(os.path.join(ROOT,UC,"frame1.png"), 90))
 pack_one("hero.uppercut.2", UC, "frame2.png", reframe_centered(os.path.join(ROOT,UC,"frame2.png"), 90))
 pack_one("hero.uppercut.3", UC, "frame3.png", reframe_solo(os.path.join(ROOT,UC,"frame3.png"), hero_h=54))
+# dedicated WEST-facing BAM! peak: the engine mirrors east->west for everything, which
+# would flip the "BAM!" lettering backwards. This frame already faces left with correct
+# text, so drawPlayer draws it un-mirrored when facing left instead of the flipped frame2.
+pack_one("hero.uppercutL.2", UC, "frame2_left.png", reframe_centered(os.path.join(ROOT,UC,"frame2_left.png"), 90))
 pack_frames("hero.kick", "BamBamKick",     ["frame1.png","frame2.png","frame2.png","frame3.png"], ref_file="frame3.png")  # frame0 (run start) is grounded, never shown — 'kick' state starts mid-air
 pack_frames("hero.swag", "BamBamSwag",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
 

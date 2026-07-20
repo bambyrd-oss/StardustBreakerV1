@@ -29,7 +29,7 @@ html,body{width:100%;height:100%;background:#000;color:var(--bone);
 #stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
 #frame{position:relative;line-height:0}
 canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none}
-#c{filter:none}
+#c{filter:contrast(1.15)}   /* +15% contrast across the whole rendered game */
 
 /* ---- touch ---- */
 #touch{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .2s}
@@ -2893,14 +2893,20 @@ function drawPlayer(){
   }
   shadow(P.x,P.z,16-P.y*0.06);
   let key='hero.rot.east';
+  let drawFace=P.face;   // normally P.face; overridden to +1 for the dedicated left-facing (un-mirrored) uppercut frame
   if(P.state==='walk') key='hero.walk.'+(Math.floor(t*.16)%4);
   if(P.state==='idle') key='hero.rot.east';
   if(P.state==='jump') key='hero.jump.'+clamp(Math.floor(P.airT/9),0,3);   // 0 push-off, 1 rise, 2 peak, 3 fall/land
   if(P.state==='imagine') key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*.4)%4) : 'hero.rot.east';
   if(P.state==='air') key= IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)      // DROP KICK
                                               : 'hero.jump.3';
-  if(P.state==='upper') key= IDX['hero.uppercut.0'] ? 'hero.uppercut.'+(P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3)  // UPPERCUT: crouch→rising fist→BAM→land
-                                                    : 'hero.jump.2';
+  if(P.state==='upper'){
+    if(IDX['hero.uppercut.0']){
+      const uf = (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land
+      if(uf===2 && P.face<0 && IDX['hero.uppercutL.2']){ key='hero.uppercutL.2'; drawFace=1; }  // face left: use the pre-drawn left BAM so the lettering isn't mirrored
+      else key='hero.uppercut.'+uf;
+    } else key='hero.jump.2';
+  }
   if(P.state==='down') key='hero.jump.'+(P.downT>40?0:3);   // flat on the pavement (drawn rotated below); reuse a low crouch pose
   if(P.state==='punch') key=comboKey(cStep());
   // hit recoil — while the flash is fresh and you're not mid-action, stumble back.
@@ -2918,7 +2924,7 @@ function drawPlayer(){
   if(P.state==='down') tilt = -P.face*clamp((66-P.downT)/12,0,1)*1.45;   // he goes flat
   if(Math.abs(tilt)>0.005){ ctx.save(); ctx.translate(P.x-camX,P.z); ctx.rotate(tilt); ctx.translate(-(P.x-camX),-P.z); }
   if(MP && myCoopIdx>=0){ tint=COOP_COLORS[myCoopIdx]; amt=0.45; }   // co-op identity mask on yourself too
-  spr(key,P.x-camX,P.z-P.y,P.face,tint,amt);
+  spr(key,P.x-camX,P.z-P.y,drawFace,tint,amt);
   if(Math.abs(tilt)>0.005) ctx.restore();
   ctx.globalAlpha=1;
   if(MP && myCoopIdx>=0) coopTag(P.x-camX, P.z-P.y, myCoopIdx);       // 1P/2P/… above your own head
