@@ -1,6 +1,6 @@
 {
-  "name": "BamBam: Warrior of Liberation",
-  "short_name": "BamBam",
+  "name": "Stardust Breaker",
+  "short_name": "Stardust",
   "description": "A 2D beat 'em up. Fight to restore imagination, creativity, and freedom to a city losing its soul.",
   "start_url": "./index.html",
   "scope": "./",

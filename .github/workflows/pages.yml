@@ -1,12 +1,13 @@
-# Builds the game and publishes it to GitHub Pages on every push to main.
+# Builds the game and publishes it to GitHub Pages.
 # The harness gates the deploy — if the tests fail, nothing ships.
 #
-# One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
+# No manual setup needed: the build job enables Pages itself
+# (actions/configure-pages with enablement: true).
 name: build & deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/new-session-qlphac]
   workflow_dispatch:
 
 permissions:
@@ -30,6 +31,10 @@ jobs:
       - run: pip install pillow
       - name: Build index.html and run the harness
         run: python3 src/build.py
+      - name: Enable + configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with: { path: . }
 
