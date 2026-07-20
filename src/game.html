@@ -25,9 +25,6 @@ html,body{width:100%;height:100%;background:#000;color:var(--bone);
 #stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
 #frame{position:relative;line-height:0}
 canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none}
-/* drunk contrast/saturation lives here, not on the canvas 2D context — ctx.filter is
-   flaky-to-absent on a lot of mobile WebViews (notably iOS PWA home-screen wrappers),
-   while a CSS filter on the element itself is close to universal. */
 #c{filter:none}
 
 /* ---- touch ---- */
@@ -170,11 +167,10 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>LAST CALL — PROTOTYPE</small></h1>
+        <h1>PAUSED<small>BAMBAM — PROTOTYPE</small></h1>
         <div id="pcols">
           <div class="col">
             <h2>DISPLAY</h2>
-            <div class="row"><span>Drunk visuals</span><input id="o_fx" type="range" min="0" max="100" value="100"></div>
             <div class="row"><span>Screen shake</span><input id="o_shake" type="range" min="0" max="100" value="100"></div>
             <div class="row"><span>Touch controls</span><div class="tog on" id="o_touch"><i></i></div></div>
             <div class="row"><span>Touch opacity</span><input id="o_topac" type="range" min="8" max="100" value="60"></div>
@@ -360,9 +356,9 @@ function buildManifest(){
     g.fillStyle=rg; g.fillRect(0,0,512,512);
     const p=IDX['hero.rot.south'];
     g.drawImage(sheet,p[0]+30,p[1]+20,32,52, 152,120,208,338);
-    const man={ name:'Last Call', short_name:'Last Call', start_url:'.', scope:'.',
+    const man={ name:'BamBam: Warrior of Liberation', short_name:'BamBam', start_url:'.', scope:'.',
       display:'fullscreen', orientation:'landscape', background_color:'#0b0a10',
-      theme_color:'#ff2e88', description:'Drunk beat em up.',
+      theme_color:'#ff2e88', description:"A 2D beat 'em up.",
       icons:[{src:ic.toDataURL('image/png'),sizes:'512x512',type:'image/png',purpose:'any maskable'}] };
     const url=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:'application/manifest+json'}));
     let link=document.querySelector('link[rel=manifest]');
@@ -455,12 +451,11 @@ function stageCleared(){
 }
 
 //====================== options ======================
-const OPT={fx:1,shake:1,touch:true,topac:.6,snd:true,rumble:true,hb:false,fd:false,inv:false,freecam:false};
+const OPT={shake:1,touch:true,topac:.6,snd:true,rumble:true,hb:false,fd:false,inv:false,freecam:false};
 function tog(id,k,cb){ const el=$(id); el.onclick=()=>{ OPT[k]=!OPT[k]; el.classList.toggle('on',OPT[k]); cb&&cb(); }; }
 tog('o_touch','touch',()=>$('touch').classList.toggle('on',OPT.touch));
 tog('o_snd','snd'); tog('o_rum','rumble',()=>{ if(OPT.rumble) rumble(200,.7,.7,true); });
 tog('o_hb','hb'); tog('o_fd','fd'); tog('o_inv','inv'); tog('o_cam','freecam');
-$('o_fx').oninput=e=>OPT.fx=e.target.value/100;
 $('o_shake').oninput=e=>OPT.shake=e.target.value/100;
 function applyTouchOpacity(){ $('touch').style.setProperty?.('--touch-op',OPT.topac); }
 $('o_topac').oninput=e=>{ OPT.topac=e.target.value/100; applyTouchOpacity(); };

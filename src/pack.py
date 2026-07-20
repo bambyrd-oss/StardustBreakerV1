@@ -23,7 +23,7 @@ for i in range(6):
 for i in range(4):
     add(f"hero.walkS.{i}", f"{F}/animations/Walking-deb204dd/south/frame_{i:03d}.png")
 
-# --- Fatback's east-facing combat anims (jab/cross/uppercut/knockback/kick) ---
+# --- the hero's east-facing combat anims (jab/cross/uppercut/knockback/kick) ---
 # These came from the 160px PixelLab re-import, not the 92px local export, so they
 # need a consistent reframe: one transform (derived from frame 0's body) applied to
 # EVERY frame, so the torso stays anchored and only the limbs extend. Per-frame
