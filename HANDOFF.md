@@ -32,6 +32,17 @@
 - Cars/roadkill mechanic removed entirely. Bam and enemies can walk the whole street width;
   the grab-toss move now ends in a ground slam (`slamDown()`) instead of a car finishing the job.
 - Sidewalk narrowed, street widened (`FLOOR_S`/`CURB`/`ROAD` in `src/game.html`).
+- Background art overhaul, daytime palette kept: departed from the flat-shape "fatback engine"
+  look toward an inked pixel-art rendering technique closer to Scott Pilgrim vs. The World: The
+  Game's backgrounds — dark ink outlines, one-light-source gradient shading, baked brick/asphalt/
+  sidewalk texture patterns, per-building roofline variety (parapet/setback/gable/cornice),
+  window mullions, porch railings, road cracks and worn crosswalk paint, and outlined/shaded
+  procedural props (trees, benches, crates, etc). All new visual variety is derived at draw time
+  via `hsh()` — never by adding `R()` calls inside `genChunk()` — since that shared per-chunk
+  counter drives gate placement/wave timing and any extra draw shifts it (see the toolkit note
+  in `src/game.html` above the `inkRect`/`shadedRect`/pattern helpers). Still 100% procedural
+  canvas, still infinite chunk-streamed, still bright daytime — only the rendering technique
+  changed, not the architecture or the color story.
 
 Everything above is committed to `main` and green under `node src/harness.js`.
 
