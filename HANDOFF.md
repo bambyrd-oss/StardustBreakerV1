@@ -2,7 +2,13 @@
 
 **Repo note:** this project now lives in `bambyrd-oss/StardustBreakerV1` (imported with full
 history from the old `samayiat/bambam`; the game was mid-rename to "Stardust Breaker"). Active
-branch: `claude/new-session-qlphac`.
+branch: `claude/new-session-qlphac` (also the repo's default branch).
+
+**Live build:** https://bambyrd-oss.github.io/StardustBreakerV1/ — GitHub Pages, deployed by
+`.github/workflows/pages.yml` on every push (harness-gated). One-time repo setup was required:
+Settings → Pages → Source "GitHub Actions", and the `github-pages` environment's deployment-branch
+rule had to allow `claude/new-session-qlphac` (it defaulted to blocking it). Served over HTTPS so
+the PWA installs ("Add to Home Screen") and mobile touch controls work there.
 
 **Build locally:** `python3 src/build.py` (packs `art/` into the atlas, inlines everything into
 `index.html`, then runs `node src/harness.js` — the build fails if any scenario fails).
