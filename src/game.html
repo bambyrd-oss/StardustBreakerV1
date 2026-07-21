@@ -2211,14 +2211,16 @@ function bg(){
   // far skyline — saturated sunlit silhouettes with colorful glass windows
   const SKY_BLD=['#7fa8d9','#8fc9b0','#e0c078','#a8a8e0'];
   const GLASS=['#6fd8ec','#ffcf7a','#ff9fc0'];
-  for(let i=-1;i<22;i++){ const bx=i*84-(camX*0.18)%84, bh=70+((i*37)%5)*20;
+  // parallax factor bumped (0.18->0.30) and buildings grown taller so this layer moves and
+  // reads more like "the block right behind this one" than a distant, disconnected backdrop.
+  for(let i=-1;i<22;i++){ const bx=i*84-(camX*0.30)%84, bh=95+((i*37)%5)*22;
     const col=SKY_BLD[Math.floor(hsh(i*3.1)*4)];
     // roofline variant — a fresh hsh() offset (i*3.1+9.9) from the color pick above (i*3.1)
     // so shape and color don't always covary; purely i-indexed parallax dressing, no
     // relation to genChunk()/BUILDINGS at all.
     const roofV=Math.floor(hsh(i*3.1+9.9)*3);
     ctx.fillStyle=col; ctx.fillRect(bx,146-bh,80,bh);
-    ctx.globalAlpha=0.35; ctx.strokeStyle=INK; ctx.lineWidth=1;    // thin, faint — background shouldn't compete with the foreground ink
+    ctx.globalAlpha=0.45; ctx.strokeStyle=INK; ctx.lineWidth=1;    // a touch more present than before, still faint next to the foreground ink
     ctx.strokeRect(Math.round(bx)+0.5,Math.round(146-bh)+0.5,79,bh-1);
     ctx.globalAlpha=1;
     if(roofV===1){ ctx.fillStyle=shadeHex(col,-0.12); ctx.fillRect(bx+18,146-bh-8,44,8); }        // notch
@@ -2341,11 +2343,14 @@ function bg(){
   ctx.globalAlpha=0.4; ctx.fillStyle=ASPHALT_PAT; ctx.fillRect(0,ROAD,W,H-ROAD); ctx.globalAlpha=1;
 
   // cloud shadows on the ground — same x-parallax as the clouds above (camX*0.05), so each
-  // patch visibly belongs to the cloud that cast it instead of floating disconnected. Drawn
-  // under the lane dashes/crosswalk/cracks below so those still read crisp on top.
-  for(let i=-1;i<9;i++){ const cx=i*230-(camX*0.05)%230;
-    ctx.fillStyle='rgba(20,16,12,.08)';
-    ctx.beginPath(); ctx.ellipse(cx,(FLOOR_N+H)/2+6,95,(H-FLOOR_N)/2+10,0,0,7); ctx.fill(); }
+  // patch visibly belongs to the cloud that cast it instead of floating disconnected. Size,
+  // alpha and offset are jittered per-cloud (hsh(i), stable and i-indexed like the skyline
+  // dressing above) so the run of patches doesn't read as one mechanically repeating stamp.
+  // Drawn under the lane dashes/crosswalk/cracks below so those still read crisp on top.
+  for(let i=-1;i<9;i++){ const cx=i*230-(camX*0.05)%230+hsh(i*4.7+1.3)*70-35;
+    const rw=70+hsh(i*2.1)*55, rh=(H-FLOOR_N)/2+hsh(i*6.3+2)*14;
+    ctx.fillStyle='rgba(20,16,12,'+(0.05+hsh(i*3.9+.7)*0.07)+')';
+    ctx.beginPath(); ctx.ellipse(cx,(FLOOR_N+H)/2+6+hsh(i*5.5)*10-5,rw,rh,0,0,7); ctx.fill(); }
   // lane dashes — faster fake parallax (not real world position, a stylized sense-of-speed
   // effect), so a dash can coincidentally land on top of a crosswalk below; skip any that would
   const cwCenters=[]; for(let i=0;i<10;i++) cwCenters.push(i*900-camX%900);
@@ -2370,11 +2375,13 @@ function bg(){
     } }
 
   // a crosswalk every few blocks, corner-of-the-block detail — slightly worn paint per stripe.
-  // full stripe height always; only alpha varies, so wear reads as tonal, not a jagged cut.
+  // stripes run parallel to the road (wide in x), stacked across its depth (down in y) — the
+  // ladder rungs a pedestrian would step over crossing the road, not fence posts along it.
+  // full stripe width always; only alpha varies, so wear reads as tonal, not a jagged cut.
   for(let i=0;i<10;i++){ const cwx=i*900-camX%900;
     for(let j=0;j<7;j++){ const wear=hsh(i*7+j*3+21.4);
       ctx.globalAlpha=0.85+wear*0.15; ctx.fillStyle='#e8e2d4';
-      ctx.fillRect(cwx+j*11-33,ROAD+4,7,H-ROAD-8); ctx.globalAlpha=1; } }
+      ctx.fillRect(cwx-33,ROAD+4+j*11,66,7); ctx.globalAlpha=1; } }
 
   // grates
   for(const gr of GRATES){ const sx=gr.x-camX; if(sx<-30||sx>W+30)continue;
