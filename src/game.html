@@ -871,7 +871,11 @@ function comboKey(s){
   else { a=s.back; pr=(P.st-s.su-s.act)/Math.max(1,s.rec); sheet=s.backSheet||s.sheet; }  // recovery can pull from a different sheet (e.g. snap to jab's stance instead of reversing the swing)
   const idx=a[clamp(Math.floor(pr*a.length),0,a.length-1)];
   const key='hero.'+sheet+'.'+idx;
-  return IDX[key]?key:('hero.punch.'+clamp(idx,0,5));   // fall back to Cross_Punch if the new sheet isn't packed yet
+  if(IDX[key]) return key;                              // a dedicated named sheet (jab/cross/swing) if it's ever packed
+  // otherwise alternate hands per combo step: even step = one hand, odd step = the other,
+  // so mashing throws right-left-right-left punches. falls back to hero.punch if punch2 isn't packed.
+  const hand = (P.step%2===1 && IDX['hero.punch2.0']) ? 'hero.punch2' : 'hero.punch';
+  return hand+'.'+clamp(idx,0,5);
 }
 const cStep=()=>COMBO[P.step];
 const maxComboStep=()=> P.level<2?1:(P.level<3?2:3);   // XP levels unlock cross (lvl2) then the launching SWING (lvl3)
