@@ -34,16 +34,16 @@ only place the landscape lock behaves properly, so on a phone, install it.
 | Move | `WASD` / arrows | Stick / D-pad | Left stick |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
 | Kick | `I` | **LB** | KICK |
-| Fight / Shoot toggle | `U` | **LT** | FIGHT/SHOOT |
 | Jump | `K` / `Space` | **A** | JUMP |
-| Imagination attack | `L` | **B** | IMAGINE |
+| Shoot | `L` | **B** | SHOOT |
 | Interact / eat | `E` | **Y** | TALK |
 | Pause | `Esc` / `P` | Menu | `⏸` |
 
 Plug in a pad and the touch controls hide themselves. Unplug and they come back.
 
 **Mash punch** — it's a 4-hit string, not one button, and the last hit launches
-enemies into the air. Two special attacks come off direction + button:
+enemies into the air. Punches come out as fast as you press them, alternating
+left and right fists. Special attacks come off direction + button:
 
 - **Uppercut** — hold **up** and punch (`W`+`J`). BamBam crouches and launches
   straight up with a rising fist, popping enemies into the air.
@@ -52,9 +52,10 @@ enemies into the air. Two special attacks come off direction + button:
   flying kick that sends enemies flying back; only available while sprinting.
 - **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
 
-**Fight vs. Shoot** — tap `U` (or the FIGHT/SHOOT button) to toggle attack modes.
-In **Fight** you brawl with the melee combo; in **Shoot** every punch also pops off
-a finger-gun projectile. The HUD shows which mode you're in.
+**Shoot** — press `L` (**B** / the SHOOT button). BamBam strikes a swag pose and
+fires a finger-gun blast, spending **5% of the Freedom Meter** each shot. With a
+**completely full** meter the same button unleashes the big Imagination attack
+instead (see below), so the Freedom Meter doubles as both your ammo and your ultimate.
 
 ## The design
 
@@ -62,8 +63,9 @@ a finger-gun projectile. The HUD shows which mode you're in.
 depending on how hard they land.
 
 **The Freedom Meter** is BamBam's imagination. It fills as you clear out
-enemies who've lost theirs to greed and control, and spending it unleashes an
-exaggerated, cartoon-logic "toon force" attack that can turn a fight around.
+enemies who've lost theirs to greed and control. Spend it in small 5% bursts to
+fire finger-gun blasts, or save a full bar and unleash an exaggerated,
+cartoon-logic "toon force" attack that can turn a fight around.
 
 **XP and Bammy Bucks** are the two currencies. XP unlocks new combo strings,
 stronger attacks, movement abilities, and stat increases as you level up.

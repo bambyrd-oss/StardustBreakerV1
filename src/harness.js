@@ -207,8 +207,8 @@ if(!err){
     const e2=g.vamp(g.P.x+20,g.P.z,false,false,'guard'); g.spawn(e2); const hp0=e2.hp;
     __key('KeyL',true); __tick(1); __key('KeyL',false);
     if(g.P.state!=='imagine') throw new Error('a full meter should trigger the Imagination attack on press');
+    if(g.P.freedom>1) throw new Error('using the attack should drain the meter, left '+g.P.freedom);   // drained on the trigger frame — check before the burst can refill it by killing an enemy
     __tick(3);
-    if(g.P.freedom>1) throw new Error('using the attack should drain the meter, left '+g.P.freedom);
     if(!(e2.hp<hp0)) throw new Error('the Imagination burst should hit nearby enemies');
     __tick(60); __draw();
     console.log('        Freedom Meter filled on kill, drained on use, hit enemies in range');
