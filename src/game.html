@@ -1831,6 +1831,15 @@ function update(){
         if(hits(b,e)){ connect(e,{name:'upper',dmg:16,push:4,stun:40,y:3.6,launch:true,rum:[280,1,.8]}); } }
       P.hitDone=true; shake=Math.max(shake,6); }
   }
+  else if(P.state==='kick'){                   // STANDING KICK — I with feet on the ground, a mid-range front kick
+    P.st++;
+    P.x += P.face*0.4;                          // small forward step into it
+    if(!P.hitDone && P.st>=11){ const b={x:P.x+P.face*24,z:P.z,rw:28,rd:20};   // peak extension — the leg is furthest out here
+      for(const e of ents){ if(e.dead)continue;
+        if(hits(b,e)){ connect(e,{name:'kick',dmg:13,push:7,stun:34,rum:[240,.9,.5]}); } }
+      P.hitDone=true; shake=Math.max(shake,4); }
+    if(P.st>=20) P.state='idle';
+  }
   else if(P.state==='air'){                    // JUMP then PUNCH = dive punch, JUMP then KICK = drop kick
     P.st++;
     P.x += P.face*2.3;
@@ -1888,6 +1897,13 @@ function update(){
     if(jDrink && P.y===0){
       if(P.freedom>=P.maxFreedom){ P.freedom-=100; P.state='imagine'; P.st=0; }
       else { say(P.x,P.z-18,'NOT YET','#5c5670'); blip(90,.02); }
+    }
+    if(jKick && P.y===0 && !P.weapon){                     // I with feet on the ground → standing front kick
+      let best=null,bd=70;
+      for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
+        if(d<bd){bd=d;best=e;} }
+      if(best) P.face = best.x>P.x?1:-1;
+      P.state='kick'; P.st=0; P.hitDone=false; blip(360,.03);
     }
     if(jPunch && P.y===0 && wantUp && !P.weapon){          // UP + PUNCH → rising uppercut launcher
       let best=null,bd=80;
@@ -2934,6 +2950,8 @@ function drawPlayer(){
   if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // dive punch (reuses the punch set's extend frames)
                           : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // drop kick
                                                 : 'hero.jump.3');
+  if(P.state==='kick') key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+clamp(Math.floor(P.st/5),0,3)   // standing kick — feet stay on the ground
+                                                     : 'hero.kick.2';
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
       const uf = P.landHold>0 ? 3 : (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land (landHold forces the true landing frame — vy=0 while frozen would otherwise land on the BAM index)
@@ -3019,6 +3037,7 @@ function drawRemotePlayer(o, pos, idx){
     case 'walk':  key='hero.walk.'+(Math.floor(t*0.16)%4); break;
     case 'jump':  key='hero.jump.'+clamp(3-Math.floor(pos.y/16),0,3); break;   // low near the ground (crouch), high mid-air (rising/tucked) — no vy synced, so push-off/landing share a frame
     case 'air':   key= IDX['hero.kick.0'] ? 'hero.kick.'+(pos.y>20?1:2) : 'hero.jump.3'; break;   // drop kick
+    case 'kick':  key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+(Math.floor(t*0.3)%4) : 'hero.kick.2'; break;   // standing kick — no y/st synced, just cycle locally like the punch case below
     case 'upper': key= IDX['hero.uppercut.0'] ? 'hero.uppercut.'+(pos.y>24?1:pos.y>8?2:3) : 'hero.jump.2'; break;   // uppercut
     case 'imagine': key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*0.4)%4) : 'hero.rot.east'; break;
     case 'down':  key='hero.jump.3'; break;

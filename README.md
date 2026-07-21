@@ -44,7 +44,8 @@ Plug in a pad and the touch controls hide themselves. Unplug and they come back.
 
 **Mash punch** — it's a 4-hit string, not one button, and the last hit launches
 enemies into the air. **Uppercut** is up + punch on the ground, a launcher.
-**Jump then punch** is a dive attack; **jump then kick** is a drop kick.
+**Kick** on its own with your feet on the ground is a front kick; **jump then
+kick** is a drop kick, **jump then punch** a dive attack.
 **Fight/Shoot** toggles whether punches also pop off a finger-gun shot
 (on by default) — pure melee if you'd rather fight with your fists alone.
 

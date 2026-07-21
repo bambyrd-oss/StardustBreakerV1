@@ -74,6 +74,21 @@
     unreachable from the title UI the same way — a no-op either way) and its title-screen
     SOLO/CO-OP-choice removal (bambam already did this independently, same end state).
 
+- **Landing-hold "super armor"** — the jump/drop-kick/uppercut states used to snap straight to
+  `idle` the instant BamBam touched down. Now `P.landHold` freezes him in the landing pose for
+  ~1s (with damage still applying via `hurtPlayer`, but no stagger/knockback/knockdown while
+  frozen — see the `armored` branch there) so the landing frame actually reads before it's cut
+  short. `src/harness.js`'s `scene()` cleanup resets `landHold`/`jump`/`air`/`upper`/`y`/`vy`
+  between scenarios to avoid cross-scene leakage.
+- **Jump animation is physics-driven**, not elapsed-time-driven — frame selection in
+  `drawPlayer()` now checks real `P.y`/`P.vy` instead of `P.airT`, so he no longer crouches into
+  the landing frame mid-arc, well before he's actually near the ground.
+- **Standing kick** — `I`/LB/KICK with feet on the ground now throws a front kick (`P.state==='kick'`,
+  new `art/BamBamKickStand/` sheet, 4 frames: ready stance, knee-raise windup, mid-extend, peak
+  extend). It's a solid non-launching hit, distinct from the airborne drop kick (`jump` then
+  `kick`, which still uses `art/BamBamKick/` and launches). New harness scene: "standing kick: I
+  with feet on the ground connects without launching".
+
 Everything above is committed to `main` and green under `node src/harness.js`.
 
 ## Known gaps vs. the game spec (not started)
