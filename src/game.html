@@ -750,13 +750,18 @@ function genChunk(ci){
     }
   }
   for(let i=0;i<3;i++) GRATES.push({x:x0+R()*CHUNK, z:FLOOR_N+32+R()*(FLOOR_S-FLOOR_N-44), open:0, chunk:ci});
-  // a few breakables, mixed — not a wall of trash cans
+  // a few breakables, mixed — not a wall of trash cans. boxes spilled off a truck belong in
+  // the street, not the sidewalk, so they get the road's z-range (same band the jaywalking
+  // crowd below uses) instead of the sidewalk one everything else spawns in.
   for(let i=0;i<3;i++){ const ty=['can','box','crate','dumpster'][Math.floor(R()*4)];
-    cans.push({id:'c'+ci+'_'+i, x:x0+40+R()*(CHUNK-80), z:FLOOR_N+8+R()*(FLOOR_S-FLOOR_N-16), type:ty,
+    const z = ty==='box' ? CURB+6+R()*(ROAD_TARGET-40-CURB) : FLOOR_N+8+R()*(FLOOR_S-FLOOR_N-16);
+    cans.push({id:'c'+ci+'_'+i, x:x0+40+R()*(CHUNK-80), z, type:ty,
       hp: ty==='box'?1:ty==='dumpster'?3:2, w: ty==='dumpster'?18:11, shake:0, dead:false, chunk:ci}); }
-  // street furniture against the storefronts — all procedural now: trees, benches,
-  // newsboxes, bikeracks. (hydrant/mailbox/sign dropped with their sprites; keep the
-  // table 10 long so R()'s call order — and every gate/wave seed downstream — is unchanged.)
+  // street furniture against the storefronts — all procedural now: trees, benches, newsboxes,
+  // bikeracks. (hydrant/mailbox/sign dropped with their sprites — the last leftover FATBACK-era
+  // props, retired regardless of visual quality; keep the table 10 long so R()'s call order —
+  // and every gate/wave seed downstream — is unchanged. gate + lamp dropped — gate sprite has
+  // baked-in graffiti; lamps not wanted)
   for(let i=0;i<8;i++){ const ty=['tree','tree','tree','bikerack','bench','newsbox','tree','bench','newsbox','bikerack'][Math.floor(R()*10)];
     props.push({x:x0+30+R()*(CHUNK-60), z:FLOOR_N-2+R()*22, type:ty, ph:R()*9, chunk:ci}); }
   // ambient foot traffic — background pedestrians who actually walk the block now that
@@ -814,7 +819,7 @@ const P={};
 function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
-    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,
+    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,landHold:0,beamFace:1,
     stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
@@ -852,7 +857,9 @@ const COMBO=[
   {name:'jab',      su:4, act:4, rec:8,  dmg:5,  push:0,   stun:20, y:0,
    sheet:'jab',      wind:[0,1],   hit:[2,3], back:[4,5],   step:1.4, rum:[60,.30,.55]},
   {name:'jab 2',    su:3, act:4, rec:8,  dmg:5,  push:0,   stun:20, y:0,
-   sheet:'jab',      wind:[1],     hit:[2,3], back:[4,5],   step:1.8, rum:[85,.42,.72]},
+   // left hand — sheet:'jabL' gives the combo a right(jab)/left(jab 2)/right(cross,
+   // falls back to hero.punch which is right-handed) alternating rhythm
+   sheet:'jabL',     wind:[1],     hit:[2,3], back:[4,5],   step:1.8, rum:[85,.42,.72]},
   {name:'cross',    su:5, act:5, rec:11, dmg:9,  push:0,   stun:26, y:0,
    sheet:'cross',    wind:[0,1],   hit:[2,3], back:[4,5],   step:2.6, rum:[140,.68,.92]},
   {name:'SWING', su:8, act:6, rec:18, dmg:15, push:9.5, stun:46, y:3.4, launch:true,
@@ -1673,11 +1680,13 @@ function slamDown(e){                                       // a thrown enemy la
 function hurtPlayer(dmg,fromX){
   if(P.iframes>0||OPT.inv||P.state==='caged'||P.state==='grabbed') return;   // caged/grabbed handle their own damage
   if(P.state==='grab' && P.grabE){ dropGrab(24); say(P.x,P.z-30,'BROKEN!','#ff2e88'); }   // hit mid-windup → the grab breaks, you eat it
+  const armored = P.landHold>0;                  // super armor while frozen in a landing pose — eats the hit, doesn't flinch
   const full=loseHeart(dmg);                     // HIDE thickens your skin; a heavy hit costs a full heart, a light one costs half
-  P.iframes=42; P.hitFlash=16; shake=4; hitstop=4; P.state='idle'; P.step=0; P.st=0; P.buf=0;
-  rumble(200,.95,.5,true);
-  P.face=fromX>P.x?1:-1; P.x-=Math.sign(fromX-P.x)*10;
+  P.hitFlash=16; shake=4; hitstop=4; rumble(200,.95,.5,true);
   puff(P.x,P.z,50,5,'#ff2e88'); blip(90,.08);
+  if(armored){ say(P.x,P.z-30,'ARMOR','#ffd23a'); return; }   // no iframes/state-interrupt/knockdown — the pose holds
+  P.iframes=42; P.state='idle'; P.step=0; P.st=0; P.buf=0;
+  P.face=fromX>P.x?1:-1; P.x-=Math.sign(fromX-P.x)*10;
 
   // a full-heart hit puts you on the pavement
   if(full){
@@ -1754,7 +1763,8 @@ function update(){
   if(pad&&pad.PAUSE) setPause(true);
 
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
-  if(P.state==='punch'){
+  if(P.landHold>0){ /* frozen in the landing pose — see the landHold countdown further down */ }
+  else if(P.state==='punch'){
     const s=cStep(); P.st++;
     if(P.st===s.su) P.stepV=P.face*s.step;          // he steps into it
     if(P.stepV){ P.x+=P.stepV; P.stepV*=0.72; if(Math.abs(P.stepV)<0.12) P.stepV=0; }
@@ -1766,7 +1776,8 @@ function update(){
       fires.push({x:P.x+P.face*18, z:P.z, y:20, vx:P.face*5.4, vz:0, vy:0.03, r:7, life:46, max:48, foe:false});
       blip(90,.05); }
     // finger guns — SHOOT mode only: every swing pops off a little dot projectile,
-    // BANG-style, no real gun art yet so it's just imagination made literal
+    // BANG-style, no real gun art yet so it's just imagination made literal. Toggled by
+    // FIGHT/SHOOT (default on, matching the always-on behavior before the toggle existed).
     if(P.gunMode && P.st===s.su+1){
       fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
       blip(520,.02); }
@@ -1804,29 +1815,20 @@ function update(){
     if(P.y>0||P.vy>0){ P.y+=P.vy; P.vy-=0.32; if(P.y<=0){P.y=0;P.vy=0;} }
     if(P.downT<=0){ P.state='idle'; P.iframes=Math.max(P.iframes,26); }
   }
-  else if(P.state==='imagine'){                // Imagination attack — a toon-force burst that hits everyone close
+  else if(P.state==='imagine'){                // PLASMA GUN — Freedom Meter's ultimate: a huge forward-firing beam
     P.st++;
     if(P.st===1){
-      const r=70+U.reach*8;
+      P.beamFace=P.face;                        // lock the beam's direction — a hit reaction mid-blast shouldn't swing it
+      const len=460, reach=U.reach*8, b={x:P.x+P.beamFace*(len+reach)/2, z:P.z, rw:(len+reach)/2, rd:30};
       for(const e of ents){ if(e.dead) continue;
-        if(Math.hypot(e.x-P.x,(e.z-P.z)*1.6)>r) continue;
-        connect(e,{name:'imagine',dmg:26,push:8,stun:40,y:2.6,launch:true,rum:[300,1,.9]});
+        if(hits(b,e)) connect(e,{name:'plasma',dmg:30,push:9,stun:44,y:2.8,launch:true,rum:[320,1,.9]});
       }
       P.dmgMul=Math.max(P.dmgMul,1.5); P.dmgT=420; P.fireT=420;
-      shake=Math.max(shake,10); hitstop=Math.max(hitstop,10); rumble(500,1,1,true);
+      shake=Math.max(shake,12); hitstop=Math.max(hitstop,12); rumble(600,1,1,true);
+      for(let i=0;i<20;i++) puff(P.x+P.beamFace*rnd(20,len*0.85), P.z+rnd(-14,14), rnd(10,34), 1, i%2?'#3ad1ff':'#eafcff');
       say(P.x,P.z-40,'IMAGINATION!','#3ad1ff');
     }
     if(P.st>=48) P.state='idle';
-  }
-  else if(P.state==='air'){                    // aerial attack — KICK = drop kick, PUNCH = dive punch
-    P.st++;
-    P.x += P.face*(P.airPunch?2.1:2.9);         // punch dives a bit shorter than the flying kick
-    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:22),z:P.z,rw:P.airPunch?26:32,rd:22};
-      for(const e of ents){ if(e.dead)continue;
-        if(hits(b,e)){ P.airPunch
-            ? connect(e,{name:'airpunch',dmg:12,push:6,stun:32,y:2.0,launch:true,rum:[210,.85,.5]})   // dive punch
-            : connect(e,{name:'kick',    dmg:14,push:8,stun:36,y:2.4,launch:true,rum:[240,.95,.6]});  // drop kick
-          P.hitDone=true; } } }
   }
   else if(P.state==='upper'){                  // UPPERCUT — press UP + PUNCH on the ground, launches straight up
     P.st++;
@@ -1835,6 +1837,24 @@ function update(){
       for(const e of ents){ if(e.dead)continue;
         if(hits(b,e)){ connect(e,{name:'upper',dmg:16,push:4,stun:40,y:3.6,launch:true,rum:[280,1,.8]}); } }
       P.hitDone=true; shake=Math.max(shake,6); }
+  }
+  else if(P.state==='kick'){                   // STANDING KICK — I with feet on the ground, a mid-range front kick
+    P.st++;
+    P.x += P.face*0.4;                          // small forward step into it
+    if(!P.hitDone && P.st>=11){ const b={x:P.x+P.face*24,z:P.z,rw:28,rd:20};   // peak extension — the leg is furthest out here
+      for(const e of ents){ if(e.dead)continue;
+        if(hits(b,e)){ connect(e,{name:'kick',dmg:13,push:7,stun:34,rum:[240,.9,.5]}); } }
+      P.hitDone=true; shake=Math.max(shake,4); }
+    if(P.st>=20) P.state='idle';
+  }
+  else if(P.state==='air'){                    // JUMP then PUNCH = dive punch, JUMP then KICK = drop kick
+    P.st++;
+    P.x += P.face*(P.airPunch?2.1:2.9);         // punch dives a bit shorter than the flying kick
+    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:22),z:P.z,rw:P.airPunch?26:32,rd:22};
+      for(const e of ents){ if(e.dead)continue;
+        if(hits(b,e)){ connect(e, P.airPunch
+          ? {name:'dive',dmg:12,push:6.5,stun:34,y:2.2,launch:true,rum:[240,.9,.5]}
+          : {name:'kick',dmg:14,push:8,stun:36,y:2.2,launch:true,rum:[240,.9,.5]}); P.hitDone=true; } } }
   }
   else if(P.state==='caged'){                   // locked in the lawyer's briefcase — MASH PUNCH to break out
     P.y=0; P.vy=0;
@@ -1885,6 +1905,13 @@ function update(){
       if(P.freedom>=P.maxFreedom){ P.freedom-=100; P.state='imagine'; P.st=0; }
       else { say(P.x,P.z-18,'NOT YET','#5c5670'); blip(90,.02); }
     }
+    if(jKick && P.y===0 && !P.weapon){                     // I with feet on the ground → standing front kick
+      let best=null,bd=70;
+      for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
+        if(d<bd){bd=d;best=e;} }
+      if(best) P.face = best.x>P.x?1:-1;
+      P.state='kick'; P.st=0; P.hitDone=false; blip(360,.03);
+    }
     if(jPunch && P.y===0 && wantUp && !P.weapon){          // UP + PUNCH → rising uppercut launcher
       let best=null,bd=80;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
@@ -1905,7 +1932,14 @@ function update(){
     P.state='air'; P.airPunch=jKick?false:true; P.st=0; P.hitDone=false; P.vy=Math.min(P.vy,0.5); }
   if(P.y>0||P.vy>0){ P.airT++; P.y+=P.vy; P.vy-=(P.state==='air'?0.44:0.32);
     if(P.y<=0){ P.y=0;P.vy=0;
-      if(P.state==='air'||P.state==='upper'){shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true);} P.state='idle'; } }
+      // hold on the landing pose for a beat instead of snapping straight to idle — jump/air/upper
+      // all end on a dedicated "just touched down" frame (hero.jump.3, the punch/kick set's last
+      // frame, hero.uppercut.3) that reads wrong if it's skipped past instantly
+      if(P.state==='jump'||P.state==='air'||P.state==='upper'){
+        shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true); P.landHold=60;
+      } else P.state='idle';
+    } }
+  if(P.landHold>0 && P.y===0){ P.landHold--; if(P.landHold<=0) P.state='idle'; }   // runs even while y===0 skips the block above
 
   P.z=clamp(P.z,FLOOR_N,ROAD_TARGET+4);   // the whole block is walkable — sidewalk AND road, no curb line
   P.x=clamp(P.x, camLock!==null?camLock+16:8, camLock!==null?camLock+W-24:Infinity);
@@ -2180,25 +2214,34 @@ function bg(){
     ctx.beginPath(); ctx.ellipse(cx-15,cy-3,15,7,0,0,7); ctx.fill(); }
   ctx.globalAlpha=1;
 
-  // far skyline — saturated sunlit silhouettes with colorful glass windows
+  //---- a flat fallback wall color, drawn BEFORE the skyline (not after) so the skyline paints
+  // over it and isn't clipped — this used to sit after the skyline and erase its bottom edge.
+  ctx.fillStyle='#e8d2a0'; ctx.fillRect(0,118,W,FLOOR_N-118);
+
+  // far skyline — saturated sunlit silhouettes with colorful glass windows. Anchored down near
+  // the foreground buildings' own ground floor (not a thin sliver near the top of the sky) so it
+  // visibly fills the gaps between foreground buildings with more buildings, not open sky — the
+  // whole point of this layer existing. Moderate height (not the point of the closeness), a
+  // brisker parallax (0.18->0.26) does the "closer" work instead.
   const SKY_BLD=['#7fa8d9','#8fc9b0','#e0c078','#a8a8e0'];
   const GLASS=['#6fd8ec','#ffcf7a','#ff9fc0'];
-  for(let i=-1;i<22;i++){ const bx=i*84-(camX*0.18)%84, bh=70+((i*37)%5)*20;
+  const SKY_BASE=FLOOR_N-6;
+  for(let i=-1;i<22;i++){ const bx=i*84-(camX*0.26)%84, bh=80+((i*37)%5)*18;
     const col=SKY_BLD[Math.floor(hsh(i*3.1)*4)];
     // roofline variant — a fresh hsh() offset (i*3.1+9.9) from the color pick above (i*3.1)
     // so shape and color don't always covary; purely i-indexed parallax dressing, no
     // relation to genChunk()/BUILDINGS at all.
     const roofV=Math.floor(hsh(i*3.1+9.9)*3);
-    ctx.fillStyle=col; ctx.fillRect(bx,146-bh,80,bh);
-    ctx.globalAlpha=0.35; ctx.strokeStyle=INK; ctx.lineWidth=1;    // thin, faint — background shouldn't compete with the foreground ink
-    ctx.strokeRect(Math.round(bx)+0.5,Math.round(146-bh)+0.5,79,bh-1);
+    ctx.fillStyle=col; ctx.fillRect(bx,SKY_BASE-bh,80,bh);
+    ctx.globalAlpha=0.45; ctx.strokeStyle=INK; ctx.lineWidth=1;    // a touch more present than before, still faint next to the foreground ink
+    ctx.strokeRect(Math.round(bx)+0.5,Math.round(SKY_BASE-bh)+0.5,79,bh-1);
     ctx.globalAlpha=1;
-    if(roofV===1){ ctx.fillStyle=shadeHex(col,-0.12); ctx.fillRect(bx+18,146-bh-8,44,8); }        // notch
+    if(roofV===1){ ctx.fillStyle=shadeHex(col,-0.12); ctx.fillRect(bx+18,SKY_BASE-bh-8,44,8); }    // notch
     else if(roofV===2){ ctx.fillStyle=col;                                                         // gable point
-      ctx.beginPath(); ctx.moveTo(bx+28,146-bh); ctx.lineTo(bx+40,146-bh-11); ctx.lineTo(bx+52,146-bh); ctx.closePath(); ctx.fill(); }
-    for(let w=0;w<4;w++)for(let h=0;h<Math.floor(bh/18);h++){
+      ctx.beginPath(); ctx.moveTo(bx+28,SKY_BASE-bh); ctx.lineTo(bx+40,SKY_BASE-bh-11); ctx.lineTo(bx+52,SKY_BASE-bh); ctx.closePath(); ctx.fill(); }
+    if(hsh(i*4.4+5.5)>0.32) for(let w=0;w<4;w++)for(let h=0;h<Math.floor(bh/18);h++){    // blank a third of these too
       ctx.fillStyle=GLASS[Math.floor(hsh(i*5+w*11+h*3)*3)];
-      ctx.fillRect(bx+9+w*17,154-bh+h*18,5,6); } }
+      ctx.fillRect(bx+9+w*17,SKY_BASE-bh+8+h*18,5,6); } }
   // one bird catching the light, because a still sky reads as a screenshot
   ctx.globalAlpha=(t%140<12)?1:0; ctx.fillStyle='#fff';
   ctx.fillRect((W- (t*0.28)%(W+200))+100, 40+Math.sin(t*0.004)*6, 2,2); ctx.globalAlpha=1;
@@ -2206,7 +2249,6 @@ function bg(){
   //---- facades
   const BLD_COL=['#ffb84d','#5fd0c8','#ff7f9e','#6fb3f0','#c98fe8','#8fd66a'];
   const ROOF_STYLES=['parapet','setback','gable','cornice'];
-  ctx.fillStyle='#e8d2a0'; ctx.fillRect(0,118,W,FLOOR_N-118);
   for(const b of BUILDINGS){
     const sx=b.x-camX; if(sx>W+40||sx+b.w<-40) continue;
     const top=55+Math.floor(hsh(b.x)*7)*11;           // tall, skinny apartment towers — lowered a bit, height still varies a lot
@@ -2236,8 +2278,10 @@ function bg(){
     shadedRect(sx,top,b.w,5, trim, 0.3, 0.1);
     inkRect(sx,top,b.w,5,null);
     ctx.fillStyle='rgba(0,0,0,.12)'; ctx.fillRect(sx+b.w-2,top,2,FLOOR_N-top);
-    // stacked apartment windows, floor after floor, up to the ground-floor storefront band
-    for(let w=0;w<Math.floor(b.w/28);w++)
+    // stacked apartment windows, floor after floor, up to the ground-floor storefront band —
+    // about a third of buildings skip this entirely (a blank brick party-wall/warehouse face,
+    // real enough in a packed block) so the street doesn't read as wall-to-wall glass
+    if(hsh(b.x*2.9+7.7)>0.32) for(let w=0;w<Math.floor(b.w/28);w++)
       for(let h=0; top+10+h*22 < groundTop-6; h++){
         const glass=GLASS[Math.floor(hsh(b.x+w*11+h*3)*3)];
         const wx=Math.round(sx+10+w*28), wy=Math.round(top+10+h*22);
@@ -2269,6 +2313,11 @@ function bg(){
       ctx.fillStyle='#ffb545'; ctx.fillRect(sx+b.w/2-24,by2+13,12,3);
       // burger-shop name lettering removed (flavor text) — the burger icon stays
     }
+    // contact shadow — a soft dark gradient where the ground floor meets the sidewalk, so
+    // buildings feel planted instead of floating on a flat fill
+    const aoG=ctx.createLinearGradient(0,FLOOR_N-14,0,FLOOR_N);
+    aoG.addColorStop(0,'rgba(0,0,0,0)'); aoG.addColorStop(1,'rgba(0,0,0,.24)');
+    ctx.fillStyle=aoG; ctx.fillRect(sx,FLOOR_N-14,b.w,14);
     // the doorway is a hole, not a decal — it's where they come from
     const dw=b.kind==='club'?54:40, dx=b.doorX-camX;
     inkRect(dx-dw/2,FLOOR_N-58,dw,58,'#2a2018');
@@ -2302,6 +2351,16 @@ function bg(){
   shadedRect(0,CURB,W,4,'#a8823a',0.35,0.05); ctx.fillStyle=INK; ctx.fillRect(0,CURB,W,1);   // curb lip, lit top face + dark riser
   shadedRect(0,ROAD,W,H-ROAD,'#4a4552',0.08,0.08);                  // asphalt — subtle sheen, it shouldn't gradient much
   ctx.globalAlpha=0.4; ctx.fillStyle=ASPHALT_PAT; ctx.fillRect(0,ROAD,W,H-ROAD); ctx.globalAlpha=1;
+
+  // cloud shadows on the ground — same x-parallax as the clouds above (camX*0.05), so each
+  // patch visibly belongs to the cloud that cast it instead of floating disconnected. Size,
+  // alpha and offset are jittered per-cloud (hsh(i), stable and i-indexed like the skyline
+  // dressing above) so the run of patches doesn't read as one mechanically repeating stamp.
+  // Drawn under the lane dashes/crosswalk/cracks below so those still read crisp on top.
+  for(let i=-1;i<9;i++){ const cx=i*230-(camX*0.05)%230+hsh(i*4.7+1.3)*70-35;
+    const rw=70+hsh(i*2.1)*55, rh=(H-FLOOR_N)/2+hsh(i*6.3+2)*14;
+    ctx.fillStyle='rgba(20,16,12,'+(0.05+hsh(i*3.9+.7)*0.07)+')';
+    ctx.beginPath(); ctx.ellipse(cx,(FLOOR_N+H)/2+6+hsh(i*5.5)*10-5,rw,rh,0,0,7); ctx.fill(); }
   // lane dashes — faster fake parallax (not real world position, a stylized sense-of-speed
   // effect), so a dash can coincidentally land on top of a crosswalk below; skip any that would
   const cwCenters=[]; for(let i=0;i<10;i++) cwCenters.push(i*900-camX%900);
@@ -2326,11 +2385,13 @@ function bg(){
     } }
 
   // a crosswalk every few blocks, corner-of-the-block detail — slightly worn paint per stripe.
-  // full stripe height always; only alpha varies, so wear reads as tonal, not a jagged cut.
+  // stripes run parallel to the road (wide in x), stacked across its depth (down in y) — the
+  // ladder rungs a pedestrian would step over crossing the road, not fence posts along it.
+  // full stripe width always; only alpha varies, so wear reads as tonal, not a jagged cut.
   for(let i=0;i<10;i++){ const cwx=i*900-camX%900;
     for(let j=0;j<7;j++){ const wear=hsh(i*7+j*3+21.4);
       ctx.globalAlpha=0.85+wear*0.15; ctx.fillStyle='#e8e2d4';
-      ctx.fillRect(cwx+j*11-33,ROAD+4,7,H-ROAD-8); ctx.globalAlpha=1; } }
+      ctx.fillRect(cwx-33,ROAD+4+j*11,66,7); ctx.globalAlpha=1; } }
 
   // grates
   for(const gr of GRATES){ const sx=gr.x-camX; if(sx<-30||sx>W+30)continue;
@@ -2400,7 +2461,7 @@ function drawLitter(){
   ctx.globalAlpha=1;
 }
 
-function shadow(x,z,r){ ctx.globalAlpha=.34; ctx.fillStyle='#000';
+function shadow(x,z,r){ ctx.globalAlpha=.42; ctx.fillStyle='#000';
   ctx.beginPath(); ctx.ellipse(x-camX,z,r,r*.34,0,0,7); ctx.fill(); ctx.globalAlpha=1; }
 
 function drawCan(c){ const sx=c.x-camX+(c.shake?rnd(-1.5,1.5):0), z=c.z;
@@ -2744,6 +2805,36 @@ function drawFires(){
   ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
 }
 
+// BamBam's Imagination ultimate — a huge plasma beam fired straight out in front of him. Same
+// additive-glow layering as the robocop dark form's plasma lob above, just stretched into a
+// beam and tinted electric-blue/white (instead of magenta) so it reads as his, not theirs.
+function drawPlasmaBeam(){
+  if(P.state!=='imagine' || P.st<1 || P.st>26) return;
+  const ramp=clamp(P.st/4,0,1), fade=clamp(1-(P.st-6)/20,0,1), a=Math.min(ramp,fade);
+  if(a<=0) return;
+  const dir=P.beamFace||P.face, len=460, sx=P.x-camX, sy=P.z-24, ex=sx+dir*len;
+  const pulse=0.75+0.25*Math.sin(t*0.9);
+  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+  ctx.strokeStyle='#0af0ff'; ctx.globalAlpha=a*0.35*pulse; ctx.lineWidth=32;   // outer glow
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,sy); ctx.stroke();
+  ctx.strokeStyle='#3ad1ff'; ctx.globalAlpha=a*0.6; ctx.lineWidth=15;         // mid beam
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,sy); ctx.stroke();
+  ctx.strokeStyle='#eafcff'; ctx.globalAlpha=a; ctx.lineWidth=5;              // white-hot core
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,sy); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.globalAlpha=a*0.9;                                // muzzle flash at his hands
+  ctx.beginPath(); ctx.ellipse(sx,sy,10*pulse,10*pulse,0,0,7); ctx.fill();
+  ctx.restore(); ctx.globalAlpha=1;
+}
+
+// a soft darkening at the screen edges — cheap, but it's the single biggest lever for making
+// everything in the middle read with more contrast instead of competing evenly with the corners.
+// drawn last, in fixed screen space (after ctx.restore(), so screen-shake doesn't jitter it).
+function vignette(){
+  const g=ctx.createRadialGradient(W/2,H*0.42,H*0.22,W/2,H*0.42,H*0.78);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(10,8,14,.40)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+}
+
 // the President's missile strike — a closing reticle over the impact zone during the warning
 function drawStrikeWarning(){
   const b=boss; if(!b||b.arch!=='president'||b.state!=='incoming') return;
@@ -2907,20 +2998,30 @@ function drawPlayer(){
   let drawFace=P.face;   // normally P.face; overridden to +1 for the dedicated left-facing (un-mirrored) uppercut frame
   if(P.state==='walk') key='hero.walk.'+(Math.floor(t*.16)%4);
   if(P.state==='idle') key='hero.rot.east';
-  if(P.state==='jump') key='hero.jump.'+clamp(Math.floor(P.airT/9),0,3);   // 0 push-off, 1 rise, 2 peak, 3 fall/land
+  // driven off real height/velocity, not elapsed ticks — the old airT/9 formula reached the
+  // landing-crouch frame partway through the arc, well before he was actually near the ground
+  if(P.state==='jump'){
+    if(P.airT<3) key='hero.jump.0';            // push-off, just the launch instant
+    else if(P.vy>0) key='hero.jump.1';         // rising
+    else if(P.y>14) key='hero.jump.2';         // falling, still well off the ground
+    else key='hero.jump.3';                    // about to touch down — crouch only now
+  }
   if(P.state==='imagine') key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*.4)%4) : 'hero.rot.east';
-  if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // DIVE PUNCH (jab-extend frames)
-                          : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // DROP KICK
+  if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // dive punch (reuses the punch set's extend frames)
+                          : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // drop kick
                                                 : 'hero.jump.3');
+  if(P.state==='kick') key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+clamp(Math.floor(P.st/5),0,3)   // standing kick — feet stay on the ground
+                                                     : 'hero.kick.2';
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
-      const uf = (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land
+      const uf = P.landHold>0 ? 3 : (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land (landHold forces the true landing frame — vy=0 while frozen would otherwise land on the BAM index)
       if(uf===2 && P.face<0 && IDX['hero.uppercutL.2']){ key='hero.uppercutL.2'; drawFace=1; }  // face left: use the pre-drawn left BAM so the lettering isn't mirrored
       else key='hero.uppercut.'+uf;
     } else key='hero.jump.2';
   }
   if(P.state==='down') key='hero.jump.'+(P.downT>40?0:3);   // flat on the pavement (drawn rotated below); reuse a low crouch pose
-  if(P.state==='punch') key=comboKey(cStep());
+  if(P.state==='punch') key= P.gunMode && IDX['hero.shoot.0'] ? 'hero.shoot.'+clamp(Math.floor(P.st/3),0,3)   // SHOOT mode: finger-gun point instead of a fist
+                                                               : comboKey(cStep());
   // hit recoil — while the flash is fresh and you're not mid-action, stumble back.
   // driven off the hitFlash timer (16→0) so it plays once per hit, then hands
   // control back to idle/walk. faces the attacker (hurtPlayer set P.face), so the
@@ -2994,8 +3095,9 @@ function drawRemotePlayer(o, pos, idx){
   let key = 'hero.rot.east';
   switch(pos.state){
     case 'walk':  key='hero.walk.'+(Math.floor(t*0.16)%4); break;
-    case 'jump':  key='hero.jump.'+clamp(Math.floor(pos.y/16),0,3); break;
+    case 'jump':  key='hero.jump.'+clamp(3-Math.floor(pos.y/16),0,3); break;   // low near the ground (crouch), high mid-air (rising/tucked) — no vy synced, so push-off/landing share a frame
     case 'air':   key= IDX['hero.kick.0'] ? 'hero.kick.'+(pos.y>20?1:2) : 'hero.jump.3'; break;   // drop kick
+    case 'kick':  key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+(Math.floor(t*0.3)%4) : 'hero.kick.2'; break;   // standing kick — no y/st synced, just cycle locally like the punch case below
     case 'upper': key= IDX['hero.uppercut.0'] ? 'hero.uppercut.'+(pos.y>24?1:pos.y>8?2:3) : 'hero.jump.2'; break;   // uppercut
     case 'imagine': key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*0.4)%4) : 'hero.rot.east'; break;
     case 'down':  key='hero.jump.3'; break;
@@ -3202,6 +3304,7 @@ function render(){
   for(const p of parts){ ctx.globalAlpha=clamp(p.life/20,0,1); ctx.fillStyle=p.col;
     ctx.fillRect(p.x-camX,p.z-p.y,2,2); } ctx.globalAlpha=1;
   drawFires();
+  drawPlasmaBeam();
   drawStrikeWarning();
   drawLitter();
   drawBusMob();
@@ -3230,6 +3333,7 @@ function render(){
     ctx.fillStyle=f.col; ctx.fillText(f.txt,f.x-camX,f.z-f.y); } ctx.globalAlpha=1;
   ctx.restore();
   if(camFlash>0){ ctx.fillStyle='rgba(255,255,255,'+clamp(camFlash,0,1)*0.85+')'; ctx.fillRect(0,0,W,H); }  // photo whiteout
+  vignette();
   hud();
 
   composite();

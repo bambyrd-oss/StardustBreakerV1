@@ -136,8 +136,8 @@ if(MISSING.length) console.log('ids requested but NOT in markup: '+[...new Set(M
 function scene(name, fn){
   // clear any grab/street residue a prior scene's sim may have left on the player, so scenes stay independent
   try{ const g=globalThis.__G();
-    if(['grab','grabbed','caged','wthrow','punch'].includes(g.P.state)) g.P.state='idle';
-    g.P.grabE=null; g.P.grabbedBy=null; g.P.cageB=null; g.P.weapon=null; }catch(e){}
+    if(['grab','grabbed','caged','wthrow','punch','jump','air','upper','kick'].includes(g.P.state)) g.P.state='idle';
+    g.P.grabE=null; g.P.grabbedBy=null; g.P.cageB=null; g.P.weapon=null; g.P.landHold=0; g.P.y=0; g.P.vy=0; }catch(e){}
   try{ fn(); console.log('  ok    '+name); }
   catch(e){ console.log('  FAIL  '+name+'\n        '+e.constructor.name+': '+e.message+
     '\n        '+(e.stack||'').split('\n')[1].trim()); err=err||e; }
@@ -245,6 +245,42 @@ if(!err){
   });
   scene('take a hit / knockdown', ()=>{
     const g=__G(); g.P.iframes=0; g.hurtPlayer(20,g.P.x+30); __tick(120); __draw();
+  });
+  scene('drop kick: jump then kick connects and knocks an enemy back', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle'; g.P.face=1; g.setCamLock(Math.max(0,g.P.x-170));
+    const e=g.vamp(g.P.x+30,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
+    __key('KeyK',true); __tick(1); __key('KeyK',false); __tick(10);   // jump
+    if(g.P.state!=='jump') throw new Error('expected jump state before kicking, got '+g.P.state);
+    __key('KeyI',true); __tick(1); __key('KeyI',false);
+    if(g.P.state!=='air'||g.P.airPunch!==false) throw new Error('JUMP then KICK should enter air state with airPunch=false, got state='+g.P.state+' airPunch='+g.P.airPunch);
+    const hp0=e.hp; __tick(30);
+    if(!(e.hp<hp0)) throw new Error('drop kick should have connected, enemy hp unchanged at '+e.hp);
+    console.log('        jump+kick -> air state (airPunch=false), drop kick connected for '+(hp0-e.hp)+' dmg');
+  });
+  scene('standing kick: I with feet on the ground connects without launching', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle'; g.P.face=1; g.P.weapon=null; g.setCamLock(Math.max(0,g.P.x-170));
+    const e=g.vamp(g.P.x+30,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
+    __key('KeyI',true); __tick(1); __key('KeyI',false);
+    if(g.P.state!=='kick') throw new Error('I on the ground should enter the kick state, got '+g.P.state);
+    const hp0=e.hp; __tick(20);
+    if(!(e.hp<hp0)) throw new Error('standing kick should have connected, enemy hp unchanged at '+e.hp);
+    __tick(10);
+    if(g.P.state!=='idle') throw new Error('kick should release back to idle, got '+g.P.state);
+    console.log('        I on the ground -> kick state, standing kick connected for '+(hp0-e.hp)+' dmg');
+  });
+  scene('uppercut: UP+PUNCH on the ground launches a grounded enemy', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle'; g.P.face=1; g.P.weapon=null; g.setCamLock(Math.max(0,g.P.x-170));
+    const e=g.vamp(g.P.x+20,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
+    __key('KeyW',true); __key('KeyJ',true); __tick(1); __key('KeyJ',false);
+    if(g.P.state!=='upper') throw new Error('UP+PUNCH on the ground should enter the upper state, got '+g.P.state);
+    const hp0=e.hp; __tick(20); __key('KeyW',false);
+    if(!(e.hp<hp0)) throw new Error('uppercut should have connected, enemy hp unchanged at '+e.hp);
+    if(e.state!=='launch') throw new Error('uppercut should launch the enemy, state='+e.state);
+    __tick(60);
+    console.log('        UP+PUNCH -> upper state, uppercut connected for '+(hp0-e.hp)+' dmg and launched the target');
   });
   scene('Landlord D. Evict: guards → eviction notices → exhausted and dizzy', ()=>{
     const g=__G(); g.clearEnts();

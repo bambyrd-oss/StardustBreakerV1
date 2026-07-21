@@ -43,17 +43,18 @@ only place the landscape lock behaves properly, so on a phone, install it.
 Plug in a pad and the touch controls hide themselves. Unplug and they come back.
 
 **Mash punch** — it's a 4-hit string, not one button, and the last hit launches
-enemies into the air. Two special attacks come off direction + button:
+enemies into the air. Special attacks come off direction + button:
 
 - **Uppercut** — hold **up** and punch (`W`+`J`). BamBam crouches and launches
   straight up with a rising fist, popping enemies into the air.
+- **Kick** on its own, feet on the ground (`I`) — a mid-range standing front kick.
 - **Drop kick** — **jump, then kick** (`K` then `I`). A feet-first flying kick
   that drives forward through the crowd.
 - **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
 
 **Fight vs. Shoot** — tap `U` (or the FIGHT/SHOOT button) to toggle attack modes.
 In **Fight** you brawl with the melee combo; in **Shoot** every punch also pops off
-a finger-gun projectile. The HUD shows which mode you're in.
+a finger-gun projectile (on by default). The HUD shows which mode you're in.
 
 ## The design
 
@@ -61,8 +62,9 @@ a finger-gun projectile. The HUD shows which mode you're in.
 depending on how hard they land.
 
 **The Freedom Meter** is BamBam's imagination. It fills as you clear out
-enemies who've lost theirs to greed and control, and spending it unleashes an
-exaggerated, cartoon-logic "toon force" attack that can turn a fight around.
+enemies who've lost theirs to greed and control, and spending it unleashes a
+huge imagination-made-literal plasma beam straight out in front of him —
+long range, hits everything in its path, can turn a fight around.
 
 **XP and Bammy Bucks** are the two currencies. XP unlocks new combo strings,
 stronger attacks, movement abilities, and stat increases as you level up.
@@ -128,12 +130,21 @@ only thing that reads it.
 
 ## Art pipeline — read this before generating more
 
-This project was forked from an earlier game built on the same engine, so the
-art currently in `art/` is a placeholder holdover, not BamBam's final look.
-BamBam's hero, enemy roster (Security Guards, Corrupt Politicians, Corporate
-Mascots, Robotic Police), and the three bosses (Landlord D. Evict, B.I.G.
-Farma, The President) still need to be generated and wired in — see
-`.mcp.json` for the PixelLab MCP server already configured for this.
+This project was forked from an earlier game built on the same engine.
+**BamBam's hero has real drawn animation now** — six sets under
+`art/BamBam{Run,Punch,Jump,Uppercut,Kick,Swag}/`, packed by `src/pack.py` into
+`hero.walk/punch/jump/uppercut/kick/swag.*`. The enemy roster (Security
+Guards, Corrupt Politicians, Corporate Mascots, Robotic Police) and the three
+bosses (Landlord D. Evict, B.I.G. Farma, The President) still need real art —
+see `.mcp.json` for the PixelLab MCP server already configured for this.
+
+The last leftover art from the original FATBACK-engine fork —
+`hydrant`/`mailbox`/`sign`/`dumpster` prop sprites — has been retired
+regardless of visual quality (same reasoning as the earlier enemy-art
+retirement): `src/pack.py` no longer packs them, they render procedurally
+(or, for hydrant/mailbox/sign, don't spawn at all — dropped from
+`genChunk()`'s street-furniture table). Source PNGs stay on disk under
+`art/props/` in case they're wanted again.
 
 Frames are 92×92 with **feet on row 70 and the crown on row 23**. `game.html`
 hardcodes `FOOT=70, HEAD=47` and everything (ground contact, health bar

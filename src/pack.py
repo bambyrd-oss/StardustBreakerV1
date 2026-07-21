@@ -83,6 +83,8 @@ def pack_one(key, folder, fname, im):
 
 pack_frames("hero.walk", "BamBamRun",      ["frame0.png","frame1.png","frame2.png","frame3.png"])
 pack_frames("hero.punch","BamBamPunch",    ["frame0.png","frame1.png","frame2.png","frame2.png","frame3.png","frame3.png"])
+pack_frames("hero.jab",  "BamBamJab",      ["frame0.png","frame1.png","frame2.png","frame2.png","frame3.png","frame3.png"])  # COMBO's jab step (sheet:'jab') — right hand
+pack_frames("hero.jabL", "BamBamJabL",     ["frame0.png","frame0.png","frame1.png","frame1.png","frame2.png","frame2.png"])  # COMBO's jab-2 step (sheet:'jabL') — left hand; only 3 source frames (idle/extend/recover), no dedicated wind-up, so idle doubles as its own wind-up
 pack_frames("hero.jump", "BamBamJump",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
 # uppercut: crouch/landing are clean (just the character) so foot-anchor them a
 # touch bigger than the normal 46px hero; the two burst frames fill the cell.
@@ -96,7 +98,9 @@ pack_one("hero.uppercut.3", UC, "frame3.png", reframe_solo(os.path.join(ROOT,UC,
 # text, so drawPlayer draws it un-mirrored when facing left instead of the flipped frame2.
 pack_one("hero.uppercutL.2", UC, "frame2_left.png", reframe_centered(os.path.join(ROOT,UC,"frame2_left.png"), 90))
 pack_frames("hero.kick", "BamBamKick",     ["frame1.png","frame2.png","frame2.png","frame3.png"], ref_file="frame3.png")  # frame0 (run start) is grounded, never shown — 'kick' state starts mid-air
+pack_frames("hero.kickstand", "BamBamKickStand", ["frame1.png","frame2.png","frame3.png","frame3.png"], ref_file="frame0.png")  # grounded front kick — I with feet on the ground (frame0, the ready stance, is only used as the scale reference)
 pack_frames("hero.swag", "BamBamSwag",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
+pack_frames("hero.shoot","BamBamShoot",    ["frame0.png","frame1.png","frame2.png","frame3.png"])  # finger-gun point-and-step cycle, used for punch while FIGHT/SHOOT is in SHOOT mode
 
 HB=os.path.join(ROOT,"BamBamPunch","frame0.png")   # idle stance doubles as both facings
 _hero_cell=reframe_solo(HB)
@@ -126,11 +130,13 @@ PREFRAMED["hero.portrait"]=reframe_portrait(PB); add("hero.portrait", PB)
 # Politicians, Corporate Mascots, Robotic Police — see README) gets generated. Source art for
 # all of them stays on disk under art/ in case it's wanted again.
 
-# environment props are no longer packed — the dumpster/hydrant/mailbox/sign
-# sprites were removed to keep this a clean character-only atlas. The dumpster
-# still renders via its procedural fallback (drawCan), and the decorative
-# hydrant/mailbox/sign were swapped out of genChunk's spawn table for
-# procedural props, so nothing references the dropped keys anymore.
+# environment props (dumpster/hydrant/mailbox/sign) are no longer packed either — all four
+# were seeded from the original FATBACK engine (git log --diff-filter=A confirms all four
+# date to the "Seed bambam from the FATBACK engine" commit), the same vintage as the retired
+# enemy art above, and are retired for the same reason regardless of visual quality. The
+# dumpster still renders via its procedural fallback (drawCan); hydrant/mailbox/sign were
+# swapped out of genChunk's spawn table for procedural props, so nothing references the
+# dropped keys anymore. Source art stays on disk under art/props/ in case it's wanted again.
 
 FOOT=70   # matches game.html: feet sit on this row of the 92px cell
 
