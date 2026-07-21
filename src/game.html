@@ -58,6 +58,8 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
 #bD{right:25%;bottom:5%;width:12vmin;height:12vmin;max-width:74px;max-height:74px;font-size:2.6vmin}
 #bE{right:21%;bottom:37%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
   border-color:#5a2340;background:rgba(60,14,34,.55)}
+#bF{right:4%;top:18%;width:12vmin;height:12vmin;max-width:70px;max-height:70px;font-size:2.4vmin;
+  border-color:#2c5c3a;background:rgba(14,44,26,.6)}   /* FIGHT/SHOOT mode toggle, up top out of the action cluster */
 #pauseBtn{position:absolute;left:50%;top:2.5%;opacity:0;pointer-events:none;transition:opacity .2s;transform:translateX(-50%);width:34px;height:22px;border-radius:4px;
   border:1px solid #2f2b3d;background:rgba(15,13,22,.6);display:flex;align-items:center;justify-content:center;
   color:var(--dim);font-size:11px;pointer-events:auto;letter-spacing:.1em}
@@ -169,6 +171,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
         <div class="btn" id="bC">IMAGINE</div>
         <div class="btn" id="bD">TALK</div>
         <div class="btn" id="bE">KICK</div>
+        <div class="btn" id="bF">SHOOT</div>
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
@@ -204,14 +207,16 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Punch <i style="color:#5c5670">(mash = combo)</i></span><b><kbd>J</kbd></b></div>
             <div class="row"><span>Kick</span><b><kbd>I</kbd></b></div>
             <div class="row"><span>Jump</span><b><kbd>K</kbd></b></div>
+            <div class="row"><span>Fight / Shoot</span><b><kbd>U</kbd></b></div>
             <div class="row"><span>Drink</span><b><kbd>L</kbd></b></div>
             <div class="row"><span>Talk</span><b><kbd>E</kbd></b></div>
             <div class="row"><span>Pause</span><b><kbd>ESC</kbd></b></div>
-            <div class="row"><span style="color:#5c5670;font-size:8px">Uppercut = <kbd>W</kbd>+<kbd>J</kbd> · Drop kick = <kbd>K</kbd> then <kbd>I</kbd></span></div>
+            <div class="row"><span style="color:#5c5670;font-size:8px">Uppercut = <kbd>W</kbd>+<kbd>J</kbd> · Drop kick = <kbd>K</kbd>+<kbd>I</kbd> · Dive punch = <kbd>K</kbd>+<kbd>J</kbd></span></div>
             <h2 style="margin-top:12px">XBOX</h2>
             <div class="row"><span>Move</span><b>Stick / D-pad</b></div>
             <div class="row"><span>Punch</span><b style="color:#3a7fd5">X</b> <span style="color:#5c5670">/ RB / RT</span></div>
             <div class="row"><span>Kick</span><b>LB</b></div>
+            <div class="row"><span>Fight / Shoot</span><b>LT</b></div>
             <div class="row"><span>Jump</span><b style="color:#5aa84a">A</b></div>
             <div class="row"><span>Drink</span><b style="color:#d54a44">B</b></div>
             <div class="row"><span>Talk</span><b style="color:#d5b23a">Y</b></div>
@@ -536,7 +541,7 @@ function tap(c){ if(pressed[c]){pressed[c]=false;return true;} return false; }
 //====================== gamepad ======================
 // xbox 'standard' mapping. X is attack, A is jump — same as every brawler on this pad.
 const PAD={idx:null, prev:[], ax:0, az:0};
-const XB={ PUNCH:[2,5,7], JUMP:[0], DRINK:[1], TALK:[3], KICK:[4], PAUSE:[9,8] };
+const XB={ PUNCH:[2,5,7], JUMP:[0], DRINK:[1], TALK:[3], KICK:[4], GUN:[6], PAUSE:[9,8] };
 const DEAD=0.24;
 let hadTouch=false;
 addEventListener('gamepadconnected',e=>{
@@ -569,7 +574,7 @@ function pollPad(){
 const heldDrink=()=> !!(key.KeyL || T.C || (PAD.now && PAD.now.DRINK));
 
 // virtual stick + buttons
-const T={ax:0,az:0, A:false,B:false,C:false,D:false,E:false, Ap:false,Bp:false,Cp:false,Dp:false,Ep:false};
+const T={ax:0,az:0, A:false,B:false,C:false,D:false,E:false,F:false, Ap:false,Bp:false,Cp:false,Dp:false,Ep:false,Fp:false};
 let stickId=null, sBase={x:0,y:0,r:60};
 const stick=$('stick'), nub=$('nub'), stickzone=$('stickzone');
 // floating pad: press anywhere in the left half and the stick spawns under your thumb
@@ -600,7 +605,7 @@ function bindBtn(id,k){ const el=$(id);
   const up=e=>{T[k]=false; el.classList.remove('hit');};
   el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up); el.addEventListener('pointerleave',up);
 }
-bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bD','D'); bindBtn('bE','E');
+bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bD','D'); bindBtn('bE','E'); bindBtn('bF','F');
 function tapT(k){ if(T[k+'p']){T[k+'p']=false;return true;} return false; }
 if(matchMedia('(hover:hover)').matches && !('ontouchstart' in window)){
   OPT.touch=false; $('o_touch').classList.remove('on');
@@ -809,7 +814,7 @@ const P={};
 function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
-    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,
+    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,
     stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
@@ -1743,7 +1748,9 @@ function update(){
         jJump =tap('KeyK')||tap('Space')||tapT('B')||(pad&&pad.JUMP),
         jDrink=tap('KeyL')||tapT('C')||(pad&&pad.DRINK),
         jTalk =tap('KeyE')||tapT('D')||(pad&&pad.TALK),
-        jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK);
+        jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK),
+        jGun  =tap('KeyU')||tapT('F')||(pad&&pad.GUN);
+  if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); $('bF').textContent=P.gunMode?'SHOOT':'FIGHT'; }   // toggle FIGHT ⇄ SHOOT
   if(pad&&pad.PAUSE) setPause(true);
 
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
@@ -1758,9 +1765,9 @@ function update(){
     if(P.fireT>0 && P.st===s.su+1){                   // FISTS OF FIRE — each swing hurls a fireball
       fires.push({x:P.x+P.face*18, z:P.z, y:20, vx:P.face*5.4, vz:0, vy:0.03, r:7, life:46, max:48, foe:false});
       blip(90,.05); }
-    // finger guns — a placeholder ranged weapon: every swing also pops off a little dot,
+    // finger guns — SHOOT mode only: every swing pops off a little dot projectile,
     // BANG-style, no real gun art yet so it's just imagination made literal
-    if(P.st===s.su+1){
+    if(P.gunMode && P.st===s.su+1){
       fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
       blip(520,.02); }
     if(active && !P.hitDone){
@@ -1811,12 +1818,15 @@ function update(){
     }
     if(P.st>=48) P.state='idle';
   }
-  else if(P.state==='air'){                    // DROP KICK — press KICK in the air (JUMP then KICK)
+  else if(P.state==='air'){                    // aerial attack — KICK = drop kick, PUNCH = dive punch
     P.st++;
-    P.x += P.face*2.9;                          // drives forward, feet-first
-    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*22,z:P.z,rw:32,rd:22};   // long forward leg
+    P.x += P.face*(P.airPunch?2.1:2.9);         // punch dives a bit shorter than the flying kick
+    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:22),z:P.z,rw:P.airPunch?26:32,rd:22};
       for(const e of ents){ if(e.dead)continue;
-        if(hits(b,e)){ connect(e,{name:'kick',dmg:14,push:8,stun:36,y:2.4,launch:true,rum:[240,.95,.6]}); P.hitDone=true; } } }
+        if(hits(b,e)){ P.airPunch
+            ? connect(e,{name:'airpunch',dmg:12,push:6,stun:32,y:2.0,launch:true,rum:[210,.85,.5]})   // dive punch
+            : connect(e,{name:'kick',    dmg:14,push:8,stun:36,y:2.4,launch:true,rum:[240,.95,.6]});  // drop kick
+          P.hitDone=true; } } }
   }
   else if(P.state==='upper'){                  // UPPERCUT — press UP + PUNCH on the ground, launches straight up
     P.st++;
@@ -1891,7 +1901,8 @@ function update(){
       else { P.state='punch'; P.step=0; P.st=0; P.buf=0; P.stepV=0; P.hitDone=false; P.connected=false; }
     }
   }
-  if(P.state==='jump' && jKick && P.y>8){ P.state='air'; P.st=0; P.hitDone=false; P.vy=Math.min(P.vy,0.5); }   // JUMP then KICK → drop kick
+  if(P.state==='jump' && (jKick||jPunch) && P.y>8){        // JUMP then KICK → drop kick, JUMP then PUNCH → dive punch
+    P.state='air'; P.airPunch=jKick?false:true; P.st=0; P.hitDone=false; P.vy=Math.min(P.vy,0.5); }
   if(P.y>0||P.vy>0){ P.airT++; P.y+=P.vy; P.vy-=(P.state==='air'?0.44:0.32);
     if(P.y<=0){ P.y=0;P.vy=0;
       if(P.state==='air'||P.state==='upper'){shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true);} P.state='idle'; } }
@@ -2898,8 +2909,9 @@ function drawPlayer(){
   if(P.state==='idle') key='hero.rot.east';
   if(P.state==='jump') key='hero.jump.'+clamp(Math.floor(P.airT/9),0,3);   // 0 push-off, 1 rise, 2 peak, 3 fall/land
   if(P.state==='imagine') key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*.4)%4) : 'hero.rot.east';
-  if(P.state==='air') key= IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)      // DROP KICK
-                                              : 'hero.jump.3';
+  if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // DIVE PUNCH (jab-extend frames)
+                          : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // DROP KICK
+                                                : 'hero.jump.3');
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
       const uf = (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land
@@ -3098,6 +3110,11 @@ function hud(){
   for(let i=0;i<Math.min(lives,8);i++){ ctx.fillStyle='#ff2e88';
     ctx.beginPath(); ctx.arc(LX+30+i*9, VY+2, 3, 0, 7); ctx.fill(); }
   if(lives>8){ ctx.fillStyle='#ff2e88'; ctx.fillText('+'+(lives-8), LX+30+8*9, VY+5); }
+
+  // attack mode — FIGHT (melee) or SHOOT (finger guns)
+  ctx.textAlign='left'; ctx.font='bold 7px "JetBrains Mono",monospace';
+  ctx.fillStyle= P.gunMode?'#ffb545':'#3ad17a';
+  ctx.fillText(P.gunMode?'▶ SHOOT':'▶ FIGHT', LX, VY+16);
 
   ctx.textAlign='right'; ctx.font='9px "JetBrains Mono",monospace'; ctx.fillStyle='#c9d13a';
   ctx.fillText(P.bucks+' BB',W-12,20);

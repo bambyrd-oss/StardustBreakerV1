@@ -34,6 +34,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 | Move | `WASD` / arrows | Stick / D-pad | Left stick |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
 | Kick | `I` | **LB** | KICK |
+| Fight / Shoot toggle | `U` | **LT** | FIGHT/SHOOT |
 | Jump | `K` / `Space` | **A** | JUMP |
 | Imagination attack | `L` | **B** | IMAGINE |
 | Interact / eat | `E` | **Y** | TALK |
@@ -48,6 +49,11 @@ enemies into the air. Two special attacks come off direction + button:
   straight up with a rising fist, popping enemies into the air.
 - **Drop kick** — **jump, then kick** (`K` then `I`). A feet-first flying kick
   that drives forward through the crowd.
+- **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
+
+**Fight vs. Shoot** — tap `U` (or the FIGHT/SHOOT button) to toggle attack modes.
+In **Fight** you brawl with the melee combo; in **Shoot** every punch also pops off
+a finger-gun projectile. The HUD shows which mode you're in.
 
 ## The design
 
