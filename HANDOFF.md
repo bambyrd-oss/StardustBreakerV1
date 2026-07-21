@@ -1,4 +1,4 @@
-# Handoff — 2026-07-20
+# Handoff — 2026-07-21
 
 **Repo note:** this project now lives in `bambyrd-oss/StardustBreakerV1` (imported with full
 history from the old `samayiat/bambam`; the game was mid-rename to "Stardust Breaker"). Active
@@ -13,7 +13,42 @@ the PWA installs ("Add to Home Screen") and mobile touch controls work there.
 **Build locally:** `python3 src/build.py` (packs `art/` into the atlas, inlines everything into
 `index.html`, then runs `node src/harness.js` — the build fails if any scenario fails).
 
-## Latest session — real hero art + kick/uppercut, co-op deprecated
+## Latest session — real `git merge` with `samayiat/bambam`
+
+Unlike the earlier content-only port below (no shared git history at the time), this repo and
+`samayiat/bambam` share the same history through the original import commit, so this was a real
+`git merge samayiat/bambam/main` on `claude/merge-samayiat-bambam-7zsgts`, not a manual port.
+bambam had continued independently for 13 commits since the shared point; this branch had 7 of
+its own. Brought in from bambam:
+
+- **Jab combo art** (`hero.jab`/`hero.jabL`, right/left hand alternation) and **finger-gun SHOOT
+  art** (`hero.shoot`) — punches now use dedicated sheets instead of falling back to the generic
+  punch/fist art.
+- **Standing kick** (`hero.kickstand`, `P.state==='kick'`) — feet-on-the-ground front kick,
+  distinct from the airborne drop kick.
+- **Plasma gun beam** — the Imagination special is a forward beam, not a radius nova (see below,
+  under "What's done").
+- **Physics-driven jump animation** and **landing-hold "super armor"** (`P.landHold`) — frame
+  selection off real `P.y`/`P.vy` instead of elapsed ticks, and a freeze on the landing pose so it
+  actually reads before cutting to idle.
+- **Building/skyline juice pass** — denser edge-to-edge silhouettes, closer skyline, jittered
+  cloud shadows, fewer windowed buildings, street-spawned boxes.
+
+Kept from this branch, merged alongside the above:
+
+- **FIGHT/SHOOT toggle** (`P.gunMode`, `KeyU`/LT/touch) — both sides had since built on the same
+  toggle; kept this side's control-scheme placement (row right after Kick in the README table).
+- **App icon / HUD portrait fix**, "Stardust Breaker" title rename.
+
+**Conflict resolution notes** (for anyone re-deriving this merge): `index.html`, `src/atlas.png`,
+and `src/atlas.json` are all build output (see `src/build.py`) — instead of hand-merging their
+diffs, conflicts there were resolved by taking either side as a placeholder and then running
+`python3 src/build.py` to regenerate all three from the resolved `src/pack.py` + `art/` +
+`src/game.html`. `art/BamBamJump/frame2-3.png` took bambam's art since its "jump art scale fix"
+commit postdates this branch's only edit to those frames. Harness is green post-merge, including
+new scenarios for the standing kick and drop kick.
+
+## Earlier session — real hero art + kick/uppercut, co-op deprecated
 
 - **Real hero sprites are in.** Replaced the single static placeholder pose with six real
   drawn animation sets, cropped/keyed from reference sheets into
