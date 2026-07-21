@@ -816,7 +816,7 @@ function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
     dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,punchHand:true,
-    sprinting:false,sprintDir:0,tapDir:0,tapT:-99,lastDir:0,
+    sprinting:false,sprintDir:0,tapDir:0,tapT:-99,lastDir:0,landT:0,
     stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
@@ -1822,6 +1822,9 @@ function update(){
     if(P.y>0||P.vy>0){ P.y+=P.vy; P.vy-=0.32; if(P.y<=0){P.y=0;P.vy=0;} }
     if(P.downT<=0){ P.state='idle'; P.iframes=Math.max(P.iframes,26); }
   }
+  else if(P.state==='kickland'){               // drop-kick touchdown recovery — held so the landing frame reads
+    P.landT--; if(P.landT<=0) P.state='idle';
+  }
   else if(P.state==='imagine'){                // Imagination attack — a toon-force burst that hits everyone close
     P.st++;
     if(P.st===1){
@@ -1839,7 +1842,7 @@ function update(){
   else if(P.state==='air'){                    // aerial attack — KICK = drop kick, PUNCH = dive punch
     P.st++;
     P.x += P.face*(P.airPunch?2.1:2.9);         // punch dives a bit shorter than the flying kick
-    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:22),z:P.z,rw:P.airPunch?26:32,rd:22};
+    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:14),z:P.z,rw:P.airPunch?26:20,rd:P.airPunch?22:15};   // tighter drop-kick box — has to be close to connect
       for(const e of ents){ if(e.dead)continue;
         if(hits(b,e)){ P.airPunch
             ? connect(e,{name:'airpunch',dmg:12,push:6, stun:32,y:2.0,launch:true,rum:[210,.85,.5]})           // dive punch
@@ -1930,7 +1933,9 @@ function update(){
     P.state='air'; P.airPunch=true; P.st=0; P.hitDone=false; P.vy=Math.min(P.vy,0.5); }
   if(P.y>0||P.vy>0){ P.airT++; P.y+=P.vy; P.vy-=(P.state==='air'?0.44:0.32);
     if(P.y<=0){ P.y=0;P.vy=0;
-      if(P.state==='air'||P.state==='upper'){shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true);} P.state='idle'; } }
+      if(P.state==='air'||P.state==='upper'){shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true);}
+      if(P.state==='air' && !P.airPunch){ P.state='kickland'; P.landT=15; }   // drop kick: hold the landing recovery so it reads
+      else P.state='idle'; } }
 
   P.z=clamp(P.z,FLOOR_N,ROAD_TARGET+4);   // the whole block is walkable — sidewalk AND road, no curb line
   P.x=clamp(P.x, camLock!==null?camLock+16:8, camLock!==null?camLock+W-24:Infinity);
@@ -2939,6 +2944,7 @@ function drawPlayer(){
   if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // DIVE PUNCH (jab-extend frames)
                           : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // DROP KICK
                                                 : 'hero.jump.3');
+  if(P.state==='kickland') key= IDX['hero.kick.3'] ? 'hero.kick.3' : 'hero.jump.3';             // drop-kick landing recovery (held so it reads)
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
       const uf = (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land
