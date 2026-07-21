@@ -44,21 +44,50 @@
   canvas, still infinite chunk-streamed, still bright daytime — only the rendering technique
   changed, not the architecture or the color story.
 
+- **Merged in real hero animation art, kick, and uppercut from `bambyrd-oss/StardustBreakerV1`**
+  — a sibling fork of this exact project (its own `HANDOFF.md` says it was "imported with full
+  history from the old `samayiat/bambam`" mid-rename, then developed independently). No git
+  history was available (the user provided a zip snapshot), so this was a deliberate content
+  merge, not a mechanical `git merge` — every change was individually verified against bambam's
+  current code before porting. Brought in:
+  - **Real hero animation** — six drawn sets (`art/BamBam{Run,Punch,Jump,Uppercut,Kick,Swag}/`,
+    4 frames each) replacing the single static placeholder pose, packed via new `pack_frames()`/
+    `pack_one()`/`reframe_fixed()`/`reframe_centered()` helpers in `src/pack.py`. New hero
+    portrait + PWA icons to match.
+  - **Kick** (`KeyI` / gamepad LB / touch KICK) — an alt-input on the existing dive-attack `air`
+    state (`P.airPunch` flag branches dive-punch vs. drop-kick).
+  - **Uppercut** (`W`+`J`, hold up + punch on the ground) — a new `upper` state, a grounded
+    launcher. Uses a dedicated un-mirrored west-facing BAM frame (`hero.uppercutL.2`) so the
+    lettering doesn't read backwards when flipped.
+  - **FIGHT/SHOOT toggle** (`KeyU` / gamepad LT / touch SHOOT) — bambam's finger-guns were
+    unconditional before this; now `P.gunMode` (default `true`, matching prior behavior) gates
+    them, togglable mid-run.
+  - **Retired the last FATBACK-era props** — `hydrant`/`mailbox`/`sign`/`dumpster` sprites all
+    dated to the repo's very first commit ("Seed bambam from the FATBACK engine", confirmed via
+    `git log --diff-filter=A`), same vintage as the already-retired enemy art. `dumpster` falls
+    back to its (already inked-pixel-art-styled) procedural draw; `hydrant`/`mailbox`/`sign` had
+    no procedural equivalent, so — matching the sibling's own approach rather than inventing new
+    art — they're dropped from `genChunk()`'s street-furniture spawn table entirely (swapped for
+    duplicate tree/bench/newsbox/bikerack entries, same array length and `R()` draw count, so
+    gate/wave positions are unaffected).
+  - **Explicitly not ported**: the sibling's co-op "deprecation" (bambam's co-op is already
+    unreachable from the title UI the same way — a no-op either way) and its title-screen
+    SOLO/CO-OP-choice removal (bambam already did this independently, same end state).
+
 Everything above is committed to `main` and green under `node src/harness.js`.
 
 ## Known gaps vs. the game spec (not started)
 
-1. **Real art** — BamBam and all enemies are still placeholders (one static hero pose, flat-color
-   enemy shapes). The four named enemy types now read apart from each other by silhouette/color/
-   accessory (see above), but none of them are real generated sprites yet. `.mcp.json` has a
-   PixelLab MCP server already configured for generating this — see the README's "Art pipeline"
-   section for the direction-count rules before generating more (don't generate 8 directions for
-   a 3-direction need).
+1. **Enemy art** — the four named enemy types (Security Guards, Corrupt Politicians, Corporate
+   Mascots, Robotic Police) read apart from each other by silhouette/color/accessory (see above)
+   but are still flat-color placeholders, not real generated sprites. The three bosses (Landlord
+   D. Evict, B.I.G. Farma, The President) are also still placeholders. `.mcp.json` has a PixelLab
+   MCP server already configured for generating this — see the README's "Art pipeline" section
+   for the direction-count rules before generating more (don't generate 8 directions for a
+   3-direction need). BamBam's own hero art is done (see above).
 2. **Music** — no soundtrack system at all, only WebAudio SFX blips (`blip()` in `src/game.html`).
    The spec calls for a jazz/hip-hop soundtrack that evolves per stage.
-3. **Kick** — the combo string is punch-only (jab, jab 2, cross, launcher — see `COMBO` in
-   `src/game.html`). The spec lists punch *and* kick.
-4. **XP-unlocked movement abilities** — XP currently only unlocks combo steps and stats
+3. **XP-unlocked movement abilities** — XP currently only unlocks combo steps and stats
    (`xpToLevel()`/`maxComboStep()`), no dash/double-jump/etc.
 
 That's the natural next-priority list.

@@ -33,7 +33,9 @@ only place the landscape lock behaves properly, so on a phone, install it.
 |---|---|---|---|
 | Move | `WASD` / arrows | Stick / D-pad | Left stick |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
+| Kick | `I` | **LB** | KICK |
 | Jump | `K` / `Space` | **A** | JUMP |
+| Fight / Shoot toggle | `U` | **LT** | SHOOT |
 | Imagination attack | `L` | **B** | IMAGINE |
 | Interact / eat | `E` | **Y** | TALK |
 | Pause | `Esc` / `P` | Menu | `⏸` |
@@ -41,7 +43,10 @@ only place the landscape lock behaves properly, so on a phone, install it.
 Plug in a pad and the touch controls hide themselves. Unplug and they come back.
 
 **Mash punch** — it's a 4-hit string, not one button, and the last hit launches
-enemies into the air. **Jump then punch** is a dive attack.
+enemies into the air. **Uppercut** is up + punch on the ground, a launcher.
+**Jump then punch** is a dive attack; **jump then kick** is a drop kick.
+**Fight/Shoot** toggles whether punches also pop off a finger-gun shot
+(on by default) — pure melee if you'd rather fight with your fists alone.
 
 ## The design
 
@@ -116,12 +121,21 @@ only thing that reads it.
 
 ## Art pipeline — read this before generating more
 
-This project was forked from an earlier game built on the same engine, so the
-art currently in `art/` is a placeholder holdover, not BamBam's final look.
-BamBam's hero, enemy roster (Security Guards, Corrupt Politicians, Corporate
-Mascots, Robotic Police), and the three bosses (Landlord D. Evict, B.I.G.
-Farma, The President) still need to be generated and wired in — see
-`.mcp.json` for the PixelLab MCP server already configured for this.
+This project was forked from an earlier game built on the same engine.
+**BamBam's hero has real drawn animation now** — six sets under
+`art/BamBam{Run,Punch,Jump,Uppercut,Kick,Swag}/`, packed by `src/pack.py` into
+`hero.walk/punch/jump/uppercut/kick/swag.*`. The enemy roster (Security
+Guards, Corrupt Politicians, Corporate Mascots, Robotic Police) and the three
+bosses (Landlord D. Evict, B.I.G. Farma, The President) still need real art —
+see `.mcp.json` for the PixelLab MCP server already configured for this.
+
+The last leftover art from the original FATBACK-engine fork —
+`hydrant`/`mailbox`/`sign`/`dumpster` prop sprites — has been retired
+regardless of visual quality (same reasoning as the earlier enemy-art
+retirement): `src/pack.py` no longer packs them, they render procedurally
+(or, for hydrant/mailbox/sign, don't spawn at all — dropped from
+`genChunk()`'s street-furniture table). Source PNGs stay on disk under
+`art/props/` in case they're wanted again.
 
 Frames are 92×92 with **feet on row 70 and the crown on row 23**. `game.html`
 hardcodes `FOOT=70, HEAD=47` and everything (ground contact, health bar
