@@ -2908,7 +2908,9 @@ function drawPlayer(){
   let drawFace=P.face;   // normally P.face; overridden to +1 for the dedicated left-facing (un-mirrored) uppercut frame
   if(P.state==='walk') key='hero.walk.'+(Math.floor(t*.16)%4);
   if(P.state==='idle') key='hero.rot.east';
-  if(P.state==='jump') key='hero.jump.'+clamp(Math.floor(P.airT/9),0,3);   // 0 push-off, 1 rise, 2 peak, 3 fall/land
+  // jump frames tied to actual height/velocity (not a fixed timer): 0 push-off, 1 rising,
+  // 2 apex + most of the fall (the tuck holds), 3 landing — only once he's low to the ground.
+  if(P.state==='jump') key='hero.jump.'+(P.airT<4 ? 0 : P.vy>1.6 ? 1 : (P.vy<0 && P.y<12) ? 3 : 2);
   if(P.state==='imagine') key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*.4)%4) : 'hero.rot.east';
   if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // DIVE PUNCH (jab-extend frames)
                           : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // DROP KICK
