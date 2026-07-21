@@ -97,6 +97,7 @@ pack_one("hero.uppercut.3", UC, "frame3.png", reframe_solo(os.path.join(ROOT,UC,
 pack_one("hero.uppercutL.2", UC, "frame2_left.png", reframe_centered(os.path.join(ROOT,UC,"frame2_left.png"), 90))
 pack_frames("hero.kick", "BamBamKick",     ["frame1.png","frame2.png","frame2.png","frame3.png"], ref_file="frame3.png")  # frame0 (run start) is grounded, never shown — 'kick' state starts mid-air
 pack_frames("hero.swag", "BamBamSwag",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
+pack_frames("hero.shoot","BamBamShoot",    ["frame0.png","frame1.png","frame2.png","frame3.png"])  # finger-gun point-and-step cycle, used for punch while FIGHT/SHOOT is in SHOOT mode
 
 HB=os.path.join(ROOT,"BamBamPunch","frame0.png")   # idle stance doubles as both facings
 _hero_cell=reframe_solo(HB)

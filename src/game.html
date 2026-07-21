@@ -2923,7 +2923,8 @@ function drawPlayer(){
     } else key='hero.jump.2';
   }
   if(P.state==='down') key='hero.jump.'+(P.downT>40?0:3);   // flat on the pavement (drawn rotated below); reuse a low crouch pose
-  if(P.state==='punch') key=comboKey(cStep());
+  if(P.state==='punch') key= P.gunMode && IDX['hero.shoot.0'] ? 'hero.shoot.'+clamp(Math.floor(P.st/3),0,3)   // SHOOT mode: finger-gun point instead of a fist
+                                                               : comboKey(cStep());
   // hit recoil — while the flash is fresh and you're not mid-action, stumble back.
   // driven off the hitFlash timer (16→0) so it plays once per hit, then hands
   // control back to idle/walk. faces the attacker (hurtPlayer set P.face), so the
