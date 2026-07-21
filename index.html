@@ -212,7 +212,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Drink</span><b><kbd>L</kbd></b></div>
             <div class="row"><span>Talk</span><b><kbd>E</kbd></b></div>
             <div class="row"><span>Pause</span><b><kbd>ESC</kbd></b></div>
-            <div class="row"><span style="color:#5c5670;font-size:8px">Uppercut = <kbd>W</kbd>+<kbd>J</kbd> · Drop kick = <kbd>K</kbd>+<kbd>I</kbd> · Dive punch = <kbd>K</kbd>+<kbd>J</kbd></span></div>
+            <div class="row"><span style="color:#5c5670;font-size:8px">Sprint = double-tap <kbd>A</kbd>/<kbd>D</kbd> · Drop kick = sprint + <kbd>J</kbd>/<kbd>I</kbd> · Uppercut = <kbd>W</kbd>+<kbd>J</kbd> · Dive punch = <kbd>K</kbd>+<kbd>J</kbd></span></div>
             <h2 style="margin-top:12px">XBOX</h2>
             <div class="row"><span>Move</span><b>Stick / D-pad</b></div>
             <div class="row"><span>Punch</span><b style="color:#3a7fd5">X</b> <span style="color:#5c5670">/ RB / RT</span></div>
@@ -816,6 +816,7 @@ function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
     dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,punchHand:true,
+    sprinting:false,sprintDir:0,tapDir:0,tapT:-99,lastDir:0,
     stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
@@ -1759,6 +1760,17 @@ function update(){
   if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); $('bF').textContent=P.gunMode?'SHOOT':'FIGHT'; }   // toggle FIGHT ⇄ SHOOT
   if(pad&&pad.PAUSE) setPause(true);
 
+  //---- SPRINT: double-tap a horizontal direction to run. works for keys, d-pad and the
+  // touch stick (lift + re-push counts as a second tap). sprint holds while that direction
+  // is held; releasing or reversing stops it.
+  const sdir = ix>0.5?1 : ix<-0.5?-1 : 0;
+  if(sdir!==0 && P.lastDir===0){                              // rising edge into a direction
+    if(sdir===P.tapDir && t-P.tapT<=15){ P.sprinting=true; P.sprintDir=sdir; puff(P.x,P.z,4,5,'#c9c2ae'); blip(210,.02); }
+    P.tapDir=sdir; P.tapT=t;
+  }
+  if(P.sprinting && (sdir===0 || sdir!==P.sprintDir)) P.sprinting=false;   // released / reversed → stop
+  P.lastDir=sdir;
+
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
   if(P.state==='punch'){
     const s=cStep(); P.st++;
@@ -1830,8 +1842,9 @@ function update(){
     if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:22),z:P.z,rw:P.airPunch?26:32,rd:22};
       for(const e of ents){ if(e.dead)continue;
         if(hits(b,e)){ P.airPunch
-            ? connect(e,{name:'airpunch',dmg:12,push:6,stun:32,y:2.0,launch:true,rum:[210,.85,.5]})   // dive punch
-            : connect(e,{name:'kick',    dmg:14,push:8,stun:36,y:2.4,launch:true,rum:[240,.95,.6]});  // drop kick
+            ? connect(e,{name:'airpunch',dmg:12,push:6, stun:32,y:2.0,launch:true,rum:[210,.85,.5]})           // dive punch
+            : connect(e,{name:'dropkick',dmg:8, push:14,stun:40,y:2.2,launch:true,rum:[260,1,.7]});            // SPRINT drop kick: a touch above a jab, sends them flying
+          if(!P.airPunch){ shake=Math.max(shake,6); hitstop=Math.max(hitstop,6); }                            // extra impact on the drop kick
           P.hitDone=true; } } }
   }
   else if(P.state==='upper'){                  // UPPERCUT — press UP + PUNCH on the ground, launches straight up
@@ -1880,25 +1893,31 @@ function update(){
   }
   else {
     if(ix||iz){ const l=Math.max(1,Math.hypot(ix,iz)); ix/=l; iz/=l;
-      const spd=2.15+U.boots*0.5;   // BOOTS: quicker on your feet
+      const spd=(2.15+U.boots*0.5)*(P.sprinting?1.8:1);   // BOOTS: quicker on your feet; SPRINT: faster still
       P.x+=ix*spd; P.z+=iz*spd*0.62;
       if(Math.abs(ix)>0.25) P.face=ix>0?1:-1;
+      if(P.sprinting && t%6===0) puff(P.x,P.z,3,4,'#c9c2ae');   // kicked-up dust while running
     }
 
     if(P.y===0) P.state=(ix||iz)?'walk':'idle';
-    if(jJump && P.y===0){ P.vy=5.6; P.state='jump'; P.airT=0; P.hitDone=false; blip(400,.03); }
-    if(jDrink && P.y===0){
+    // SPRINT ATTACK: while sprinting, PUNCH or KICK becomes the drop kick (exclusive to sprinting)
+    if(P.sprinting && P.y===0 && (jPunch||jKick)){
+      P.face=P.sprintDir||P.face;
+      P.state='air'; P.airPunch=false; P.st=0; P.hitDone=false; P.vy=3.4; P.airT=0; P.sprinting=false; blip(300,.04);
+    }
+    else if(jJump && P.y===0){ P.vy=5.6; P.state='jump'; P.airT=0; P.hitDone=false; blip(400,.03); }
+    if(jDrink && P.y===0 && P.state!=='air'){
       if(P.freedom>=P.maxFreedom){ P.freedom-=100; P.state='imagine'; P.st=0; }
       else { say(P.x,P.z-18,'NOT YET','#5c5670'); blip(90,.02); }
     }
-    if(jPunch && P.y===0 && wantUp && !P.weapon){          // UP + PUNCH → rising uppercut launcher
+    if(jPunch && P.y===0 && P.state!=='air' && wantUp && !P.weapon){          // UP + PUNCH → rising uppercut launcher
       let best=null,bd=80;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       P.state='upper'; P.st=0; P.vy=5.0; P.airT=0; P.hitDone=false; blip(300,.04);
     }
-    else if(jPunch && P.y===0 && !(wantStreet && tryGrab())){   // DOWN + hold punch at the curb = grab → wind up → toss; a plain punch still combos
+    else if(jPunch && P.y===0 && P.state!=='air' && !(wantStreet && tryGrab())){   // DOWN + hold punch at the curb = grab → wind up → toss; a plain punch still combos
       let best=null,bd=70;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
@@ -1907,8 +1926,8 @@ function update(){
       else { P.state='punch'; P.step=0; P.st=0; P.buf=0; P.stepV=0; P.hitDone=false; P.connected=false; P.punchHand=!P.punchHand; }   // each new punch = other hand
     }
   }
-  if(P.state==='jump' && (jKick||jPunch) && P.y>8){        // JUMP then KICK → drop kick, JUMP then PUNCH → dive punch
-    P.state='air'; P.airPunch=jKick?false:true; P.st=0; P.hitDone=false; P.vy=Math.min(P.vy,0.5); }
+  if(P.state==='jump' && jPunch && P.y>8){                 // JUMP then PUNCH → dive punch (drop kick is now sprint-only)
+    P.state='air'; P.airPunch=true; P.st=0; P.hitDone=false; P.vy=Math.min(P.vy,0.5); }
   if(P.y>0||P.vy>0){ P.airT++; P.y+=P.vy; P.vy-=(P.state==='air'?0.44:0.32);
     if(P.y<=0){ P.y=0;P.vy=0;
       if(P.state==='air'||P.state==='upper'){shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true);} P.state='idle'; } }
@@ -2911,7 +2930,7 @@ function drawPlayer(){
   shadow(P.x,P.z,16-P.y*0.06);
   let key='hero.rot.east';
   let drawFace=P.face;   // normally P.face; overridden to +1 for the dedicated left-facing (un-mirrored) uppercut frame
-  if(P.state==='walk') key='hero.walk.'+(Math.floor(t*.16)%4);
+  if(P.state==='walk') key='hero.walk.'+(Math.floor(t*(P.sprinting?.30:.16))%4);   // sprint = faster run cycle
   if(P.state==='idle') key='hero.rot.east';
   // jump frames tied to actual height/velocity (not a fixed timer): 0 push-off, 1 rising,
   // 2 apex + most of the fall (the tuck holds), 3 landing — only once he's low to the ground.

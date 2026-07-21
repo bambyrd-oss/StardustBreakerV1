@@ -47,8 +47,9 @@ enemies into the air. Two special attacks come off direction + button:
 
 - **Uppercut** — hold **up** and punch (`W`+`J`). BamBam crouches and launches
   straight up with a rising fist, popping enemies into the air.
-- **Drop kick** — **jump, then kick** (`K` then `I`). A feet-first flying kick
-  that drives forward through the crowd.
+- **Sprint** — **double-tap a direction** (`A` or `D`). BamBam breaks into a run.
+- **Drop kick** — **attack while sprinting** (`J` or `I` mid-sprint). A feet-first
+  flying kick that sends enemies flying back; only available while sprinting.
 - **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
 
 **Fight vs. Shoot** — tap `U` (or the FIGHT/SHOOT button) to toggle attack modes.
