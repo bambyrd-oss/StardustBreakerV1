@@ -815,7 +815,7 @@ const P={};
 function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
-    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,
+    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,punchHand:true,
     stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
@@ -872,9 +872,10 @@ function comboKey(s){
   const idx=a[clamp(Math.floor(pr*a.length),0,a.length-1)];
   const key='hero.'+sheet+'.'+idx;
   if(IDX[key]) return key;                              // a dedicated named sheet (jab/cross/swing) if it's ever packed
-  // otherwise alternate hands per combo step: even step = one hand, odd step = the other,
-  // so mashing throws right-left-right-left punches. falls back to hero.punch if punch2 isn't packed.
-  const hand = (P.step%2===1 && IDX['hero.punch2.0']) ? 'hero.punch2' : 'hero.punch';
+  // otherwise alternate hands on every swing: P.punchHand flips each new punch (see the
+  // swing-start points in update), so successive presses throw right-left-right-left even
+  // when whiffing. falls back to hero.punch if punch2 isn't packed.
+  const hand = (P.punchHand && IDX['hero.punch2.0']) ? 'hero.punch2' : 'hero.punch';
   return hand+'.'+clamp(idx,0,5);
 }
 const cStep=()=>COMBO[P.step];
@@ -1798,9 +1799,9 @@ function update(){
     }
     if(P.st>=cLen(s)){
       if(P.buf>0 && P.connected && P.step<maxComboStep()){       // chain
-        P.step++; P.st=0; P.buf=0; P.hitDone=false;
-      } else if(P.buf>0 && !P.connected){           // mashing air = repeat the jab
-        P.step=0; P.st=0; P.buf=0; P.hitDone=false;
+        P.step++; P.st=0; P.buf=0; P.hitDone=false; P.punchHand=!P.punchHand;   // next swing = other hand
+      } else if(P.buf>0 && !P.connected){           // mashing air = repeat the jab, still alternating hands
+        P.step=0; P.st=0; P.buf=0; P.hitDone=false; P.punchHand=!P.punchHand;
       } else { P.state='idle'; P.step=0; P.buf=0; }
     }
   }
@@ -1903,7 +1904,7 @@ function update(){
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       if(P.weapon){ P.state='wthrow'; P.wthrowT=0; P.wcommit=false; }   // armed: read tap (swing) vs hold (throw)
-      else { P.state='punch'; P.step=0; P.st=0; P.buf=0; P.stepV=0; P.hitDone=false; P.connected=false; }
+      else { P.state='punch'; P.step=0; P.st=0; P.buf=0; P.stepV=0; P.hitDone=false; P.connected=false; P.punchHand=!P.punchHand; }   // each new punch = other hand
     }
   }
   if(P.state==='jump' && (jKick||jPunch) && P.y>8){        // JUMP then KICK → drop kick, JUMP then PUNCH → dive punch
