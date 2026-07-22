@@ -945,7 +945,7 @@ function rat(x,z,fromGrate,o){
 // Corporate Mascots, Robotic Police) — flat-color placeholder silhouettes until real
 // generated art replaces them (see README "Art pipeline"). REGULAR_TYPES is the everyday
 // mix; robocop is the rarer "mixed in" unit (same slot the old Darnell reskin used).
-const REGULAR_TYPES=['guard','politician','mascot'];
+const REGULAR_TYPES=['politician'];   // guards/mascots (and the robocop mix) are OFF until their real art lands — the machinery stays
 const ENEMY_PAL={
   guard:      {body:'#2a3a52', skin:'#c98a5a'},   // navy uniform
   politician: {body:'#4a4650', skin:'#e0a370'},   // charcoal suit
@@ -1222,8 +1222,7 @@ function spawnWave(T){
   const nVamps = Math.min(10, 3+Math.floor(T*0.9)) * M;
   for(let i=0;i<nVamps;i++){ const b=pick(); if(!b) break;
     setTimeout(()=>{ if(!paused){ b.open=60;
-      const spawn = Math.random()<0.35 ? robocop : vamp;   // Robotic Police mixed in alongside the regular enforcers
-      ents.push(spawn(b.doorX+rnd(-14,14),FLOOR_N-10,true)); } }, 240+i*300);
+      ents.push(vamp(b.doorX+rnd(-14,14),FLOOR_N-10,true)); } }, 240+i*300);   // all politicians while the other types are art-gated
   }
   say(P.x,P.z-40,'FIGHT','#ff2e88');
 }
@@ -1255,9 +1254,8 @@ function updateBusMob(){
         for(let i=0;i<bm.total;i++){
           setTimeout(()=>{ if(paused||busMob!==bm) return;
             const x=bm.x+rnd(-70,70), z=rnd(FLOOR_N+10,FLOOR_S-6);
-            // straight off the tour bus, no rats — Robotic Police mixed in alongside the regular enforcers, same odds as a wave
-            const spawn=Math.random()<0.35 ? robocop : vamp;
-            const e=spawn(x,z); e.flash=12; ents.push(e); puff(x,z,20,5,'#6b6478');
+            // straight off the tour bus — all politicians while the other types are art-gated
+            const e=vamp(x,z); e.flash=12; ents.push(e); puff(x,z,20,5,'#6b6478');
           }, 260+i*140);
         }
       }
@@ -1989,7 +1987,7 @@ function update(){
       if(!e.tok){e.tok=true;toks++;} e.state='breathe'; e.st=0;
     }
     else if(d<(e.k==='rat'?(e.big?40:26):44) && e.cd<=0 && (e.tok||toks<2)){
-      if(!e.tok){e.tok=true;toks++;} e.state='atk'; e.st=0; e.hitDone=false;
+      if(!e.tok){e.tok=true;toks++;} e.state='atk'; e.st=0; e.hitDone=false; e.kickAlt=!e.kickAlt;   // politicians alternate their two kick frames
     }
   }
   ents=ents.filter(e=>e.dead<28);
@@ -2901,7 +2899,7 @@ function drawVamp(e){ const sx=e.x-camX;
     // real drawn art (skull ghost in a suit) — the other types keep the placeholder until theirs lands
     let key='pol.idle.0';
     if(e.state==='walk'||e.state==='enter') key='pol.walk.'+(Math.floor(e.anim*1.2)%4);
-    else if(e.state==='atk') key= e.st<17?'pol.atk.0' : e.st<30?'pol.atk.1' : 'pol.idle.0';   // fist-up windup -> kick through the active window -> recover
+    else if(e.state==='atk') key= e.st<17?'pol.atk.0' : e.st<30?(e.kickAlt&&IDX['pol.atk.2']?'pol.atk.2':'pol.atk.1') : 'pol.idle.0';   // fist-up windup -> one of the two kicks through the active window -> recover
     spr(key, sx+rx, e.z-e.y-hover, e.face, et, ea, e.sc||1);
   }
   else drawFoePlaceholder(sx+rx, e.z-e.y-hover, f, e.sc||1, body, skin, e.anim, e.state==='atk', et, ea, dark?null:e.type);

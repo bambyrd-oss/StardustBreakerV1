@@ -154,7 +154,7 @@ pack_frames("hero.shoot","BamBamShoot",    ["frame0.png","frame1.png","frame2.pn
 POL="Politician"
 pack_one("pol.idle.0", POL, "idle.png", reframe_solo(os.path.join(ROOT,POL,"idle.png")))
 pack_frames("pol.walk", POL, ["walk0.png","walk1.png","walk2.png","walk3.png"], ref_file="idle.png")
-pack_frames("pol.atk",  POL, ["windup.png","kick.png"], ref_file="idle.png")   # fist-up windup -> front kick (matches the vamp atk windows: st<17 windup, 17-29 active)
+pack_frames("pol.atk",  POL, ["windup.png","kick.png","kick2.png"], ref_file="idle.png")   # fist-up windup -> front kick / high kick, alternated per attack (vamp atk windows: st<17 windup, 17-29 active)
 
 HB=os.path.join(ROOT,"BamBamPunch","frame0.png")   # idle stance doubles as both facings
 _hero_cell=reframe_solo(HB)
