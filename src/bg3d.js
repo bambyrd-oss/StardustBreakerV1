@@ -236,7 +236,11 @@ function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27
 // skyline sits low on the horizon for depth. `tile` = target building width (widths are then
 // normalised to sum to SPAN exactly so the wall stays seamless when it wraps).
 const BANDS = [
-  { z:-13, hBase:6,  hVar:5,  depth:1.2, store:true,  tile:9,  off:0 },   // FRONT (red) — razor-thin facade wall (6..11): the camera looks down, so any real depth shows a big sunlit roof slab
+  // FRONT row's face sits AT the walk-plane depth (z=-8.5, where the game's storefront base line
+  // projects): every point on that plane scrolls exactly 1:1 with the game world, so the game's
+  // 2D store facade (pinned to its world doorX) stays GLUED to one slot in this row instead of
+  // parallax-sliding across it. Face z = -8.5 → band centre = -8.5 - depth/2.
+  { z:-9.1, hBase:6,  hVar:5,  depth:1.2, store:true,  tile:9,  off:0 },  // FRONT (red) — razor-thin facade wall (6..11), scrolls 1:1
   { z:-27, hBase:5,  hVar:4,  depth:4,   store:false, tile:12, off:6 },   // BACK (blue) — 5..9: overlaps the front's range, so its roofs genuinely peek above the shorter fronts (its own roof hides behind the wall)
   { z:-74, hBase:4,  hVar:4,  depth:4,   store:false, tile:17, off:5, skyline:true },  // far haze: LOW (4..8) so it sits on the horizon instead of curtaining off the sky
 ];

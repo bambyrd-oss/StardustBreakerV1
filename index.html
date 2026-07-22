@@ -490,7 +490,11 @@ function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27
 // skyline sits low on the horizon for depth. `tile` = target building width (widths are then
 // normalised to sum to SPAN exactly so the wall stays seamless when it wraps).
 const BANDS = [
-  { z:-13, hBase:6,  hVar:5,  depth:1.2, store:true,  tile:9,  off:0 },   // FRONT (red) — razor-thin facade wall (6..11): the camera looks down, so any real depth shows a big sunlit roof slab
+  // FRONT row's face sits AT the walk-plane depth (z=-8.5, where the game's storefront base line
+  // projects): every point on that plane scrolls exactly 1:1 with the game world, so the game's
+  // 2D store facade (pinned to its world doorX) stays GLUED to one slot in this row instead of
+  // parallax-sliding across it. Face z = -8.5 → band centre = -8.5 - depth/2.
+  { z:-9.1, hBase:6,  hVar:5,  depth:1.2, store:true,  tile:9,  off:0 },  // FRONT (red) — razor-thin facade wall (6..11), scrolls 1:1
   { z:-27, hBase:5,  hVar:4,  depth:4,   store:false, tile:12, off:6 },   // BACK (blue) — 5..9: overlaps the front's range, so its roofs genuinely peek above the shorter fronts (its own roof hides behind the wall)
   { z:-74, hBase:4,  hVar:4,  depth:4,   store:false, tile:17, off:5, skyline:true },  // far haze: LOW (4..8) so it sits on the horizon instead of curtaining off the sky
 ];
@@ -2520,8 +2524,12 @@ function update(){
   // the sidewalk doesn't yank him in; only moving INTO the door does. Blocked while enemies are
   // on you — the door says so (drawStoreFacade's cue; say() is a no-op so a float would be silent).
   const wantIn = P.atShop && iz<-0.35;
+  // blocked ONLY while you're locked in a wave, or an enemy is literally on you. The old gate
+  // (any live enemy within 384px) refused the door for stragglers and off-screen spawns the
+  // player couldn't even see — "the entrance doesn't work".
+  const doorBlocked = camLock!==null || ents.some(e=>!e.dead && Math.abs(e.x-P.x)<70 && Math.abs(e.z-P.z)<40);
   if(P.atShop && (jTalk||doorEdge||wantIn) && P.y===0 && P.state!=='down' && P.state!=='enterShop' && !shopOpen){
-    if(!ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){
+    if(!doorBlocked){
       P.state='enterShop'; P.st=0; P.enterB=P.atShop; P.sprinting=false; blip(340,.04);
     }
   }
@@ -3823,7 +3831,7 @@ function drawStoreFacade(){
   // building; he jogs up into the lit doorway to go inside (the enterShop state in update()).
   for(const b of BUILDINGS){ if(b.kind!=='store') continue;
     const dx=b.doorX-camX; if(dx<-150||dx>W+150) continue;
-    const fx=dx-88, fw=124, top=110;
+    const fx=dx-88, fw=124, top=88;   // as tall as the 3D row it slots into — one OF the buildings, not a kiosk in front
     // brick slab + cornice
     inkRect(fx,top,fw,FLOOR_N-top,'#8a4438');
     ctx.globalAlpha=.3; ctx.fillStyle=BRICK_PAT; ctx.fillRect(fx,top,fw,FLOOR_N-top); ctx.globalAlpha=1;
@@ -3848,7 +3856,7 @@ function drawStoreFacade(){
     wg.addColorStop(0,'#ffe6a8'); wg.addColorStop(1,'#e2963a');
     ctx.globalAlpha=.9; ctx.fillStyle=wg; ctx.fillRect(wx+3,wy+3,ww-6,wh-6); ctx.globalAlpha=1;
     ctx.fillStyle='rgba(42,26,12,.55)';
-    for(let r=0;r<2;r++){ const ry=wy+16+r*16;
+    for(let r=0;r<3;r++){ const ry=wy+16+r*16;
       for(let i=0;i<Math.floor((ww-12)/8);i++){ const ph=5+Math.floor(hsh(b.x+r*3+i)*5);
         ctx.fillRect(wx+7+i*8, ry-ph, 5, ph); }
       ctx.fillRect(wx+6,ry,ww-12,2); }
@@ -3882,8 +3890,9 @@ function drawStoreFacade(){
     if(P.atShop===b && !shopOpen){
       ctx.textAlign='center'; ctx.font='bold 8px "JetBrains Mono",monospace';
       ctx.globalAlpha=.6+.4*Math.sin(t*.12);
-      if(ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){
-        ctx.fillStyle='#ff5a6a'; ctx.fillText('CLEAR THE STREET FIRST', dx, top-12);
+      // mirror the trigger's gate exactly: locked arena or an enemy right on you
+      if(camLock!==null || ents.some(e=>!e.dead && Math.abs(e.x-P.x)<70 && Math.abs(e.z-P.z)<40)){
+        ctx.fillStyle='#ff5a6a'; ctx.fillText('FINISH THE FIGHT', dx, top-12);
       } else {
         ctx.fillStyle='#ffd98a'; ctx.fillText(OPT.touch?'▲ WALK IN':'[W] WALK IN', dx, top-12);
       }
