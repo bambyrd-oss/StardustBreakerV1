@@ -3388,7 +3388,11 @@ function drawStoreFacade(){
   // building; he jogs up into the lit doorway to go inside (the enterShop state in update()).
   for(const b of BUILDINGS){ if(b.kind!=='store') continue;
     const dx=b.doorX-camX; if(dx<-150||dx>W+150) continue;
-    const fx=dx-88, fw=124, top=88;   // as tall as the 3D row it slots into — one OF the buildings, not a kiosk in front
+    const fx=dx-88, fw=124, top=88;
+    // FALLBACK (procedural bg) path only: draw the full 2D storefront. With the 3D scene up, the
+    // store is a real 3D building slotted into the row (bg3d's storePool + row gap) — drawing
+    // this flat facade on top of it would put a depthless copy in front of the real one.
+    if(!globalThis.__bg3d){
     // brick slab + cornice
     inkRect(fx,top,fw,FLOOR_N-top,'#8a4438');
     ctx.globalAlpha=.3; ctx.fillStyle=BRICK_PAT; ctx.fillRect(fx,top,fw,FLOOR_N-top); ctx.globalAlpha=1;
@@ -3439,9 +3443,11 @@ function drawStoreFacade(){
     ctx.fillStyle='#5a3a20'; ctx.fillRect(dx-dwid/2+1,FLOOR_N-60,5,58);            // the open door leaf
     ctx.fillStyle='#3a2a1a'; ctx.fillRect(dx-dwid/2-3,FLOOR_N-62,dwid+6,4);        // lintel
     inkRect(dx-dwid/2+4,FLOOR_N,dwid-8,5,'#7a2f3a');                               // welcome mat
-    const pool=ctx.createRadialGradient(dx,FLOOR_N+4,2,dx,FLOOR_N+4,dwid+8);       // light spilling out
+    }
+    // warm light spilling out the open door onto the sidewalk — both paths (the sidewalk is 1:1)
+    const pool=ctx.createRadialGradient(dx,FLOOR_N+4,2,dx,FLOOR_N+4,54);
     pool.addColorStop(0,'rgba(255,214,140,.30)'); pool.addColorStop(1,'rgba(255,214,140,0)');
-    ctx.fillStyle=pool; ctx.fillRect(dx-dwid-8,FLOOR_N-6,dwid*2+16,30);
+    ctx.fillStyle=pool; ctx.fillRect(dx-54,FLOOR_N-6,108,30);
     // door cue: you WALK IN when the street's quiet, and the door says why when you can't —
     // a mute door mid-fight reads as broken (say() is a no-op, so this is the only feedback)
     if(P.atShop===b && !shopOpen){
@@ -3467,9 +3473,14 @@ function render(){
   // 3D street background when WebGL is up (bg3d.js), procedural bg() otherwise.
   // 0.0805 = 3D units per game px at the sidewalk plane (solved with the bg3d camera),
   // so the scene scrolls 1:1 with the player's stride where he walks.
-  if(globalThis.__bg3d){ globalThis.__bg3d.render(camX*0.0805); ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H); }
+  if(globalThis.__bg3d){
+    // the 3D scene draws the store as a REAL building slotted into its front row (the row leaves
+    // a gap for it) — pass the on-block store door positions in 3D units (game px * 0.0805)
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>b.doorX*0.0805));
+    ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
+  }
   else bg();
-  drawStoreFacade();   // neon OPEN sign + lit open door, over whichever background is up
+  drawStoreFacade();   // fallback-path 2D facade + the door cue/light pool overlays
   const list=[];
   // the 3D scene supplies its own pedestrians + street furniture; the procedural
   // crowd/props still SIMULATE (aggro etc.) but only draw on the fallback path

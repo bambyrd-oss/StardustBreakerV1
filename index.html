@@ -670,12 +670,92 @@ const clouds=[];
 }
 
 
+// ---- the item store: a REAL 3D building slotted INTO the front row ----
+// The game passes store door positions (world-x in 3D units) into render(). Front-row buildings
+// overlapping a store are hidden — the row leaves a GAP — and a pooled store building (brick,
+// pink awning, OPEN display window, lit open doorway, real depth so its side faces read in
+// perspective) fills the slot. Its face sits on the 1:1 plane, so it stays aligned with the
+// game's door trigger from every camera position.
+const STORE_W=10, STORE_D=4, STORE_H=11;
+function brickTexture(){
+  const c=document.createElement('canvas'); c.width=64;c.height=64; const x=c.getContext('2d');
+  x.fillStyle='#8a4438'; x.fillRect(0,0,64,64);
+  x.fillStyle='rgba(60,24,18,.6)';
+  for(let r=0;r<8;r++){ x.fillRect(0,r*8,64,1);
+    for(let k=0;k<4;k++) x.fillRect(((r%2)*8+k*16)%64,r*8,1,8); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+function openTexture(lit){
+  // the store's stocked display window, OPEN sign hanging mid-glass; two variants = the flash
+  const c=document.createElement('canvas'); c.width=128;c.height=128; const x=c.getContext('2d');
+  x.fillStyle='#241a14'; x.fillRect(0,0,128,128);
+  const g=x.createLinearGradient(0,0,0,128); g.addColorStop(0,'#ffe6a8'); g.addColorStop(1,'#e2963a');
+  x.fillStyle=g; x.fillRect(6,6,116,116);
+  x.fillStyle='rgba(42,26,12,.6)';
+  for(let r=0;r<3;r++){ const ry=40+r*34;
+    for(let i=0;i<9;i++){ const ph=8+((i*37+r*13)%12); x.fillRect(10+i*13, ry-ph, 9, ph); }
+    x.fillRect(8,ry,112,3); }
+  x.fillStyle='#140a12'; x.fillRect(20,46,88,34);
+  x.font='700 28px Impact, sans-serif'; x.textAlign='center';
+  if(lit){ x.shadowColor='#ff3c96'; x.shadowBlur=14; x.fillStyle='#ffd7ec'; x.fillText('OPEN',64,73); x.shadowBlur=0; }
+  else { x.fillStyle='#40222f'; x.fillText('OPEN',64,73); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const OPEN_ON=openTexture(true), OPEN_OFF=openTexture(false);
+function buildStoreMesh(){
+  // local x=0 is the DOOR (the game's trigger point); the body hangs left of it like the old facade
+  const g=new THREE.Group();
+  const brick=brickTexture(); brick.repeat.set(3,4);
+  const body=new THREE.Mesh(boxGeo, toonMat({ map:brick, roughness:.95 }));
+  body.scale.set(STORE_W,STORE_H,STORE_D); body.position.set(-2.2,STORE_H/2,-STORE_D/2);
+  body.castShadow=true; body.receiveShadow=true; g.add(body);
+  const ol=new THREE.Mesh(boxGeo, OUTLINE_MAT); ol.scale.set(STORE_W,STORE_H+0.7,STORE_D+0.7); ol.position.copy(body.position); g.add(ol);
+  const cor=new THREE.Mesh(boxGeo, toonMat({ color:'#d9c6a8', roughness:.9 }));
+  cor.scale.set(STORE_W*1.06,0.6,STORE_D*1.1); cor.position.set(-2.2,STORE_H-0.1,-STORE_D/2); g.add(cor);
+  for(let i=0;i<3;i++){ const wm=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.5),
+      i===1? new THREE.MeshBasicMaterial({ color:0xffcf8a }) : toonMat({ color:'#2a2036', roughness:.4 }));
+    wm.position.set(-5.2+i*3, 7.6, 0.06); g.add(wm); }
+  // pink striped awning over the shopfront
+  const awc=document.createElement('canvas'); awc.width=64; awc.height=16; const ax=awc.getContext('2d');
+  for(let i=0;i<8;i++){ ax.fillStyle=i%2?'#ff2e88':'#ffe6f2'; ax.fillRect(i*8,0,8,16); }
+  const awt=new THREE.CanvasTexture(awc); awt.colorSpace=THREE.SRGBColorSpace; awt.wrapS=THREE.RepeatWrapping; awt.repeat.set(3,1);
+  const aw=new THREE.Mesh(boxGeo, toonMat({ map:awt, roughness:.85 }));
+  aw.scale.set(STORE_W*0.98,0.45,2.0); aw.position.set(-2.2,5.6,0.7); aw.rotation.x=-0.3; g.add(aw);
+  // display window with the OPEN sign (texture-swapped for the flash)
+  const win=new THREE.Mesh(new THREE.PlaneGeometry(4.4,4.4), new THREE.MeshBasicMaterial({ map:OPEN_ON }));
+  win.position.set(-4.5,2.5,0.06); g.add(win); g.userData.win=win;
+  // the open doorway: lit interior, dark frame, door leaf swung to the jamb, welcome mat
+  const dg=new THREE.Mesh(new THREE.PlaneGeometry(3.7,4.7), new THREE.MeshBasicMaterial({ color:0xffd9a0 }));
+  dg.position.set(0,2.35,0.05); g.add(dg);
+  const fr=new THREE.Mesh(boxGeo, toonMat({ color:'#3a221c', roughness:.9 }));
+  fr.scale.set(4.5,0.5,0.5); fr.position.set(0,4.9,0.1); g.add(fr);                         // lintel
+  for(const sx of [-2.1,2.1]){ const j=new THREE.Mesh(boxGeo, toonMat({ color:'#3a221c', roughness:.9 }));
+    j.scale.set(0.4,4.8,0.5); j.position.set(sx,2.4,0.1); g.add(j); }                       // jambs
+  const leaf=new THREE.Mesh(boxGeo, toonMat({ color:'#5a3a20', roughness:.9 }));
+  leaf.scale.set(0.35,4.6,0.3); leaf.position.set(-1.7,2.3,0.28); g.add(leaf);
+  const mat=new THREE.Mesh(boxGeo, toonMat({ color:'#7a2f3a', roughness:1 }));
+  mat.scale.set(3.2,0.1,1.1); mat.position.set(0,0.05,0.6); g.add(mat);
+  return g;
+}
+const storePool=[]; for(let i=0;i<3;i++){ const s=buildStoreMesh(); s.visible=false; scene.add(s); storePool.push(s); }
+let bgTick=0;
+
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc){
-    scroll=sc;
+  function stepBg(sc, storeXs){
+    scroll=sc; bgTick++;
+    // park the pooled store buildings at the on-screen store doors; hide the rest
+    const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
+    const lit=(bgTick%150)<126;
+    for(let i=0;i<storePool.length;i++){ const s=storePool[i];
+      if(i<xs.length){ s.visible=true; s.position.x=xs[i]-scroll; s.userData.win.material.map= lit?OPEN_ON:OPEN_OFF; }
+      else s.visible=false; }
+    const gaps=xs.map(x=>x-scroll-2.2);   // store body centres, in screen space (door is +2.2 off-centre)
     for(const b of world){ const sx=b.baseX-scroll; if(sx<-SPAN/2)b.baseX+=SPAN; else if(sx>SPAN/2)b.baseX-=SPAN;
-      const nx=b.baseX-scroll; b.mesh.position.x=nx; for(const e of b.extras) e.position.x=nx+(e.userData.ox||0); }
+      const nx=b.baseX-scroll; b.mesh.position.x=nx; for(const e of b.extras) e.position.x=nx+(e.userData.ox||0);
+      // the front row leaves a GAP where a store stands — hide any of its buildings that overlap
+      if(b.band.store){ const hide=gaps.some(gx=>Math.abs(nx-gx) < b.mesh.scale.x/2 + STORE_W/2 - 0.4);
+        if(b.mesh.visible!==!hide){ b.mesh.visible=!hide; for(const e of b.extras) e.visible=!hide; } } }
     for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN; p.g.position.x=p.baseX-scroll; }
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
       pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
@@ -3831,7 +3911,11 @@ function drawStoreFacade(){
   // building; he jogs up into the lit doorway to go inside (the enterShop state in update()).
   for(const b of BUILDINGS){ if(b.kind!=='store') continue;
     const dx=b.doorX-camX; if(dx<-150||dx>W+150) continue;
-    const fx=dx-88, fw=124, top=88;   // as tall as the 3D row it slots into — one OF the buildings, not a kiosk in front
+    const fx=dx-88, fw=124, top=88;
+    // FALLBACK (procedural bg) path only: draw the full 2D storefront. With the 3D scene up, the
+    // store is a real 3D building slotted into the row (bg3d's storePool + row gap) — drawing
+    // this flat facade on top of it would put a depthless copy in front of the real one.
+    if(!globalThis.__bg3d){
     // brick slab + cornice
     inkRect(fx,top,fw,FLOOR_N-top,'#8a4438');
     ctx.globalAlpha=.3; ctx.fillStyle=BRICK_PAT; ctx.fillRect(fx,top,fw,FLOOR_N-top); ctx.globalAlpha=1;
@@ -3882,9 +3966,11 @@ function drawStoreFacade(){
     ctx.fillStyle='#5a3a20'; ctx.fillRect(dx-dwid/2+1,FLOOR_N-60,5,58);            // the open door leaf
     ctx.fillStyle='#3a2a1a'; ctx.fillRect(dx-dwid/2-3,FLOOR_N-62,dwid+6,4);        // lintel
     inkRect(dx-dwid/2+4,FLOOR_N,dwid-8,5,'#7a2f3a');                               // welcome mat
-    const pool=ctx.createRadialGradient(dx,FLOOR_N+4,2,dx,FLOOR_N+4,dwid+8);       // light spilling out
+    }
+    // warm light spilling out the open door onto the sidewalk — both paths (the sidewalk is 1:1)
+    const pool=ctx.createRadialGradient(dx,FLOOR_N+4,2,dx,FLOOR_N+4,54);
     pool.addColorStop(0,'rgba(255,214,140,.30)'); pool.addColorStop(1,'rgba(255,214,140,0)');
-    ctx.fillStyle=pool; ctx.fillRect(dx-dwid-8,FLOOR_N-6,dwid*2+16,30);
+    ctx.fillStyle=pool; ctx.fillRect(dx-54,FLOOR_N-6,108,30);
     // door cue: you WALK IN when the street's quiet, and the door says why when you can't —
     // a mute door mid-fight reads as broken (say() is a no-op, so this is the only feedback)
     if(P.atShop===b && !shopOpen){
@@ -3910,9 +3996,14 @@ function render(){
   // 3D street background when WebGL is up (bg3d.js), procedural bg() otherwise.
   // 0.0805 = 3D units per game px at the sidewalk plane (solved with the bg3d camera),
   // so the scene scrolls 1:1 with the player's stride where he walks.
-  if(globalThis.__bg3d){ globalThis.__bg3d.render(camX*0.0805); ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H); }
+  if(globalThis.__bg3d){
+    // the 3D scene draws the store as a REAL building slotted into its front row (the row leaves
+    // a gap for it) — pass the on-block store door positions in 3D units (game px * 0.0805)
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>b.doorX*0.0805));
+    ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
+  }
   else bg();
-  drawStoreFacade();   // neon OPEN sign + lit open door, over whichever background is up
+  drawStoreFacade();   // fallback-path 2D facade + the door cue/light pool overlays
   const list=[];
   // the 3D scene supplies its own pedestrians + street furniture; the procedural
   // crowd/props still SIMULATE (aggro etc.) but only draw on the fallback path
