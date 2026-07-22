@@ -3977,7 +3977,7 @@ function drawPlayer(){
       else key='hero.uppercut.'+uf;
     } else key='hero.jump.2';
   }
-  if(P.state==='down') key='hero.jump.'+(P.downT>40?0:3);   // flat on the pavement (drawn rotated below); reuse a low crouch pose
+  if(P.state==='down') key='hero.jump.2';   // knockback/down = the jump apex tuck — already reads as laying down once rotated flat below
   if(P.state==='punch') key=comboKey(cStep());   // always melee now — shooting is its own state
   // hit recoil — while the flash is fresh and you're not mid-action, stumble back.
   // driven off the hitFlash timer (16→0) so it plays once per hit, then hands
@@ -4047,7 +4047,7 @@ function drawRemotePlayer(o, pos, idx){
     case 'kick':  key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+(Math.floor(t*0.3)%4) : 'hero.kick.2'; break;   // standing kick — no y/st synced, just cycle locally like the punch case below
     case 'upper': key= IDX['hero.uppercut.0'] ? 'hero.uppercut.'+(pos.y>24?1:pos.y>8?2:3) : 'hero.jump.2'; break;   // uppercut
     case 'imagine': key= IDX['hero.shoot.0'] ? 'hero.shoot.'+(Math.floor(t*0.3)%4) : 'hero.rot.east'; break;   // plasma beam from the finger gun
-    case 'down':  key='hero.jump.3'; break;
+    case 'down':  key='hero.jump.2'; break;
     case 'punch': key='hero.punch.'+(Math.floor(t*0.3)%6); break;
   }
   const face = (pos.face===-1||pos.face===1) ? pos.face : 1;   // synced facing (default east)
