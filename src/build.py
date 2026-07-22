@@ -31,8 +31,8 @@ def main():
     idx = open(os.path.join(SRC, 'atlas.json')).read().strip()
     tpl = open(os.path.join(SRC, 'game.html')).read()
 
-    if '__ATLAS__' not in tpl or '__INDEX__' not in tpl:
-        sys.exit('src/game.html is missing the __ATLAS__ / __INDEX__ placeholders')
+    if '__ATLAS__' not in tpl or '__INDEX__' not in tpl or '__TITLE__' not in tpl:
+        sys.exit('src/game.html is missing the __ATLAS__ / __INDEX__ / __TITLE__ placeholders')
 
     # splice the vendored Three.js + the 3D background module into the single game
     # script (see the marker comments in game.html — one <script> tag, harness-safe)
@@ -44,12 +44,17 @@ def main():
     if inline:
         raw = open(os.path.join(SRC, 'atlas.png'), 'rb').read()
         atlas = base64.b64encode(raw).decode()
+        raw = open(os.path.join(SRC, 'title.png'), 'rb').read()
+        title = base64.b64encode(raw).decode()
     else:
         atlas = ''
+        title = ''
         tpl = tpl.replace('sheet.src="data:image/png;base64,"+ATLAS_B64;',
                           'sheet.src="src/atlas.png";')
+        tpl = tpl.replace('titleImg.src="data:image/png;base64,"+TITLE_B64;',
+                          'titleImg.src="src/title.png";')
 
-    out = tpl.replace('__ATLAS__', atlas).replace('__INDEX__', idx)
+    out = tpl.replace('__ATLAS__', atlas).replace('__INDEX__', idx).replace('__TITLE__', title)
     dst = os.path.join(ROOT, 'index.html')
     open(dst, 'w').write(out)
 
