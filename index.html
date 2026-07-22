@@ -1879,7 +1879,7 @@ function spawnWave(T){
   // but still decremented pendingSpawns, so pausing across the ~3s stagger silently dropped enemies
   // (could empty the whole wave). A vamp spawned during a pause just sits inert until you unpause.
   for(let i=0;i<nVamps;i++){
-    const x = aR + 24 + rnd(0,150) + i*10;                              // just off-screen right, trailing back down the block
+    const x = aR + 14 + rnd(0,30) + i*8;                                // JUST past the right edge — the time-stagger already spreads arrivals; spawning deep off-screen made slow walkers read as ghost enemies
     const z = clamp(FLOOR_N-4 + rnd(0,64), FLOOR_N-10, ROAD_TARGET);    // spread in depth so they don't march single-file
     pendingSpawns++;
     setTimeout(()=>{ pendingSpawns--; ents.push(vamp(x,z,false)); }, 240+i*300);   // fromDoor=false → they just walk toward you; all politicians while the other types are art-gated
@@ -2652,11 +2652,16 @@ function update(){
     }
     // a fire rat wants the distance, not your throat. it holds inside its breathe band.
     const want = e.fire ? (e.big?104:66) : 16;
-    if(d>want){ e.x+=dx/d*e.spd; e.z+=clamp(dz,-1,1)*e.spd*0.55; }
+    // never let a locked fight go ghost: anyone outside the locked view (fresh spawns walking in,
+    // or someone knocked flying past the edge) HUSTLES back — at walk speed a straggler 200px
+    // off-screen kept the arena locked for ~6 silent seconds, which read as an unkillable ghost.
+    const offArena = camLock!==null && (e.x < camLock-8 || e.x > camLock+W+8);
+    const sp = e.spd*(offArena?2.6:1);
+    if(d>want){ e.x+=dx/d*sp; e.z+=clamp(dz,-1,1)*sp*0.55; }
     else if(e.fire && d<want*0.62 && e.state!=='breathe'){       // you closed. it gives ground.
       e.x-=dx/d*e.spd*0.85; e.z-=clamp(dz,-1,1)*e.spd*0.4;
     }
-    e.z=clamp(e.z,FLOOR_N,ROAD_TARGET+4); e.anim+=e.spd*0.12;   // they'll follow you into the road too
+    e.z=clamp(e.z,FLOOR_N,ROAD_TARGET+4); e.anim+=sp*0.12;   // they'll follow you into the road too
     e.cd--;
     if(e.fire && d<(e.big?150:105) && d>(e.big?40:26) && e.cd<=0 && (e.tok||toks<2)){
       if(!e.tok){e.tok=true;toks++;} e.state='breathe'; e.st=0;
@@ -4159,6 +4164,19 @@ function render(){
   drawStrikeWarning();
   drawLitter();
   drawBusMob();
+  // locked-fight edge tells: a pulsing chevron at the screen edge for every live enemy still
+  // outside the view (walking in, or knocked out of it) — the wave counter never points at a ghost
+  if(camLock!==null){
+    ctx.textAlign='center'; ctx.font='bold 12px "JetBrains Mono",monospace';
+    for(const e of ents){ if(e.dead) continue;
+      const sx=e.x-camX; if(sx>=-10&&sx<=W+10) continue;
+      const ey=clamp(e.z-e.y-24, 60, H-40);
+      ctx.globalAlpha=.55+.45*Math.sin(t*.25);
+      ctx.fillStyle='#ff2e88';
+      ctx.fillText(sx<0?'◀':'▶', sx<0?10:W-10, ey);
+      ctx.globalAlpha=1;
+    }
+  }
 
   if(OPT.hb){ ctx.strokeStyle='#3ad1ff'; ctx.lineWidth=1;
     for(const e of ents){ if(e.dead)continue; ctx.strokeRect(e.x-camX-e.w,e.z-e.d,e.w*2,e.d*2); }
