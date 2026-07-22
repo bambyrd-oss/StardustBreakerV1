@@ -76,25 +76,88 @@ sun.shadow.bias=-0.0004;
 scene.add(sun);
 
 // ---- ground: asphalt street + raised sidewalk ----
-const street = new THREE.Mesh(
-  new THREE.PlaneGeometry(1200, 34),
-  new THREE.MeshStandardMaterial({ color:'#4b4a54', roughness:0.95 })
-);
+const GROUND_W = 1200;
+// asphalt: speckle + tonal blotches + a few cracks, so the road reads as worn tarmac not flat grey
+function asphaltTexture(){
+  const S=256, c=document.createElement('canvas'); c.width=S;c.height=S; const x=c.getContext('2d');
+  x.fillStyle='#45444d'; x.fillRect(0,0,S,S);
+  const img=x.getImageData(0,0,S,S), d=img.data;
+  for(let i=0;i<d.length;i+=4){ const n=(Math.random()*34-17)|0; d[i]+=n; d[i+1]+=n; d[i+2]+=n; }
+  x.putImageData(img,0,0);
+  for(let i=0;i<26;i++){ const cx=Math.random()*S, cy=Math.random()*S, r=16+Math.random()*54;
+    const g=x.createRadialGradient(cx,cy,2,cx,cy,r);
+    const dk=Math.random()<0.5; g.addColorStop(0, dk?'rgba(20,20,26,.22)':'rgba(150,150,160,.12)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=g; x.beginPath(); x.arc(cx,cy,r,0,7); x.fill(); }
+  x.strokeStyle='rgba(15,15,20,.4)'; x.lineWidth=1.4;
+  for(let i=0;i<5;i++){ x.beginPath(); let px=Math.random()*S, py=Math.random()*S; x.moveTo(px,py);
+    for(let s=0;s<5;s++){ px+=(Math.random()-0.5)*70; py+=(Math.random()-0.5)*70; x.lineTo(px,py);} x.stroke(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+const asphaltTex = asphaltTexture(); asphaltTex.repeat.set(GROUND_W/9, 34/9);
+const street = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 34),
+  new THREE.MeshStandardMaterial({ map:asphaltTex, roughness:0.98 }));
 street.rotation.x = -Math.PI/2; street.position.set(0, 0, 6); street.receiveShadow = true;
 scene.add(street);
 
-// center-line dashes on the road
-const dashMat = new THREE.MeshStandardMaterial({ color:'#c9b23a', roughness:.8, emissive:'#3a3410', emissiveIntensity:.15 });
-const dashes = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 0.05, 0.5), dashMat, 200);
-{ const m=new THREE.Object3D(); for(let i=0;i<200;i++){ m.position.set(-600+i*6, 0.03, 9.5); m.updateMatrix(); dashes.setMatrixAt(i,m.matrix);} }
-scene.add(dashes);
+// scrolling centre dashes (dashed strip down the middle of the road)
+function dashTexture(){
+  const c=document.createElement('canvas'); c.width=64;c.height=16; const x=c.getContext('2d');
+  x.clearRect(0,0,64,16); x.fillStyle='#d8c24a'; x.fillRect(6,5,34,6);   // one dash per 64px tile
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=THREE.RepeatWrapping; return t;
+}
+const dashTex=dashTexture(); dashTex.repeat.set(GROUND_W/6, 1);
+const centreLine=new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 0.85),
+  new THREE.MeshStandardMaterial({ map:dashTex, transparent:true, roughness:.7 }));
+centreLine.rotation.x=-Math.PI/2; centreLine.position.set(0,0.02,8); scene.add(centreLine);
 
-const sidewalk = new THREE.Mesh(
-  new THREE.BoxGeometry(1200, 0.6, 12),
-  new THREE.MeshStandardMaterial({ color:'#a59f92', roughness:1 })
-);
+// solid edge lines near each side of the road (static — a solid line reads the same scrolling or not)
+for(const z of [ -3.4, 18.4 ]){
+  const edge=new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W,0.4),
+    new THREE.MeshStandardMaterial({ color:'#cfc6a4', roughness:.8 }));
+  edge.rotation.x=-Math.PI/2; edge.position.set(0,0.02,z); scene.add(edge);
+}
+
+// paved sidewalk with expansion joints
+function pavingTexture(){
+  const S=128,c=document.createElement('canvas'); c.width=S;c.height=S; const x=c.getContext('2d');
+  x.fillStyle='#b0aa9c'; x.fillRect(0,0,S,S);
+  const img=x.getImageData(0,0,S,S),d=img.data; for(let i=0;i<d.length;i+=4){ const n=(Math.random()*22-11)|0; d[i]+=n;d[i+1]+=n;d[i+2]+=n; } x.putImageData(img,0,0);
+  x.strokeStyle='rgba(60,56,48,.55)'; x.lineWidth=3;
+  for(let i=0;i<=S;i+=S/2){ x.beginPath();x.moveTo(i,0);x.lineTo(i,S);x.stroke(); x.beginPath();x.moveTo(0,i);x.lineTo(S,i);x.stroke(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+const pavingTex=pavingTexture(); pavingTex.repeat.set(GROUND_W/6, 12/6);
+const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(GROUND_W, 0.6, 12),
+  new THREE.MeshStandardMaterial({ map:pavingTex, roughness:1 }));
 sidewalk.position.set(0, 0.3, -6); sidewalk.receiveShadow = true; sidewalk.castShadow = true;
 scene.add(sidewalk);
+// curb lip between road and sidewalk
+const curb=new THREE.Mesh(new THREE.BoxGeometry(GROUND_W,0.62,0.7),
+  new THREE.MeshStandardMaterial({ color:'#8f8a7e', roughness:1 }));
+curb.position.set(0,0.31,-0.2); curb.receiveShadow=true; curb.castShadow=true; scene.add(curb);
+
+// ---- scrolling road dressing: crosswalks + manhole/patch decals, recycled like the buildings ----
+function crosswalkTexture(){
+  const c=document.createElement('canvas'); c.width=128;c.height=32; const x=c.getContext('2d');
+  x.clearRect(0,0,128,32); x.fillStyle='#e7e2d4'; for(let i=0;i<8;i++) x.fillRect(4+i*16,2,9,28);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const cwTex=crosswalkTexture();
+const road=[];    // {mesh, baseX}
+const CW_N=3;     // sparse — a crosswalk roughly every ~87 world units
+for(let k=0;k<CW_N;k++){
+  const cw=new THREE.Mesh(new THREE.PlaneGeometry(9,20), new THREE.MeshStandardMaterial({ map:cwTex, transparent:true, roughness:.9 }));
+  cw.rotation.x=-Math.PI/2; cw.position.set(0,0.03,7);
+  scene.add(cw); road.push({ mesh:cw, baseX:-260/2 + k*(260/CW_N) });
+}
+const decals=[];
+for(let k=0;k<10;k++){
+  const man = k%2===0;
+  const m=new THREE.Mesh(man?new THREE.CircleGeometry(1.1,18):new THREE.PlaneGeometry(3.4,2.2),
+    new THREE.MeshStandardMaterial({ color: man?'#3a3a40':'#3d3c44', roughness:1 }));
+  m.rotation.x=-Math.PI/2; m.position.set(0,0.02, man?12:4);
+  scene.add(m); decals.push({ mesh:m, baseX:-260/2 + k*(260/10) + 6 });
+}
 
 // ---- facade texture: window grid on a base colour ----
 function facadeTexture(base, lit){
@@ -246,11 +309,21 @@ function frame(){
     for(const e of b.extras) e.position.x = nx;     // storefront/awning/cap ride with the slab
   }
 
+  // road surface scrolls with the world (texture offset) + recycle crosswalks/decals
+  asphaltTex.offset.x = scroll/9;
+  dashTex.offset.x = scroll/6;
+  pavingTex.offset.x = scroll/6;
+  for(const g of road.concat(decals)){
+    const sx=g.baseX-scroll;
+    if(sx<-SPAN/2) g.baseX+=SPAN; else if(sx>SPAN/2) g.baseX-=SPAN;
+    g.mesh.position.x = g.baseX - scroll;
+  }
+
   // clouds drift slowly, independent
   for(const s of clouds){ s.position.x -= 0.012; if(s.position.x < -150) s.position.x = 150; }
 
   // hero idle bob so the composite reads as alive
-  bob += 0.08; hero.position.y = 3.2 + Math.sin(bob)*0.12;
+  bob += 0.08; hero.position.y = 4.0 + Math.sin(bob)*0.12;
 
   renderer.render(scene, camera);
 }
