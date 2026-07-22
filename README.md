@@ -83,8 +83,14 @@ Freedom / imagination charges), plus **FRESH KICKS**, **STAR KNUCKLES**,
 jump walks you back out. It also opens automatically between stages when you
 clear a boss.
 
-Each level is two enemy waves — the screen locks until every enemy is down —
-followed by a boss fight with its own moves and a weakness to find.
+Each level is a run of enemy waves — the screen locks until every enemy is
+down — followed by a boss fight with its own moves and a weakness to find.
+Stage 1 is three waves across three screens, and beating its boss isn't the
+end of it: the Landlord shrugs off the loss and sends a giant ball of
+crumpled eviction notices rolling after you. The whole street tilts downhill
+and it's a ~2-minute boulder run — jump the obstacles, don't let the ball
+catch you (a full heart each time, three catches and you're flattened) —
+until BamBam ducks into an alley and the stage is cleared.
 
 ## Enemies & bosses
 
