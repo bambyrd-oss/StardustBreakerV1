@@ -1871,7 +1871,7 @@ function update(){
       // all end on a dedicated "just touched down" frame (hero.jump.3, the punch/kick set's last
       // frame, hero.uppercut.3) that reads wrong if it's skipped past instantly
       if(P.state==='jump'||P.state==='air'||P.state==='upper'){
-        shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true); P.landHold=60;
+        shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true); P.landHold=12;   // ~0.2s @60fps — just enough to read the touchdown pose
       } else P.state='idle';
     } }
   if(P.landHold>0 && P.y===0){ P.landHold--; if(P.landHold<=0) P.state='idle'; }   // runs even while y===0 skips the block above
