@@ -843,7 +843,7 @@ function reset(){
   U={spirit:0,hands:0,shot:0,rapid:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
   ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0;
-  boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0;
+  boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0; pendingSpawns=0;
   busMob=null; busMobAt = t + (Math.random()<0.75 ? Math.floor(rnd(1800,5400)) : Infinity);   // ~once a run, not guaranteed
   lives=3; continues=0; night={bosses:0,cash:0,reach:0}; dawnShown=false;   // fresh stage run
   cans=[]; crowd=[]; litter=[]; steam=[]; props=[];
@@ -1226,6 +1226,13 @@ function puff(x,z,y,n,col){ for(let i=0;i<n;i++) parts.push({x,z,y,vx:rnd(-2,2),
 // floating combat/status subtext is off for now — POW (finger guns) is the one exception
 function say(x,z,txt,col){ return; }   // flavor floating text disabled (was: only 'POW' shown)
 
+// wave members are staggered in on real setTimeouts (so they trickle out of the
+// club door instead of popping in all at once) — pendingSpawns counts the ones still
+// queued so the "is this wave cleared" check (below, in the main loop) can't fire while
+// some of the wave hasn't even spawned yet. Without it, that check — which only looks at
+// ents.some(e=>!e.dead) — could see an empty/all-dead ents array in the gap before the
+// first setTimeout lands and declare the wave over before it started.
+let pendingSpawns=0;
 function spawnWave(T){
   if(coopGuest()) return;    // host spawns waves; the guest mirrors them
   const near=CLUBS.filter(b=>Math.abs(b.doorX-P.x)<W*0.9);
@@ -1236,7 +1243,8 @@ function spawnWave(T){
   // with the count boosted to keep wave density where the rat pack used to fill it out.
   const nVamps = Math.min(10, 3+Math.floor(T*0.9)) * M;
   for(let i=0;i<nVamps;i++){ const b=pick(); if(!b) break;
-    setTimeout(()=>{ if(!paused){ b.open=60;
+    pendingSpawns++;
+    setTimeout(()=>{ pendingSpawns--; if(!paused){ b.open=60;
       ents.push(vamp(b.doorX+rnd(-14,14),FLOOR_N-10,true)); } }, 240+i*300);   // all politicians while the other types are art-gated
   }
   say(P.x,P.z-40,'FIGHT','#ff2e88');
@@ -1930,7 +1938,7 @@ function update(){
   updateBusMob();
   if(camLock!==null && !OPT.freecam){
     camX+=(camLock-camX)*0.1;
-    if(t%20===0 && !ents.some(e=>!e.dead)){ const wasBoss=!!boss; camLock=null; boss=null;
+    if(t%20===0 && pendingSpawns===0 && !ents.some(e=>!e.dead)){ const wasBoss=!!boss; camLock=null; boss=null;
       for(const g of GATES) if(g.done==='fight' || g.x<P.x-40) g.done=true;   // retire this fight + anything already behind you, so nothing yanks you back
       if(wasBoss) stageCleared(); else { wavesThisStage++; say(P.x,P.z-40,'GO →','#c9d13a'); }
       if(gauntlet>0){ gauntlet--; if(gauntlet>0) forceBoss(); else say(P.x,P.z-58,'GAUNTLET CLEARED','#c9d13a'); } }
