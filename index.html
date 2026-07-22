@@ -3496,13 +3496,14 @@ function drawBoss(b){
 }
 
 function drawBossBar(){
-  // the boss's slash — same ink-slash language as ebar(), scaled up to own the top of the screen
-  const b=boss, bw=W-200, h=9, by=18;
+  // the boss's slash — same ink-slash language as ebar(), scaled up, right-aligned
+  // so it never crowds BamBam's hearts/meters in the top-left
+  const b=boss, bw=330, h=9, by=18, cx=W-16-bw/2;
   if(b.hpShown===undefined) b.hpShown=b.hp;
   b.hpShown+=(b.hp-b.hpShown)*0.14;
   const f=clamp(b.hp/b.maxhp,0,1), g=clamp(b.hpShown/b.maxhp,0,1);
   ctx.save();
-  ctx.translate(W/2,by); ctx.transform(1,0,-0.30,1,0,0);
+  ctx.translate(cx,by); ctx.transform(1,0,-0.30,1,0,0);
   ctx.fillStyle=INK; ctx.fillRect(-bw/2-3,-3,bw+6,h+6);
   ctx.fillStyle='#241428'; ctx.fillRect(-bw/2,0,bw,h);
   if(g>f+0.005){ ctx.fillStyle='#ffe6ee'; ctx.fillRect(-bw/2,0,bw*g,h); }
@@ -3514,17 +3515,17 @@ function drawBossBar(){
   for(let i=1;i<8;i++) ctx.fillRect(-bw/2+bw*i/8-0.5,0,1,h);
   if(b.flash>0){ ctx.globalAlpha=b.flash/8; ctx.fillStyle='#fff'; ctx.fillRect(-bw/2,0,bw,h); ctx.globalAlpha=1; }
   ctx.restore();
-  starShape(W/2-bw/2-11,by+h/2,8,INK); starShape(W/2-bw/2-11,by+h/2,6.2,'#ffb545');
-  ctx.textAlign='left'; ctx.fillStyle=INK; ctx.font='700 11px '+BEBAS;
-  ctx.fillText(b.name, W/2-bw/2+7, by-4.5);
+  starShape(cx-bw/2-11,by+h/2,8,INK); starShape(cx-bw/2-11,by+h/2,6.2,'#ffb545');
+  ctx.textAlign='right'; ctx.fillStyle=INK; ctx.font='700 11px '+BEBAS;
+  ctx.fillText(b.name, W-15, by-4.5);
   ctx.fillStyle=b.enraged?'#ff2a2a':b.pal.glow;
-  ctx.fillText(b.name, W/2-bw/2+6, by-6);
+  ctx.fillText(b.name, W-16, by-6);
   let hint=null, hcol=null;
   if(b.arch==='landlord' && b.phase==='guard'){ hint='SHIELDED — CLEAR HIS SECURITY'; hcol='#ffb03a'; }
   if(b.arch==='president' && (b.state==='incoming'||b.state==='strike')){ hint='MISSILE STRIKE — MOVE!'; hcol='#ff2e88'; }
   if(b.finalPhase){ hint='ONE PUNCH FINISHES HIM'; hcol='#3ad1ff'; }
   if(hint){ ctx.textAlign='center'; ctx.fillStyle=hcol; ctx.font='6px "JetBrains Mono",monospace';
-    ctx.fillText(hint, W/2, by+h+11); }
+    ctx.fillText(hint, cx, by+h+11); }
   ctx.textAlign='left';
 }
 
@@ -3979,8 +3980,14 @@ function hud(){
     ctx.beginPath(); ctx.arc(LX+30+i*9, VY+2, 3, 0, 7); ctx.fill(); }
   if(lives>8){ ctx.fillStyle='#ff2e88'; ctx.fillText('+'+(lives-8), LX+30+8*9, VY+5); }
 
-  ctx.textAlign='right'; ctx.font='9px "JetBrains Mono",monospace'; ctx.fillStyle='#c9d13a';
-  ctx.fillText(P.bucks+' BB',W-12,20);
+  // bucks + crit live with the rest of BamBam's numbers, under the lives row
+  ctx.textAlign='left'; ctx.font='9px "JetBrains Mono",monospace'; ctx.fillStyle='#c9d13a';
+  const bbY=VY+14, bbTxt=P.bucks+' BB', bbW=ctx.measureText(bbTxt).width;
+  ctx.fillText(bbTxt,LX,bbY);
+  ctx.font='7px "JetBrains Mono",monospace'; ctx.fillStyle='#5c5670';
+  ctx.fillText('CRIT '+Math.round(critChance()*100)+'%',LX+bbW+10,bbY);
+  if(P.dmgT>0){ ctx.fillStyle='#ffb545'; ctx.fillText(P.dmgMul+'x DMG '+Math.ceil(P.dmgT/60)+'s',LX,bbY+10); }
+  if(P.fireT>0){ ctx.fillStyle='#3ad1ff'; ctx.fillText('IMAGINATION SURGE '+Math.ceil(P.fireT/60)+'s',LX,P.dmgT>0?bbY+20:bbY+10); }
   // ranks you've bought, in the order they matter
   let ux=W-12; ctx.font='6px "JetBrains Mono",monospace';
   for(const k in UPG){
@@ -3991,11 +3998,6 @@ function hud(){
     ctx.fillStyle='#ffb545'; ctx.textAlign='right'; ctx.fillText(lbl,ux-2,H-10);
     ux-=w2+3;
   }
-  ctx.textAlign='right'; ctx.font='9px "JetBrains Mono",monospace';
-  ctx.font='7px "JetBrains Mono",monospace'; ctx.fillStyle='#5c5670';
-  ctx.fillText('CRIT '+Math.round(critChance()*100)+'%',W-12,32);
-  if(P.dmgT>0){ ctx.fillStyle='#ffb545'; ctx.fillText(P.dmgMul+'x DMG '+Math.ceil(P.dmgT/60)+'s',W-12,42); }
-  if(P.fireT>0){ ctx.fillStyle='#3ad1ff'; ctx.fillText('IMAGINATION SURGE '+Math.ceil(P.fireT/60)+'s',W-12,P.dmgT>0?52:42); }
 
   // stage progress: two waves, then that stage's boss
   if(boss && !boss.dead){ drawBossBar(); }               // a boss owns the top of the screen
