@@ -460,6 +460,33 @@ if(!err){
     }
     console.log('        '+foes.length+' wave enemies on-screen at spawn AND re-snapped inside after being launched out');
   });
+  scene('a KICK kills its target — never leaves it invisible (NaN-y ghost)', ()=>{
+    // THE ghost bug: the standing kick passes push but no y, so connect() set e.vy=undefined ->
+    // launch physics did e.y+=undefined -> e.y=NaN forever. NaN<=0 is false (never lands), the
+    // enemy never leaves 'launch', and e.z-NaN draws off-canvas: an alive, invisible, unkillable
+    // enemy that held the wave locked with a phantom counter. Kick must never produce that.
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=260; g.P.y=0; g.P.face=1; g.P.iframes=99999;
+    g.setCamLock(Math.max(0,g.P.x-170));
+    const e=g.vamp(g.P.x+24, 260, false, false, 'guard'); e.state='walk'; e.hp=e.maxhp=1; g.spawn(e);
+    g.connect(e, {name:'kick', dmg:13, push:7, stun:34});    // exactly the standing-kick payload
+    // let the launch/knockback settle
+    for(let i=0;i<80;i++) __tick(1);
+    if(!isFinite(e.x)||!isFinite(e.y)||!isFinite(e.z)) throw new Error('kick left the enemy at a non-finite position (x='+e.x+' y='+e.y+' z='+e.z+')');
+    if(!e.dead) throw new Error('a kick that dropped hp to 0 must kill — enemy still alive after 80 ticks (hp='+e.hp+', state='+e.state+')');
+    console.log('        kick payload settles to a real death, position stays finite');
+  });
+  scene('the wave-lock invariant heals a NaN-position enemy (no permanent ghost)', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=260;
+    g.setCamLock(Math.max(0,g.P.x-170));
+    const e=g.vamp(g.P.x+40, 260, false, false, 'guard'); e.state='launch'; e.hp=e.maxhp=50; g.spawn(e);
+    e.x=NaN; e.y=NaN;                                        // simulate any future bad-launch NaN
+    __tick(1);
+    if(!isFinite(e.x)||!isFinite(e.y)) throw new Error('the invariant must snap a NaN enemy back to a finite position, got x='+e.x+' y='+e.y);
+    if(e.state==='launch') throw new Error('a healed enemy should re-enter the fight (walk), not stay stuck airborne');
+    console.log('        NaN enemy snapped back to solid ground inside the arena');
+  });
   scene('boss hurtbox reaches ≥25px past its side (easier to hit)', ()=>{
     const g=__G(); g.clearEnts();
     g.spawnBoss(1,'landlord'); const b=g.boss;

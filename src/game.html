@@ -1738,7 +1738,11 @@ function connect(e,s){
   e.hitstun=s.stun; e.state='stun'; e.tok=false; e.flash=s.launch?14:8;
   e.recoil=P.face; e.recoilT=s.launch?0:9;   // procedural stumble: shove the sprite back on a plain (non-launch) hit
   e.hitAnimT=15;   // dedicated timer for hit-reaction sprite frames — flash starts at 8 OR 14 depending on hit type, so deriving frame index from it made most hits skip straight to a mid-animation pose. this always starts fresh at 0.
-  if(s.push){ e.vx=P.face*s.push; e.vy=s.y; e.state='launch'; e.hitstun=s.stun; }
+  // NB s.y||0 — a move with push but no y (the standing kick) would set e.vy=undefined, and then
+  // the launch physics do e.y+=undefined → e.y=NaN forever: NaN<=0 is false so it never lands,
+  // NaN never leaves 'launch', and e.z-NaN draws off-canvas. An alive, invisible, unkillable enemy
+  // that held the wave locked with a phantom counter. A ground shove is just launch with vy 0.
+  if(s.push){ e.vx=P.face*s.push; e.vy=s.y||0; e.state='launch'; e.hitstun=s.stun; }
   hitstop = s.launch?11:(crit?7:4);
   shake=Math.max(shake, s.launch?7:(crit?5:2.2));
   const R=s.rum||[70,.35,.6];
@@ -2119,6 +2123,10 @@ function update(){
     // path from any past or future code — it gets snapped to the nearest screen edge right now.
     // The LEFT counter can never disagree with what the player is looking at.
     if(!boss) for(const e of ents){ if(e.dead) continue;
+      // a non-finite position (a NaN from a bad launch, say) means an invisible, unreachable,
+      // unkillable enemy — snap it back to solid ground in the middle of the arena so it re-enters
+      // the fight instead of holding the lock forever.
+      if(!isFinite(e.x)||!isFinite(e.y)||!isFinite(e.z)){ e.x=camLock+W/2; e.y=0; e.vy=0; e.vx=0; e.z=clamp(e.z||FLOOR_N+20,FLOOR_N,ROAD_TARGET); e.state='walk'; e.hitstun=0; }
       if(e.x < camLock+8){ e.x=camLock+8; if(e.vx<0) e.vx=0; }
       else if(e.x > camLock+W-8){ e.x=camLock+W-8; if(e.vx>0) e.vx=0; }
     }
