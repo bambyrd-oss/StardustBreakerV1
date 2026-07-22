@@ -57,6 +57,7 @@ const camera = new THREE.PerspectiveCamera(24, 640/360, 0.1, 500);
 camera.position.set(0, 21.91, 62);
 camera.lookAt(0, 0.66, -26);
 const camBaseQ = camera.quaternion.clone();   // the solved pose — roll (the eviction chase) is applied on top per frame
+const camBasePos = camera.position.clone();   // the solved position — the corner ORBIT swings the camera around this
 
 // ---- golden-hour light: low warm sun + cool sky fill = saturated, contrasty colour ----
 scene.add(new THREE.HemisphereLight(0xffc98a, 0x59406a, 1.15));   // warm sky, cool violet ground bounce
@@ -757,6 +758,17 @@ function buildCrossStreet(){
   return g;
 }
 const xstreetPool=[]; for(let i=0;i<2;i++){ const s=buildCrossStreet(); scene.add(s); xstreetPool.push(s); }
+
+// ---- Bam as a real BILLBOARD in the 3D scene, for the corner-turn cinematic ----
+// A 2.5D character lives IN the 3D world so the camera can orbit and he stays planted on the
+// ground, always facing the lens (that's what a Sprite does). The game blits his current frame
+// onto heroCv each cinematic frame; stepBg parks the billboard at his 3D position and shows it,
+// then hides the flat 2D overlay. Only used during the turn — normal play keeps the 2D sprite.
+const heroCv=document.createElement('canvas'); heroCv.width=92; heroCv.height=92;
+const heroTex=new THREE.CanvasTexture(heroCv); heroTex.colorSpace=THREE.SRGBColorSpace;
+heroTex.magFilter=THREE.NearestFilter; heroTex.minFilter=THREE.NearestFilter;
+const heroSpr=new THREE.Sprite(new THREE.SpriteMaterial({ map:heroTex, transparent:true, depthTest:true }));
+heroSpr.visible=false; scene.add(heroSpr);
 let bgTick=0;
 
 // ---- Landlord D. Evict, in the flesh: a cel-shaded 3D boss rig ----
@@ -824,13 +836,21 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw){
+  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero){
     scroll=sc; bgTick++;
-    // yaw = the corner-turn swing (the chase whips the camera 90° down a cross-street); roll = the
-    // downhill tilt. Roll is about the view axis so it stays glued to the 2D sprite layer; the yaw
-    // whip deliberately does NOT (sprites are hidden and speed-lines cover it during the swing).
+    // yaw = the corner turn: the camera ORBITS around Bam (planted at the intersection) — its
+    // POSITION swings 90° about the vertical axis through him while it keeps looking at him, so he
+    // stays centred and the whole street rotates behind him toward the cross-street's vanishing
+    // point. roll = the downhill tilt, applied on top about the view axis.
+    camera.position.copy(camBasePos);
     camera.quaternion.copy(camBaseQ);
-    if(yaw) camera.rotateY(yaw);
+    if(yaw){
+      const px=0, pz=-3.84, py=1.5;                    // pivot = Bam at the corner (walk plane, screen centre)
+      const dx=camera.position.x-px, dz=camera.position.z-pz, c=Math.cos(yaw), s=Math.sin(yaw);
+      camera.position.x = px + dx*c - dz*s;
+      camera.position.z = pz + dx*s + dz*c;
+      camera.up.set(0,1,0); camera.lookAt(px,py,pz);
+    }
     if(roll) camera.rotateZ(roll);
     syncBoss(bossState);
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
@@ -890,8 +910,19 @@ function syncBoss(bs){
     asphaltTex.offset.x=scroll/9; pavingTex.offset.x=scroll/6;
     for(const g of road.concat(decals)){ const sx=g.baseX-scroll; if(sx<-SPAN/2)g.baseX+=SPAN; else if(sx>SPAN/2)g.baseX-=SPAN; g.mesh.position.x=g.baseX-scroll; }
     for(const s of clouds){ s.position.x-=0.012; if(s.position.x<-150)s.position.x=150; }
+    // Bam's billboard, planted in the 3D world for the corner-turn cinematic (the game drew his
+    // frame onto heroCv before this call). Same game→3D mapping the boss/store use.
+    if(hero){
+      heroSpr.visible=true; heroTex.needsUpdate=true;
+      const x3=(hero.gx - hero.camX - 320)*0.0805;
+      const z3=-8.5 + ((hero.gz==null?252:hero.gz) - 228)*0.194;
+      const y3=Math.max(0,hero.gy||0)*0.0805;
+      const hh=hero.h||7.4;
+      heroSpr.scale.set(hh,hh,1);
+      heroSpr.position.set(x3, y3 + 0.26*hh, z3);   // feet (row 70/92) on the ground
+    } else heroSpr.visible=false;
     renderer.render(scene,camera);
   }
-  globalThis.__bg3d = { render:stepBg, canvas:canvas };
+  globalThis.__bg3d = { render:stepBg, canvas:canvas, heroCanvas:heroCv };
 }catch(e){ /* any init failure -> game keeps its procedural background */ }
 })();

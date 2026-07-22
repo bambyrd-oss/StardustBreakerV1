@@ -150,7 +150,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #17</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #19</small></h1>
         <div id="pcols">
           <div class="col">
             <h2>DISPLAY</h2>
@@ -311,6 +311,7 @@ const camera = new THREE.PerspectiveCamera(24, 640/360, 0.1, 500);
 camera.position.set(0, 21.91, 62);
 camera.lookAt(0, 0.66, -26);
 const camBaseQ = camera.quaternion.clone();   // the solved pose — roll (the eviction chase) is applied on top per frame
+const camBasePos = camera.position.clone();   // the solved position — the corner ORBIT swings the camera around this
 
 // ---- golden-hour light: low warm sun + cool sky fill = saturated, contrasty colour ----
 scene.add(new THREE.HemisphereLight(0xffc98a, 0x59406a, 1.15));   // warm sky, cool violet ground bounce
@@ -1011,6 +1012,17 @@ function buildCrossStreet(){
   return g;
 }
 const xstreetPool=[]; for(let i=0;i<2;i++){ const s=buildCrossStreet(); scene.add(s); xstreetPool.push(s); }
+
+// ---- Bam as a real BILLBOARD in the 3D scene, for the corner-turn cinematic ----
+// A 2.5D character lives IN the 3D world so the camera can orbit and he stays planted on the
+// ground, always facing the lens (that's what a Sprite does). The game blits his current frame
+// onto heroCv each cinematic frame; stepBg parks the billboard at his 3D position and shows it,
+// then hides the flat 2D overlay. Only used during the turn — normal play keeps the 2D sprite.
+const heroCv=document.createElement('canvas'); heroCv.width=92; heroCv.height=92;
+const heroTex=new THREE.CanvasTexture(heroCv); heroTex.colorSpace=THREE.SRGBColorSpace;
+heroTex.magFilter=THREE.NearestFilter; heroTex.minFilter=THREE.NearestFilter;
+const heroSpr=new THREE.Sprite(new THREE.SpriteMaterial({ map:heroTex, transparent:true, depthTest:true }));
+heroSpr.visible=false; scene.add(heroSpr);
 let bgTick=0;
 
 // ---- Landlord D. Evict, in the flesh: a cel-shaded 3D boss rig ----
@@ -1078,13 +1090,21 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw){
+  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero){
     scroll=sc; bgTick++;
-    // yaw = the corner-turn swing (the chase whips the camera 90° down a cross-street); roll = the
-    // downhill tilt. Roll is about the view axis so it stays glued to the 2D sprite layer; the yaw
-    // whip deliberately does NOT (sprites are hidden and speed-lines cover it during the swing).
+    // yaw = the corner turn: the camera ORBITS around Bam (planted at the intersection) — its
+    // POSITION swings 90° about the vertical axis through him while it keeps looking at him, so he
+    // stays centred and the whole street rotates behind him toward the cross-street's vanishing
+    // point. roll = the downhill tilt, applied on top about the view axis.
+    camera.position.copy(camBasePos);
     camera.quaternion.copy(camBaseQ);
-    if(yaw) camera.rotateY(yaw);
+    if(yaw){
+      const px=0, pz=-3.84, py=1.5;                    // pivot = Bam at the corner (walk plane, screen centre)
+      const dx=camera.position.x-px, dz=camera.position.z-pz, c=Math.cos(yaw), s=Math.sin(yaw);
+      camera.position.x = px + dx*c - dz*s;
+      camera.position.z = pz + dx*s + dz*c;
+      camera.up.set(0,1,0); camera.lookAt(px,py,pz);
+    }
     if(roll) camera.rotateZ(roll);
     syncBoss(bossState);
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
@@ -1144,9 +1164,20 @@ function syncBoss(bs){
     asphaltTex.offset.x=scroll/9; pavingTex.offset.x=scroll/6;
     for(const g of road.concat(decals)){ const sx=g.baseX-scroll; if(sx<-SPAN/2)g.baseX+=SPAN; else if(sx>SPAN/2)g.baseX-=SPAN; g.mesh.position.x=g.baseX-scroll; }
     for(const s of clouds){ s.position.x-=0.012; if(s.position.x<-150)s.position.x=150; }
+    // Bam's billboard, planted in the 3D world for the corner-turn cinematic (the game drew his
+    // frame onto heroCv before this call). Same game→3D mapping the boss/store use.
+    if(hero){
+      heroSpr.visible=true; heroTex.needsUpdate=true;
+      const x3=(hero.gx - hero.camX - 320)*0.0805;
+      const z3=-8.5 + ((hero.gz==null?252:hero.gz) - 228)*0.194;
+      const y3=Math.max(0,hero.gy||0)*0.0805;
+      const hh=hero.h||7.4;
+      heroSpr.scale.set(hh,hh,1);
+      heroSpr.position.set(x3, y3 + 0.26*hh, z3);   // feet (row 70/92) on the ground
+    } else heroSpr.visible=false;
     renderer.render(scene,camera);
   }
-  globalThis.__bg3d = { render:stepBg, canvas:canvas };
+  globalThis.__bg3d = { render:stepBg, canvas:canvas, heroCanvas:heroCv };
 }catch(e){ /* any init failure -> game keeps its procedural background */ }
 })();
 
@@ -4737,8 +4768,23 @@ function drawAlleyGap(){
     ctx.textAlign='center'; ctx.fillText('▼',sx,86); ctx.textAlign='left'; }
 }
 
+// blit Bam's current frame onto bg3d's billboard canvas, so he can ride IN the 3D scene during the
+// corner orbit. We only have side (east/west) + front (south) views — no back-view run sprite — so
+// he faces the camera through the turn (the camera circling a planted character reads fine).
+let _hbCtx=null;
+function heroBillboardFrame(){
+  const bb=globalThis.__bg3d; if(!bb||!bb.heroCanvas) return;
+  _hbCtx = _hbCtx || bb.heroCanvas.getContext('2d');
+  _hbCtx.clearRect(0,0,92,92);
+  const key = P.state==='walk' ? 'hero.walk.'+(Math.floor(t*.16)%4) : 'hero.rot.east';
+  const p=IDX[key]||IDX['hero.rot.east']; if(!p) return;
+  const src = P.face<0?flip:sheet;
+  _hbCtx.imageSmoothingEnabled=false;
+  _hbCtx.drawImage(src,p[0],p[1],S,S,0,0,92,92);
+}
 function render(){
   if(shopOpen){ drawStore(); composite(); return; }   // in-world store interior fully replaces the street view
+  const orbiting = chase && chase.ph==='turn' && (chase.turnSub==='hold'||chase.turnSub==='swing');   // corner cinematic
   ctx.save();
   const sh=shake*OPT.shake;
   if(sh>1) ctx.translate(rnd(-sh,sh),rnd(-sh,sh));
@@ -4762,7 +4808,11 @@ function render(){
     const xs3d = XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4).map(x=>(x-320)*0.0805);
     if(chase && chase.turnX!=null && !chase.turned) xs3d.push((chase.turnX-320)*0.0805);
     const yaw3d = (chase && chase.yaw) ? chase.yaw : 0;
-    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt, alley3d, xs3d, yaw3d);
+    // during the corner orbit, Bam rides IN the 3D scene as a billboard (so the camera can circle
+    // him and he stays planted on the ground); the flat 2D overlay is hidden for those frames.
+    const heroBB = orbiting ? {gx:P.x, gy:P.y, gz:P.z, camX} : null;
+    if(heroBB) heroBillboardFrame();
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt, alley3d, xs3d, yaw3d, heroBB);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();
@@ -4805,13 +4855,11 @@ function render(){
   // angle (same 4th arg above), and this rotates the sprite layer about the same screen centre,
   // so feet stay planted on the rolled 3D ground.
   const tl = chaseTilt>0.01 ? chaseTilt : 0;
-  // during the corner orbit the camera swings around Bam, who is FROZEN at screen centre (the pivot):
-  // draw only him and let the 3D scene do the perspective turn around him. Everything else (the ball,
-  // obstacles) is a flat 2D layer that can't orbit, so it's held off until we're side-on again.
-  const orbiting = chase && chase.ph==='turn' && (chase.turnSub==='hold'||chase.turnSub==='swing');
+  // during the corner orbit Bam is a BILLBOARD inside the 3D scene (drawn by bg3d, above), so the
+  // camera genuinely circles him; the flat 2D sprite layer (ball, obstacles, and the overlay Bam)
+  // is held off until we're side-on again on the next block.
   if(tl){ ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(tl); ctx.translate(-W/2,-H/2); }
   if(!orbiting) for(const o of list) o.f();
-  else drawPlayer();   // just Bam, planted at the corner, as the street turns around him
 
   for(const p of parts){ ctx.globalAlpha=clamp(p.life/20,0,1); ctx.fillStyle=p.col;
     ctx.fillRect(p.x-camX,p.z-p.y,2,2); } ctx.globalAlpha=1;
