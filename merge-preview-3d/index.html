@@ -83,7 +83,7 @@ scene.add(new THREE.AmbientLight(0xffb37a, 0.30));
 const sun = new THREE.DirectionalLight(0xff9433, 1.8);            // saturated orange, low on the horizon
 sun.position.set(34, 16, 20);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024);   // lighter for mobile GPUs
 sun.shadow.camera.left=-70; sun.shadow.camera.right=70;
 sun.shadow.camera.top=70; sun.shadow.camera.bottom=-30;
 sun.shadow.camera.near=1; sun.shadow.camera.far=160;
