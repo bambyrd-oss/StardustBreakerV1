@@ -285,34 +285,31 @@ if(!err){
     if(g.P.state!=='idle') throw new Error('kick should release back to idle, got '+g.P.state);
     console.log('        I on the ground -> kick state, standing kick connected for '+(hp0-e.hp)+' dmg');
   });
-  scene('SHOOT mode: toggle on, hold punch to spam finger-gun dots while standing still', ()=>{
+  scene('SHOOT: hold the dedicated button to spray finger-gun dots, punch stays melee', ()=>{
     const g=__G(), P=g.P; g.releaseArena();
-    P.x=1200; P.z=300; P.y=0; P.vy=0; P.state='idle'; P.face=1; P.weapon=null; P.iframes=999; P.gunMode=false; P.shootCd=0; P.shootT=0;
+    P.x=1200; P.z=300; P.y=0; P.vy=0; P.state='idle'; P.face=1; P.weapon=null; P.iframes=999; P.shootCd=0; P.shootT=0;
     g.setCamLock(Math.max(0,P.x-170));
     const e=g.vamp(P.x+90,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
-    // toggle into SHOOT mode
-    __key('KeyU',true); __tick(1); __key('KeyU',false); __tick(1);
-    if(!P.gunMode) throw new Error('U should toggle into SHOOT mode');
-    // HOLD punch → sprays dots on a cooldown; the player stays put (no forced movement) and never enters a locked attack state
+    // HOLD the SHOOT button → sprays dots on a cooldown; stays put and never enters a locked attack state
     const x0=P.x, hp0=e.hp; let dots=0;
-    __key('KeyJ',true);
+    __key('KeyU',true);
     for(let i=0;i<40;i++){ const before=g.fires.filter(f=>f.dot).length; __tick(1); const after=g.fires.filter(f=>f.dot).length; if(after>before) dots++; }
-    __key('KeyJ',false);
-    if(dots<3) throw new Error('holding punch in SHOOT mode should spam several dots, got '+dots);
-    if(P.state==='punch') throw new Error('SHOOT mode must not enter the melee punch combo');
+    __key('KeyU',false);
+    if(dots<3) throw new Error('holding SHOOT should spam several dots, got '+dots);
+    if(P.state==='punch') throw new Error('shooting must not enter the melee punch combo');
     if(Math.abs(P.x-x0)>2) throw new Error('shooting should be stationary (no forced movement), drifted '+(P.x-x0).toFixed(1));
     if(!(e.hp<hp0)) throw new Error('the finger-gun dots should connect');
     // walk-not-run: holding a direction while firing moves slower than a normal run
-    P.gunMode=true; P.shootT=10; P.x=1200; __key('KeyD',true); __key('KeyJ',true);
-    const wx=P.x; __tick(1); const walkStep=P.x-wx; __key('KeyJ',false);
+    P.shootT=10; P.x=1200; __key('KeyD',true); __key('KeyU',true);
+    const wx=P.x; __tick(1); const walkStep=P.x-wx; __key('KeyU',false);
     P.shootT=0; const rx=P.x; __tick(1); const runStep=P.x-rx; __key('KeyD',false);
     if(!(walkStep>0 && walkStep<runStep)) throw new Error('firing while moving should walk (slower) not run: walk='+walkStep.toFixed(2)+' run='+runStep.toFixed(2));
-    // toggle back to FIGHT → punch melees again
-    P.gunMode=false; P.state='idle'; g.ents.length=0;
+    // punch is always melee — no mode involved
+    P.state='idle'; P.shootT=0; g.ents.length=0;
     const e2=g.vamp(P.x+20,300,false,false,'guard'); e2.state='walk'; e2.hitstun=0; e2.hp=e2.maxhp=1000; g.spawn(e2);
     __key('KeyJ',true); __tick(1); __key('KeyJ',false);
-    if(P.state!=='punch') throw new Error('FIGHT mode punch should melee, got '+P.state);
-    console.log('        toggle→SHOOT: '+dots+' dots held-fire, stationary; walk<run while firing; toggle→FIGHT melees');
+    if(P.state!=='punch') throw new Error('punch should melee, got '+P.state);
+    console.log('        held SHOOT: '+dots+' dots, stationary; walk<run while firing; punch melees');
   });
   scene('uppercut: UP+PUNCH on the ground launches a grounded enemy', ()=>{
     const g=__G(); g.releaseArena();

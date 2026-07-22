@@ -34,7 +34,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 | Move | `WASD` / arrows | Stick / D-pad | D-pad (bottom-left) |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
 | Kick | `I` | **LB** | KICK |
-| Fight / Shoot toggle | `U` | **LT** | SHOOT |
+| Shoot (hold) | `U` | **LT** | SHOOT |
 | Jump | `K` / `Space` | **A** | JUMP |
 | Imagination attack | `L` | **B** | IMAGINE |
 | Interact / eat | `E` | **Y** | TALK |
@@ -54,12 +54,11 @@ left and right fists. Special attacks come off direction + button:
   (`J`/`I` while sprinting). A feet-first flying kick that sends enemies flying.
 - **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
 
-**Fight vs. Shoot** — tap `U` (or the SHOOT button) to toggle attack modes. In
-**Fight** the punch button brawls with the melee combo. In **Shoot**, *hold* punch
-to spray finger-gun dots — he fires standing still (no forced movement), and if you
-walk while firing he moves at a slower walk instead of a run. Spammable. The
-**Imagination** special (`L`, on a full Freedom Meter) is the finger gun's ultimate:
-a huge plasma beam straight ahead.
+**Shoot** — *hold* `U` (**LT** / the SHOOT button) to spray finger-gun dots. He
+fires standing still with a planted point, auto-aiming the nearest enemy; walk
+while firing and he moves at a slower walk instead of a run. Punch is always the
+melee combo — no mode to switch. The **Imagination** special (`L`, on a full
+Freedom Meter) is the finger gun's ultimate: a huge plasma beam straight ahead.
 
 ## The design
 

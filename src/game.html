@@ -61,8 +61,8 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
   border-color:#5c6320;background:rgba(40,44,12,.55)}
 #bE{right:21%;bottom:37%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
   border-color:#5a2340;background:rgba(60,14,34,.55)}
-#bF{right:4%;top:18%;width:12vmin;height:12vmin;max-width:70px;max-height:70px;font-size:2.4vmin;
-  border-color:#2c5c3a;background:rgba(14,44,26,.6);touch-action:none}   /* FIGHT/SHOOT mode toggle, up top out of the action cluster */
+#bF{right:25%;bottom:5%;width:12vmin;height:12vmin;max-width:74px;max-height:74px;font-size:2.6vmin;
+  border-color:#2c5c3a;background:rgba(14,44,26,.6);touch-action:none}   /* SHOOT: hold to spray finger guns — sits where TALK used to */
 #pauseBtn{position:absolute;left:50%;top:2.5%;opacity:0;pointer-events:none;transition:opacity .2s;transform:translateX(-50%);width:34px;height:22px;border-radius:4px;
   border:1px solid #2f2b3d;background:rgba(15,13,22,.6);display:flex;align-items:center;justify-content:center;
   color:var(--dim);font-size:11px;pointer-events:auto;letter-spacing:.1em;touch-action:none}
@@ -208,7 +208,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Punch <i style="color:#5c5670">(mash = combo)</i></span><b><kbd>J</kbd></b></div>
             <div class="row"><span>Kick</span><b><kbd>I</kbd></b></div>
             <div class="row"><span>Jump</span><b><kbd>K</kbd></b></div>
-            <div class="row"><span>Fight / Shoot <i style="color:#5c5670">(toggle)</i></span><b><kbd>U</kbd></b></div>
+            <div class="row"><span>Shoot <i style="color:#5c5670">(hold)</i></span><b><kbd>U</kbd></b></div>
             <div class="row"><span>Imagine</span><b><kbd>L</kbd></b></div>
             <div class="row"><span>Talk</span><b><kbd>E</kbd></b></div>
             <div class="row"><span>Pause</span><b><kbd>ESC</kbd></b></div>
@@ -217,8 +217,9 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Move</span><b>Stick / D-pad</b></div>
             <div class="row"><span>Punch</span><b style="color:#3a7fd5">X</b> <span style="color:#5c5670">/ RB / RT</span></div>
             <div class="row"><span>Kick</span><b>LB</b></div>
+            <div class="row"><span>Shoot <i style="color:#5c5670">(hold)</i></span><b>LT</b></div>
             <div class="row"><span>Jump</span><b style="color:#5aa84a">A</b></div>
-            <div class="row"><span>Shoot</span><b style="color:#d54a44">B</b></div>
+            <div class="row"><span>Imagine</span><b style="color:#d54a44">B</b></div>
             <div class="row"><span>Talk</span><b style="color:#d5b23a">Y</b></div>
             <div class="row"><span>Pause</span><b>Menu</b></div>
           </div>
@@ -611,10 +612,6 @@ function bindBtn(id,k){ const el=$(id);
 }
 bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bE','E'); bindBtn('bF','F');   // TALK button retired — the shop opens on approach
 function tapT(k){ if(T[k+'p']){T[k+'p']=false;return true;} return false; }
-// FIGHT/SHOOT feedback: the main action button (bA) shows what it does now (PUNCH vs SHOOT),
-// and the toggle (bF) shows the mode it switches TO — so pressing it visibly flips both.
-function syncModeBtn(){ const s=!!(typeof P!=='undefined' && P.gunMode);
-  const a=$('bA'), f=$('bF'); if(a) a.textContent=s?'SHOOT':'PUNCH'; if(f) f.textContent=s?'FIGHT':'SHOOT'; }
 if(matchMedia('(hover:hover)').matches && !('ontouchstart' in window)){
   OPT.touch=false; $('o_touch').classList.remove('on');
 } else $('touch').classList.add('on');
@@ -827,7 +824,7 @@ const P={};
 function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
-    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:false,shootCd:0,shootT:0,airPunch:false,punchHand:true,
+    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,shootCd:0,shootT:0,airPunch:false,punchHand:true,
     sprinting:false,sprintDir:0,tapDir:0,tapT:-99,lastDir:0,landHold:0,beamFace:1,
     stepV:0,downT:0,knockV:0,weapon:null,downed:false,wasAtShop:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
@@ -840,7 +837,6 @@ function reset(){
   BUILDINGS=[]; CLUBS=[]; GRATES=[]; GATES=[]; MADE.clear();
   _credited.clear();
   best=Math.max(best||0, 0);
-  syncModeBtn();                          // action button starts as PUNCH (FIGHT is the default mode)
   stream();
 }
 let best=0;
@@ -1705,9 +1701,8 @@ function update(){
         jJump =tap('KeyK')||tap('Space')||tapT('B')||(pad&&pad.JUMP),
         jDrink=tap('KeyL')||tapT('C')||(pad&&pad.DRINK),
         jTalk =tap('KeyE')||tapT('D')||(pad&&pad.TALK),
-        jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK),
-        jGun  =tap('KeyU')||tapT('F')||(pad&&pad.GUN);
-  if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); syncModeBtn(); }   // toggle FIGHT ⇄ SHOOT — relabels PUNCH↔SHOOT + the toggle button
+        jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK);
+  const heldGun = key.KeyU || T.F || (PAD.now&&PAD.now.GUN);   // SHOOT is held, not toggled — no more mode
   if(pad&&pad.PAUSE) setPause(true);
 
   //---- SPRINT: double-tap a horizontal direction to run. works for keys, the gamepad d-pad and the
@@ -1832,7 +1827,7 @@ function update(){
     }
   }
   else {
-    const shooting = P.gunMode && P.shootT>0;   // mid-shot in SHOOT mode → he walks it, doesn't run
+    const shooting = P.shootT>0;                // mid-shot → he walks it, doesn't run
     if(ix||iz){ const l=Math.max(1,Math.hypot(ix,iz)); ix/=l; iz/=l;
       const spd = shooting ? 1.15 : (2.15+U.boots*0.5)*(P.sprinting?1.8:1);   // BOOTS: quicker on your feet; SPRINT: faster still; firing = a slow walk
       P.x+=ix*spd; P.z+=iz*spd*0.62;
@@ -1858,9 +1853,9 @@ function update(){
       if(best) P.face = best.x>P.x?1:-1;
       P.state='kick'; P.st=0; P.hitDone=false; blip(360,.03);
     }
-    if(P.gunMode && P.y===0 && P.state!=='air' && !P.weapon){  // SHOOT mode: HOLD punch to spray finger-gun dots
+    if(heldGun && P.y===0 && P.state!=='air' && !P.weapon){    // HOLD the SHOOT button (U / LT / touch) to spray finger-gun dots
       // stationary by default, spammable (short cooldown); you can still walk (slower) while firing.
-      if(heldPunch && P.shootCd<=0){
+      if(P.shootCd<=0){
         if(!(ix||iz)){ let best=null,bd=260;                    // standing still → auto-aim the nearest mark; walking → point where you move
           for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2); if(d<bd){bd=d;best=e;} }
           if(best) P.face = best.x>P.x?1:-1; }
@@ -1868,14 +1863,14 @@ function update(){
         P.shootCd=7; P.shootT=10; blip(520,.02);               // 7-tick cadence ≈ fast finger-gun spam
       }
     }
-    else if(jPunch && P.y===0 && P.state!=='air' && wantUp && !P.weapon){   // FIGHT mode — UP + PUNCH → rising uppercut launcher
+    if(jPunch && P.y===0 && P.state!=='air' && wantUp && !P.weapon){        // UP + PUNCH → rising uppercut launcher
       let best=null,bd=80;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       P.state='upper'; P.st=0; P.vy=5.0; P.airT=0; P.hitDone=false; blip(300,.04);
     }
-    else if(jPunch && P.y===0 && P.state!=='air'){              // FIGHT mode — ground punch → melee combo (or hurl an equipped weapon)
+    else if(jPunch && P.y===0 && P.state!=='air'){              // ground punch → melee combo (or hurl an equipped weapon)
       let best=null,bd=70;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
@@ -1908,7 +1903,6 @@ function update(){
   if(P.iframes>0)P.iframes--;
   if(P.shootCd>0)P.shootCd--;                    // finger-gun fire-rate gate
   if(P.shootT>0)P.shootT--;                       // finger-gun pose/anim hold (also gates walk-speed while firing)
-  if(t%15===0) syncModeBtn();                     // self-heal the PUNCH↔SHOOT button label (cheap, and survives any UI reset)
   if(P.hitFlash>0)P.hitFlash--;
   for(const e of ents){ if(e.flash>0) e.flash--; if(e.recoilT>0) e.recoilT--; if(e.hitAnimT>0) e.hitAnimT--; }
   if(P.dmgT>0){ P.dmgT--; if(!P.dmgT)P.dmgMul=1; }
@@ -2953,7 +2947,7 @@ function drawPlayer(){
   // finger-gun point — no dedicated state, so movement stays free and the pose rides on top.
   // The BamBamShoot sheet is a point-and-STEP cycle, so it only cycles while actually walking;
   // standing still holds one planted point frame (cycling it read as running in place).
-  if(P.gunMode && P.shootT>0 && (P.state==='idle'||P.state==='walk') && IDX['hero.shoot.0'])
+  if(P.shootT>0 && (P.state==='idle'||P.state==='walk') && IDX['hero.shoot.0'])
     key = P.state==='walk' ? 'hero.shoot.'+clamp(3-Math.floor(P.shootT/3),0,3) : 'hero.shoot.0';
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
