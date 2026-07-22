@@ -490,9 +490,9 @@ function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27
 // skyline sits low on the horizon for depth. `tile` = target building width (widths are then
 // normalised to sum to SPAN exactly so the wall stays seamless when it wraps).
 const BANDS = [
-  { z:-13, hBase:7,  hVar:6,  depth:9,  store:true,  tile:9,  off:0 },   // FRONT (red) — connected storefront wall, narrow shops, jagged roofline (7..13)
-  { z:-27, hBase:4,  hVar:4,  depth:11, store:false, tile:12, off:6 },   // BACK (blue) — connected but SHORTER (4..8), so sky shows over it in the front's valleys
-  { z:-74, hBase:7,  hVar:7,  depth:13, store:false, tile:17, off:5, skyline:true },  // far hazy skyline, low on the horizon
+  { z:-13, hBase:7,  hVar:6,  depth:3.5, store:true,  tile:9,  off:0 },   // FRONT (red) — connected storefront wall, narrow shops, jagged roofline (7..13); shallow so it reads as a facade, not a chunky box
+  { z:-27, hBase:4,  hVar:4,  depth:4,   store:false, tile:12, off:6 },   // BACK (blue) — connected but SHORTER (4..8), so sky shows over it in the front's valleys
+  { z:-74, hBase:7,  hVar:7,  depth:5,   store:false, tile:17, off:5, skyline:true },  // far hazy skyline, low on the horizon
 ];
 const SPAN = 260;                        // world-x wrap width
 const boxGeo = new THREE.BoxGeometry(1,1,1);
