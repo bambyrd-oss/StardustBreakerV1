@@ -764,10 +764,74 @@ function layoutStore(s, c, bw){
 const storePool=[]; for(let i=0;i<3;i++){ const s=buildStoreMesh(); s.visible=false; scene.add(s); storePool.push(s); }
 let bgTick=0;
 
+// ---- Landlord D. Evict, in the flesh: a cel-shaded 3D boss rig ----
+// The game's boss entity stays the single source of truth (AI, hitboxes, HP all unchanged);
+// every frame render() passes its pose in and this rig mirrors it — position on the 1:1 plane,
+// facing, intro rise-from-the-ground, the notice-throwing arm, dizzy sway, enrage shell, hit
+// flash, and the death keel-over. drawBoss() skips its 2D body while this is on screen.
+const bossRig=(function(){
+  const g=new THREE.Group();
+  const suit=toonMat({ color:'#3a2f1a', roughness:.95 }), dark=toonMat({ color:'#1a140a', roughness:.95 });
+  const skin=toonMat({ color:'#c98d6a', roughness:.9 });
+  const add=(geo,mat,sx,sy,sz,px,py,pz,shadow)=>{ const m=new THREE.Mesh(geo,mat);
+    m.scale.set(sx,sy,sz); m.position.set(px,py,pz); if(shadow){ m.castShadow=true; } g.add(m); return m; };
+  add(boxGeo,dark,1.0,0.4,1.2,-0.62,0.2,0); add(boxGeo,dark,1.0,0.4,1.2,0.62,0.2,0);          // shoes
+  add(boxGeo,suit,0.8,1.7,0.95,-0.6,1.25,0,1); add(boxGeo,suit,0.8,1.7,0.95,0.6,1.25,0,1);    // cheap suit pants
+  add(boxGeo,suit,2.9,2.6,1.5,0,3.4,0,1);                                                     // jacket
+  add(boxGeo,dark,3.3,0.55,1.6,0,4.75,0,1);                                                   // shoulders
+  const tie=add(boxGeo,toonMat({ color:'#c9d13a', roughness:.8 }),0.45,1.1,0.16,0,3.85,0.78); // eviction-yellow tie
+  add(sphGeo,toonMat({ color:'#c9d13a', emissive:'#c9d13a', emissiveIntensity:.3 }),0.8,0.66,0.5,0,2.75,0.62); // the gut — his weak point
+  add(boxGeo,skin,1.5,1.45,1.3,0,5.75,0,1);                                                   // ruddy face
+  add(boxGeo,dark,0.22,0.22,0.1,-0.36,5.95,0.68); add(boxGeo,dark,0.22,0.22,0.1,0.36,5.95,0.68); // eyes
+  const mus=add(boxGeo,toonMat({ color:'#5a4636', roughness:1 }),0.85,0.24,0.12,0.12,5.42,0.68);  // mustache
+  const armL=add(boxGeo,suit,0.75,2.1,0.8,-1.95,3.55,0,1), armR=add(boxGeo,suit,0.75,2.1,0.8,1.95,3.55,0,1);
+  const paper=add(boxGeo,toonMat({ color:'#efe9d8', roughness:.9 }),0.95,1.15,0.09,2.6,4.5,0.4); // the served notice
+  // ink outlines PER PART — one big hull box swallowed the whole silhouette into a black slab
+  const hull=(sx,sy,sz,px,py,pz)=>{ const m=new THREE.Mesh(boxGeo, OUTLINE_MAT);
+    m.scale.set(sx+0.22,sy+0.22,sz+0.22); m.position.set(px,py,pz); g.add(m); return m; };
+  hull(2.9,2.6,1.5, 0,3.4,0);       // jacket
+  hull(1.5,1.45,1.3, 0,5.75,0);     // head
+  hull(3.3,0.55,1.6, 0,4.75,0);     // shoulders
+  const flash=new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:.5, depthWrite:false }));
+  flash.scale.set(3.6,7.5,2.1); flash.position.set(0,3.6,0); g.add(flash);
+  const rage=new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({ color:0xff2a2a, transparent:true, opacity:.22, blending:THREE.AdditiveBlending, depthWrite:false }));
+  rage.scale.set(2.4,4.4,1.8); rage.position.set(0,3.6,0); g.add(rage);
+  g.visible=false; scene.add(g);
+  g.userData={armL,armR,mus,paper,flash,rage,tie};
+  return g;
+})();
+function syncBoss(bs){
+  if(!bs){ bossRig.visible=false; return; }
+  const u=bossRig.userData, f=bs.face||1;
+  bossRig.visible=true;
+  const G= bs.state==='intro' ? Math.max(0.02, 1-(bs.rise||0)) : 1;
+  const swell= bs.enraged ? 1.12+0.02*Math.sin(bgTick*0.35) : 1;
+  bossRig.position.x = (bs.x-320)*0.0805 - scroll;   // -320: 3D x=0 is screen CENTRE, game x is left-edge-referenced
+  bossRig.position.z = -8.5 + (bs.z-228)*0.194;
+  bossRig.position.y = bs.y*0.0805 + Math.sin((bs.anim||0)*2)*0.18;
+  bossRig.scale.set(swell, G*swell, swell);
+  // asymmetric bits mirror with facing
+  u.armR.position.x=1.95*f; u.armL.position.x=-1.95*f; u.mus.position.x=0.12*f; u.paper.position.x=2.6*f;
+  // pose: wind rears back, attack lunges, dizzy sways with arms dropped, death keels over
+  let lean=0;
+  if(bs.state==='wind') lean=0.10*f;
+  else if(bs.state==='attack') lean=-0.14*f;
+  if(bs.dizzy) lean=Math.sin(bgTick*0.1)*0.1;
+  if(bs.state==='dead'){ const d=Math.min(1,(bs.st||0)/30); lean=-f*d*1.45; bossRig.position.y-=d*1.6; }
+  bossRig.rotation.z=lean;
+  const arm= bs.dizzy?0.5:0;
+  u.armL.rotation.z=arm; u.armR.rotation.z= bs.notice? -1.05*f : -arm;
+  u.armR.position.y= bs.notice? 4.45 : 3.55;
+  u.paper.visible=!!bs.notice;
+  u.flash.visible=!!bs.hit;
+  u.rage.visible=!!bs.enraged;
+}
+
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs){
+  function stepBg(sc, storeXs, bossState){
     scroll=sc; bgTick++;
+    syncBoss(bossState);
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
     const lit=(bgTick%150)<126;
     // position the row first (all visible), collecting the front band
@@ -3190,9 +3254,13 @@ function drawBigRat(e){
 function drawBoss(b){
   const sx=b.x-camX, gy=b.z-b.y, f=b.face, S=b.sc*(b.enraged?1.16+0.02*Math.sin(t*0.35):1);   // enraged = swollen
   const G=b.state==='intro'?(1-b.rise):1;
-  shadow(b.x,b.z,30*Math.max(.2,G));
+  // Landlord renders as a real 3D rig inside the bg3d scene (see render()'s b3 handoff) — skip
+  // his 2D body/shadow/aura here and keep only the canvas-side telegraphs (weak-point glow,
+  // dizzy stars). The other archetypes still draw their full 2D bodies.
+  const use3d = !!globalThis.__bg3d && b.arch==='landlord';
+  if(!use3d) shadow(b.x,b.z,30*Math.max(.2,G));
   if(G<=0.02) return;
-  if(b.enraged){ ctx.save(); ctx.globalCompositeOperation='lighter';   // seething red aura hugging the silhouette
+  if(b.enraged && !use3d){ ctx.save(); ctx.globalCompositeOperation='lighter';   // seething red aura hugging the silhouette
     ctx.globalAlpha=0.22+0.13*Math.sin(t*0.4); ctx.fillStyle='#ff2a2a';
     ctx.beginPath(); ctx.ellipse(sx, gy-b.h*0.45*S*G+Math.sin(b.anim*2)*2.4, b.w*0.95*S, b.h*0.55*S*G, 0,0,7); ctx.fill(); ctx.restore(); }
   const hit=b.hitstun>0||b.flash>3;
@@ -3211,26 +3279,28 @@ function drawBoss(b){
 
   if(b.arch==='landlord'){
     const dizzy=b.phase==='dizzy', notice=winding&&b.move==='notice';
-    R(-5,0,6,13,'#3a2f1a'); R(5,0,6,13,'#3a2f1a');       // cheap suit pants
-    R(-5,0,7,4,'#1a140a'); R(5,0,7,4,'#1a140a');         // shoes
-    R(0,11,20,16,body);                                  // suit jacket
-    R(0,20,22,5,dark);                                   // shoulders
-    R(0,26,9,8,'#c98d6a');                               // ruddy face
-    R(-2.4,30,1.6,1.6,'#1a1620'); R(2.4,30,1.6,1.6,'#1a1620');   // eyes
-    R(1,28.5,5,1.6,'#5a4636');                           // mustache
-    if(!dizzy) R(0,20,3,6,glow);                          // cheap tie
-    if(notice){
-      R(12,15,6,8,body);                                 // throwing arm
-      R(18,16,7,9,'#efe9d8');                             // notice in hand
-    } else if(dizzy){
-      ctx.globalAlpha=.5+.5*Math.sin(t*.5); ctx.fillStyle=glow;
-      ctx.font='bold 10px "JetBrains Mono",monospace'; ctx.textAlign='center';
-      ctx.fillText('✦', sx, gy-(b.h+6)*G+bob); ctx.globalAlpha=1;
-      R(-11,15,6,9,body); R(11,15,6,9,body);
-    } else {
-      R(-11,15,6,9,body); R(11,15,6,9,body);             // both arms out (guard)
+    if(!use3d){
+      R(-5,0,6,13,'#3a2f1a'); R(5,0,6,13,'#3a2f1a');       // cheap suit pants
+      R(-5,0,7,4,'#1a140a'); R(5,0,7,4,'#1a140a');         // shoes
+      R(0,11,20,16,body);                                  // suit jacket
+      R(0,20,22,5,dark);                                   // shoulders
+      R(0,26,9,8,'#c98d6a');                               // ruddy face
+      R(-2.4,30,1.6,1.6,'#1a1620'); R(2.4,30,1.6,1.6,'#1a1620');   // eyes
+      R(1,28.5,5,1.6,'#5a4636');                           // mustache
+      if(!dizzy) R(0,20,3,6,glow);                          // cheap tie
+      if(notice){
+        R(12,15,6,8,body);                                 // throwing arm
+        R(18,16,7,9,'#efe9d8');                             // notice in hand
+      } else if(dizzy){
+        R(-11,15,6,9,body); R(11,15,6,9,body);
+      } else {
+        R(-11,15,6,9,body); R(11,15,6,9,body);             // both arms out (guard)
+      }
     }
-    glowBlob(0,17,3.4);                                  // gut (weak point)
+    if(dizzy){ ctx.globalAlpha=.5+.5*Math.sin(t*.5); ctx.fillStyle=glow;   // dizzy stars — both paths
+      ctx.font='bold 10px "JetBrains Mono",monospace'; ctx.textAlign='center';
+      ctx.fillText('✦', sx, gy-(b.h+6)*G+bob); ctx.globalAlpha=1; }
+    glowBlob(0,17,3.4);                                  // gut (weak point) — both paths
   }
   else if(b.arch==='farma'){
     const crash=b.state==='crash', throwing=b.state==='attack'&&b.move==='throw', inject=(b.state==='wind'||b.state==='attack')&&b.move==='inject';
@@ -4035,8 +4105,16 @@ function render(){
   // so the scene scrolls 1:1 with the player's stride where he walks.
   if(globalThis.__bg3d){
     // the 3D scene draws the store as a REAL building slotted into its front row (the row leaves
-    // a gap for it) — pass the on-block store door positions in 3D units (game px * 0.0805)
-    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>b.doorX*0.0805));
+    // a gap for it) — pass the on-block store door positions in 3D units (game px * 0.0805).
+    // Landlord D. Evict is a real 3D rig too: pass his pose each frame (bg3d.syncBoss mirrors it).
+    const b3 = (boss && boss.arch==='landlord') ? { x:boss.x, z:boss.z, y:boss.y, face:boss.face,
+      state:boss.state, st:boss.st, anim:boss.anim, rise:boss.rise, enraged:boss.enraged,
+      hit:(boss.hitstun>0||boss.flash>3), dizzy:boss.phase==='dizzy',
+      notice:(boss.state==='wind'||boss.state==='attack')&&boss.move==='notice' } : null;
+    // NOTE the -320: the 3D camera's x=0 sits at screen CENTRE (px 320), while game coords are
+    // left-edge-referenced — without recentering, everything placed by game position renders
+    // exactly 320px right of where the gameplay actually happens.
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();

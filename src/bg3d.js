@@ -510,10 +510,74 @@ function layoutStore(s, c, bw){
 const storePool=[]; for(let i=0;i<3;i++){ const s=buildStoreMesh(); s.visible=false; scene.add(s); storePool.push(s); }
 let bgTick=0;
 
+// ---- Landlord D. Evict, in the flesh: a cel-shaded 3D boss rig ----
+// The game's boss entity stays the single source of truth (AI, hitboxes, HP all unchanged);
+// every frame render() passes its pose in and this rig mirrors it — position on the 1:1 plane,
+// facing, intro rise-from-the-ground, the notice-throwing arm, dizzy sway, enrage shell, hit
+// flash, and the death keel-over. drawBoss() skips its 2D body while this is on screen.
+const bossRig=(function(){
+  const g=new THREE.Group();
+  const suit=toonMat({ color:'#3a2f1a', roughness:.95 }), dark=toonMat({ color:'#1a140a', roughness:.95 });
+  const skin=toonMat({ color:'#c98d6a', roughness:.9 });
+  const add=(geo,mat,sx,sy,sz,px,py,pz,shadow)=>{ const m=new THREE.Mesh(geo,mat);
+    m.scale.set(sx,sy,sz); m.position.set(px,py,pz); if(shadow){ m.castShadow=true; } g.add(m); return m; };
+  add(boxGeo,dark,1.0,0.4,1.2,-0.62,0.2,0); add(boxGeo,dark,1.0,0.4,1.2,0.62,0.2,0);          // shoes
+  add(boxGeo,suit,0.8,1.7,0.95,-0.6,1.25,0,1); add(boxGeo,suit,0.8,1.7,0.95,0.6,1.25,0,1);    // cheap suit pants
+  add(boxGeo,suit,2.9,2.6,1.5,0,3.4,0,1);                                                     // jacket
+  add(boxGeo,dark,3.3,0.55,1.6,0,4.75,0,1);                                                   // shoulders
+  const tie=add(boxGeo,toonMat({ color:'#c9d13a', roughness:.8 }),0.45,1.1,0.16,0,3.85,0.78); // eviction-yellow tie
+  add(sphGeo,toonMat({ color:'#c9d13a', emissive:'#c9d13a', emissiveIntensity:.3 }),0.8,0.66,0.5,0,2.75,0.62); // the gut — his weak point
+  add(boxGeo,skin,1.5,1.45,1.3,0,5.75,0,1);                                                   // ruddy face
+  add(boxGeo,dark,0.22,0.22,0.1,-0.36,5.95,0.68); add(boxGeo,dark,0.22,0.22,0.1,0.36,5.95,0.68); // eyes
+  const mus=add(boxGeo,toonMat({ color:'#5a4636', roughness:1 }),0.85,0.24,0.12,0.12,5.42,0.68);  // mustache
+  const armL=add(boxGeo,suit,0.75,2.1,0.8,-1.95,3.55,0,1), armR=add(boxGeo,suit,0.75,2.1,0.8,1.95,3.55,0,1);
+  const paper=add(boxGeo,toonMat({ color:'#efe9d8', roughness:.9 }),0.95,1.15,0.09,2.6,4.5,0.4); // the served notice
+  // ink outlines PER PART — one big hull box swallowed the whole silhouette into a black slab
+  const hull=(sx,sy,sz,px,py,pz)=>{ const m=new THREE.Mesh(boxGeo, OUTLINE_MAT);
+    m.scale.set(sx+0.22,sy+0.22,sz+0.22); m.position.set(px,py,pz); g.add(m); return m; };
+  hull(2.9,2.6,1.5, 0,3.4,0);       // jacket
+  hull(1.5,1.45,1.3, 0,5.75,0);     // head
+  hull(3.3,0.55,1.6, 0,4.75,0);     // shoulders
+  const flash=new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:.5, depthWrite:false }));
+  flash.scale.set(3.6,7.5,2.1); flash.position.set(0,3.6,0); g.add(flash);
+  const rage=new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({ color:0xff2a2a, transparent:true, opacity:.22, blending:THREE.AdditiveBlending, depthWrite:false }));
+  rage.scale.set(2.4,4.4,1.8); rage.position.set(0,3.6,0); g.add(rage);
+  g.visible=false; scene.add(g);
+  g.userData={armL,armR,mus,paper,flash,rage,tie};
+  return g;
+})();
+function syncBoss(bs){
+  if(!bs){ bossRig.visible=false; return; }
+  const u=bossRig.userData, f=bs.face||1;
+  bossRig.visible=true;
+  const G= bs.state==='intro' ? Math.max(0.02, 1-(bs.rise||0)) : 1;
+  const swell= bs.enraged ? 1.12+0.02*Math.sin(bgTick*0.35) : 1;
+  bossRig.position.x = (bs.x-320)*0.0805 - scroll;   // -320: 3D x=0 is screen CENTRE, game x is left-edge-referenced
+  bossRig.position.z = -8.5 + (bs.z-228)*0.194;
+  bossRig.position.y = bs.y*0.0805 + Math.sin((bs.anim||0)*2)*0.18;
+  bossRig.scale.set(swell, G*swell, swell);
+  // asymmetric bits mirror with facing
+  u.armR.position.x=1.95*f; u.armL.position.x=-1.95*f; u.mus.position.x=0.12*f; u.paper.position.x=2.6*f;
+  // pose: wind rears back, attack lunges, dizzy sways with arms dropped, death keels over
+  let lean=0;
+  if(bs.state==='wind') lean=0.10*f;
+  else if(bs.state==='attack') lean=-0.14*f;
+  if(bs.dizzy) lean=Math.sin(bgTick*0.1)*0.1;
+  if(bs.state==='dead'){ const d=Math.min(1,(bs.st||0)/30); lean=-f*d*1.45; bossRig.position.y-=d*1.6; }
+  bossRig.rotation.z=lean;
+  const arm= bs.dizzy?0.5:0;
+  u.armL.rotation.z=arm; u.armR.rotation.z= bs.notice? -1.05*f : -arm;
+  u.armR.position.y= bs.notice? 4.45 : 3.55;
+  u.paper.visible=!!bs.notice;
+  u.flash.visible=!!bs.hit;
+  u.rage.visible=!!bs.enraged;
+}
+
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs){
+  function stepBg(sc, storeXs, bossState){
     scroll=sc; bgTick++;
+    syncBoss(bossState);
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
     const lit=(bgTick%150)<126;
     // position the row first (all visible), collecting the front band

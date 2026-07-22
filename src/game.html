@@ -2630,9 +2630,13 @@ function drawBigRat(e){
 function drawBoss(b){
   const sx=b.x-camX, gy=b.z-b.y, f=b.face, S=b.sc*(b.enraged?1.16+0.02*Math.sin(t*0.35):1);   // enraged = swollen
   const G=b.state==='intro'?(1-b.rise):1;
-  shadow(b.x,b.z,30*Math.max(.2,G));
+  // Landlord renders as a real 3D rig inside the bg3d scene (see render()'s b3 handoff) — skip
+  // his 2D body/shadow/aura here and keep only the canvas-side telegraphs (weak-point glow,
+  // dizzy stars). The other archetypes still draw their full 2D bodies.
+  const use3d = !!globalThis.__bg3d && b.arch==='landlord';
+  if(!use3d) shadow(b.x,b.z,30*Math.max(.2,G));
   if(G<=0.02) return;
-  if(b.enraged){ ctx.save(); ctx.globalCompositeOperation='lighter';   // seething red aura hugging the silhouette
+  if(b.enraged && !use3d){ ctx.save(); ctx.globalCompositeOperation='lighter';   // seething red aura hugging the silhouette
     ctx.globalAlpha=0.22+0.13*Math.sin(t*0.4); ctx.fillStyle='#ff2a2a';
     ctx.beginPath(); ctx.ellipse(sx, gy-b.h*0.45*S*G+Math.sin(b.anim*2)*2.4, b.w*0.95*S, b.h*0.55*S*G, 0,0,7); ctx.fill(); ctx.restore(); }
   const hit=b.hitstun>0||b.flash>3;
@@ -2651,26 +2655,28 @@ function drawBoss(b){
 
   if(b.arch==='landlord'){
     const dizzy=b.phase==='dizzy', notice=winding&&b.move==='notice';
-    R(-5,0,6,13,'#3a2f1a'); R(5,0,6,13,'#3a2f1a');       // cheap suit pants
-    R(-5,0,7,4,'#1a140a'); R(5,0,7,4,'#1a140a');         // shoes
-    R(0,11,20,16,body);                                  // suit jacket
-    R(0,20,22,5,dark);                                   // shoulders
-    R(0,26,9,8,'#c98d6a');                               // ruddy face
-    R(-2.4,30,1.6,1.6,'#1a1620'); R(2.4,30,1.6,1.6,'#1a1620');   // eyes
-    R(1,28.5,5,1.6,'#5a4636');                           // mustache
-    if(!dizzy) R(0,20,3,6,glow);                          // cheap tie
-    if(notice){
-      R(12,15,6,8,body);                                 // throwing arm
-      R(18,16,7,9,'#efe9d8');                             // notice in hand
-    } else if(dizzy){
-      ctx.globalAlpha=.5+.5*Math.sin(t*.5); ctx.fillStyle=glow;
-      ctx.font='bold 10px "JetBrains Mono",monospace'; ctx.textAlign='center';
-      ctx.fillText('✦', sx, gy-(b.h+6)*G+bob); ctx.globalAlpha=1;
-      R(-11,15,6,9,body); R(11,15,6,9,body);
-    } else {
-      R(-11,15,6,9,body); R(11,15,6,9,body);             // both arms out (guard)
+    if(!use3d){
+      R(-5,0,6,13,'#3a2f1a'); R(5,0,6,13,'#3a2f1a');       // cheap suit pants
+      R(-5,0,7,4,'#1a140a'); R(5,0,7,4,'#1a140a');         // shoes
+      R(0,11,20,16,body);                                  // suit jacket
+      R(0,20,22,5,dark);                                   // shoulders
+      R(0,26,9,8,'#c98d6a');                               // ruddy face
+      R(-2.4,30,1.6,1.6,'#1a1620'); R(2.4,30,1.6,1.6,'#1a1620');   // eyes
+      R(1,28.5,5,1.6,'#5a4636');                           // mustache
+      if(!dizzy) R(0,20,3,6,glow);                          // cheap tie
+      if(notice){
+        R(12,15,6,8,body);                                 // throwing arm
+        R(18,16,7,9,'#efe9d8');                             // notice in hand
+      } else if(dizzy){
+        R(-11,15,6,9,body); R(11,15,6,9,body);
+      } else {
+        R(-11,15,6,9,body); R(11,15,6,9,body);             // both arms out (guard)
+      }
     }
-    glowBlob(0,17,3.4);                                  // gut (weak point)
+    if(dizzy){ ctx.globalAlpha=.5+.5*Math.sin(t*.5); ctx.fillStyle=glow;   // dizzy stars — both paths
+      ctx.font='bold 10px "JetBrains Mono",monospace'; ctx.textAlign='center';
+      ctx.fillText('✦', sx, gy-(b.h+6)*G+bob); ctx.globalAlpha=1; }
+    glowBlob(0,17,3.4);                                  // gut (weak point) — both paths
   }
   else if(b.arch==='farma'){
     const crash=b.state==='crash', throwing=b.state==='attack'&&b.move==='throw', inject=(b.state==='wind'||b.state==='attack')&&b.move==='inject';
@@ -3475,8 +3481,16 @@ function render(){
   // so the scene scrolls 1:1 with the player's stride where he walks.
   if(globalThis.__bg3d){
     // the 3D scene draws the store as a REAL building slotted into its front row (the row leaves
-    // a gap for it) — pass the on-block store door positions in 3D units (game px * 0.0805)
-    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>b.doorX*0.0805));
+    // a gap for it) — pass the on-block store door positions in 3D units (game px * 0.0805).
+    // Landlord D. Evict is a real 3D rig too: pass his pose each frame (bg3d.syncBoss mirrors it).
+    const b3 = (boss && boss.arch==='landlord') ? { x:boss.x, z:boss.z, y:boss.y, face:boss.face,
+      state:boss.state, st:boss.st, anim:boss.anim, rise:boss.rise, enraged:boss.enraged,
+      hit:(boss.hitstun>0||boss.flash>3), dizzy:boss.phase==='dizzy',
+      notice:(boss.state==='wind'||boss.state==='attack')&&boss.move==='notice' } : null;
+    // NOTE the -320: the 3D camera's x=0 sits at screen CENTRE (px 320), while game coords are
+    // left-edge-referenced — without recentering, everything placed by game position renders
+    // exactly 320px right of where the gameplay actually happens.
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();
