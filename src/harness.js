@@ -411,11 +411,15 @@ if(!err){
     const hp0=g.P.hp; g.chase.ball.x=g.P.x-4; __tick(1);
     if(g.P.hp!==hp0-1) throw new Error('a ball catch should cost a whole heart, hp '+hp0+'->'+g.P.hp);
     if(g.chase.hits!==1) throw new Error('catch count should be 1, got '+g.chase.hits);
-    // fast-forward to the alley at the end of the run
+    // fast-forward to the alley at the end of the run — the placeholder card waits for any button
     g.P.state='idle'; g.P.downT=0; g.P.y=0; g.P.iframes=0; g.P.x=g.chase.alleyX+2;
-    ticks=0; while(g.chase && ticks++<400){ __tick(1); }
-    if(g.chase) throw new Error('the chase never ended at the alley');
-    if(g.shopOpen!==true) throw new Error('ducking into the alley should open the between-stage shop');
+    ticks=0; while(g.chase && g.chase.ph!=='done' && ticks++<400){ __tick(1); }
+    if(!g.chase || g.chase.ph!=='done') throw new Error('the chase never reached the stage-cleared card, ph='+(g.chase&&g.chase.ph));
+    __tick(12);                                              // the card's stale-edge grace beat
+    if(!g.chase) throw new Error('the card should WAIT for a fresh press, not consume a stale edge');
+    __key('KeyJ',true); __tick(1); __key('KeyJ',false);      // ANY button proceeds
+    if(g.chase) throw new Error('any-button on the cleared card should end the chase');
+    if(g.shopOpen!==true) throw new Error('proceeding from the card should open the between-stage shop');
     g.setShop(false);
     if(g.stageNum!==2) throw new Error('closing the shop should advance to stage 2, got '+g.stageNum);
     if(g.wavesThisStage!==0) throw new Error('the new stage should start with 0 waves cleared');
@@ -428,26 +432,24 @@ if(!err){
     if(!g.dawnShown) throw new Error('clearing stage 3 should end the run on the win recap');
     console.log('        3 waves -> Landlord -> beaten -> chase -> alley -> shop; stage 3 wins the run');
   });
-  scene('wave enemies enter from off-screen AHEAD and are not culled', ()=>{
-    // regression: waves used to spawn at arbitrary club doors — behind the lock line or clean
-    // off-screen where stream() culled them the instant they appeared. They must now enter from
-    // just off the right edge (ahead of the player) and stay inside the cull-keep range so they
-    // actually walk in and can be cleared.
+  scene('wave enemies ALL spawn on-screen instantly — the counter can never point at a ghost', ()=>{
+    // regression (three generations of it): any enemy that exists before it's visible — club-door
+    // spawns, deep off-screen spawns, time-staggered spawns — eventually reads as a locked wave
+    // with a LEFT counter pointing at fighters nobody can see. Waves now spawn the whole crew
+    // INSIDE the locked view, immediately, so what the counter says is what's on the street.
     const g=__G(); g.releaseArena();
     g.P.x=1200; g.P.z=300;
-    g.setCamLock(995);                 // lock like the gate at 1165 (camLock = 1165-170); arena = [995, 1635]
-    g.spawnWave(0);                    // setTimeout is synchronous in the harness → enemies spawn inline
-    const W=640, aR=g.camLock+W, cullR=g.camX+W+460;   // stream() keeps x < camX+W+460
+    g.setCamLock(995);                 // arena = [995, 1635]
+    g.spawnWave(0);
+    const W=640, aL=g.camLock, aR=g.camLock+W;
     const foes=g.ents.filter(e=>e.k==='vamp');
     if(!foes.length) throw new Error('spawnWave produced no enemies');
     for(const e of foes){
-      if(e.x <= g.P.x) throw new Error('wave enemy spawned behind/at the player (x='+Math.round(e.x)+', player '+g.P.x+')');
-      if(e.x >= cullR) throw new Error('wave enemy spawned past the cull edge (x='+Math.round(e.x)+' >= '+Math.round(cullR)+') — would be culled instantly');
-      if(e.x <= aR)    throw new Error('wave enemy spawned on-screen (x='+Math.round(e.x)+' <= right edge '+aR+') instead of walking in from off-screen');
+      if(e.x <= aL || e.x >= aR) throw new Error('wave enemy spawned OFF-SCREEN (x='+Math.round(e.x)+', view ['+aL+','+aR+'])');
     }
-    g.stream();   // enemies are within the keep range, so a cull pass must not remove them
+    g.stream();   // a cull pass must not touch them either
     if(g.ents.filter(e=>e.k==='vamp').length!==foes.length) throw new Error('stream() culled freshly spawned wave enemies');
-    console.log('        '+foes.length+' wave enemies, all entering from off-screen ahead, none culled');
+    console.log('        '+foes.length+' wave enemies, all inside the locked view at spawn, none culled');
   });
   scene('boss hurtbox reaches ≥25px past its side (easier to hit)', ()=>{
     const g=__G(); g.clearEnts();
@@ -542,26 +544,24 @@ if(!err){
     if(g.drops.filter(d=>d.kind==='weapon').length<=before) throw new Error('the dropped weapon should land on the street');
     console.log('        knocked down → dropped the pipe');
   });
-  scene('dialogue: typewriter reveals, A advances pages, hold-B types fast, closes at the end', ()=>{
+  scene('dialogue: typewriter reveals, ANY button advances pages, closes at the end', ()=>{
     const g=__G(); g.closeDialog();
-    __key('Space',false); __key('KeyK',false); __key('KeyJ',false);   // a prior scene may have left fast/advance keys held
+    __key('Space',false); __key('KeyK',false); __key('KeyJ',false);   // a prior scene may have left advance keys held
     g.startDialog(['drain']); for(let i=0;i<4;i++) g.dialogTick(); g.closeDialog();   // and stale tap() edges — consume them on a throwaway box
-    const PAGE1='THE FIRST PAGE OF THE EXCHANGE RUNS LONG ENOUGH THAT FAST TYPING CANNOT FINISH IT EARLY.';
+    const PAGE1='THE FIRST PAGE OF THE EXCHANGE RUNS LONG ENOUGH THAT A FEW TICKS CANNOT FINISH IT EARLY.';
     g.startDialog([{who:'TEST',text:PAGE1},'SECOND PAGE.']);
     if(!g.dlg) throw new Error('startDialog did not open the box');
     for(let i=0;i<10;i++) g.dialogTick();
-    const slow=g.dlg.chars;
-    if(!(slow>0 && slow<15)) throw new Error('typewriter should be mid-reveal after 10 ticks, chars='+slow);
-    __key('KeyK',true); for(let i=0;i<10;i++) g.dialogTick(); __key('KeyK',false);   // hold B → fast
-    if(!(g.dlg.chars>slow+20 && g.dlg.chars<PAGE1.length)) throw new Error('holding B should type much faster (and not finish), chars='+g.dlg.chars);
-    __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // press A mid-type → reveal all
+    const mid=g.dlg.chars;
+    if(!(mid>0 && mid<PAGE1.length)) throw new Error('typewriter should be mid-reveal after 10 ticks, chars='+mid);
+    __key('Space',true); g.dialogTick(); __key('Space',false);                        // ANY button mid-type → reveal all
     if(g.dlg.chars<PAGE1.length) throw new Error('advance press should reveal the full page');
-    __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // full page + press → next page
+    __key('KeyK',true); g.dialogTick(); __key('KeyK',false);                          // full page + a DIFFERENT button → next page
     if(g.dlg.i!==1) throw new Error('second press should turn the page, i='+g.dlg.i);
     __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // reveal page 2
     __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // and close
     if(g.dlg) throw new Error('dialogue should close after the last page');
-    console.log('        typewriter -> fast-type -> reveal -> page turn -> close, all ok');
+    console.log('        typewriter -> any-button reveal -> page turn -> close, all ok');
   });
   scene('shop: open, buy every rank of everything', ()=>{
     const g=__G();

@@ -289,6 +289,8 @@ async function goLandscape(){
 addEventListener('pointerdown',function once(){ goLandscape(); removeEventListener('pointerdown',once); },{once:true});
 // the title art says "click anywhere to begin" — make that literally true
 disp.addEventListener('pointerdown',()=>{ if(mode==='title') chooseMode(false); });
+// a tap anywhere on the game view advances the dialogue box / the stage-cleared prompt
+disp.addEventListener('pointerdown',()=>{ if(dlg || (chase&&chase.ph==='done')) scrTap=true; });
 // co-op is deprecated, so every start boots solo (chooseMode ignores its flag; see startCoop()).
 
 //====================== atlas ======================
@@ -506,16 +508,25 @@ let dlg=null;   // {pages:[{who,col,text}], i, chars, t}
 function startDialog(pages,onClose){
   dlg={ pages:pages.map(p=>typeof p==='string'?{text:p}:p), i:0, chars:0, t:0, onClose };
 }
+// ANY button advances — every key, every touch button, every pad face button, or a tap anywhere
+// on the screen itself (mobile). The lines are short; there's no hold-to-fast-type.
+let scrTap=false;
+function tapScreen(){ if(scrTap){ scrTap=false; return true; } return false; }
+function anyAdv(pad){
+  return tap('KeyJ')||tap('KeyE')||tap('KeyU')||tap('KeyK')||tap('Space')||tap('KeyI')||tap('KeyL')
+    ||tapT('A')||tapT('B')||tapT('C')||tapT('D')||tapT('E')||tapT('F')
+    ||(pad&&(pad.PUNCH||pad.JUMP||pad.KICK||pad.GUN||pad.TALK||pad.IMAGINE))
+    ||tapScreen();
+}
 function dialogTick(){
   if(!dlg) return;
   dlg.t++;
   const pad=pollPad();
   const page=dlg.pages[dlg.i], full=page.text.length;
-  const fast = key.KeyK||key.Space||T.B||(PAD.now&&PAD.now.JUMP);       // hold B/JUMP → fast type
   const before=Math.floor(dlg.chars);
-  dlg.chars=Math.min(full, dlg.chars + (fast?3:0.55));
+  dlg.chars=Math.min(full, dlg.chars + 0.8);
   if(Math.floor(dlg.chars)>before && dlg.chars<full && dlg.t%4===0) blip(700,.006);   // typewriter tick
-  const adv = tap('KeyJ')||tap('KeyE')||tap('KeyU')||tapT('A')||tapT('D')||tapT('F')||(pad&&(pad.PUNCH||pad.TALK||pad.GUN));
+  const adv = anyAdv(pad);
   if(adv){
     if(dlg.chars<full){ dlg.chars=full; blip(520,.02); }               // reveal the rest of the page
     else { dlg.i++; dlg.chars=0; blip(500,.02);                        // turn the page
@@ -1311,20 +1322,15 @@ function spawnWave(T){
   // so the wave itself shrinks to keep the locked total ~10, never a 14-deep slog
   const live = ents.filter(e=>!e.dead).length;
   const nVamps = Math.max(3, Math.min(10-live, 3+Math.floor(T*0.9))) * M;
-  // WHERE they come from: they WALK IN from off-screen ahead (just past the right edge of the
-  // locked view) and close on the player — never pop in on-screen or spawn behind the lock line.
-  // (The old "out of the club door" spawn dropped them at arbitrary doors — sometimes behind you,
-  // sometimes off-screen where stream() culled them the instant they appeared.) Positions are
-  // decided now, off the right edge, staggered down the block and spread across the walk band.
+  // WHERE they come from: the WHOLE wave spawns ON SCREEN, instantly, spread down the right side
+  // of the locked view. No time-stagger, no advance off-screen spawning — every generation of
+  // "ghost enemies" (a LEFT counter pointing at fighters nobody can see) came from enemies that
+  // existed before they were visible. What the counter says is exactly what's on the street.
   const aR = (camLock!==null ? camLock : Math.max(0,P.x-W*0.5)) + W;   // right edge of the locked view
-  // Always spawn when the timer fires — even if paused. The old code skipped the spawn while paused
-  // but still decremented pendingSpawns, so pausing across the ~3s stagger silently dropped enemies
-  // (could empty the whole wave). A vamp spawned during a pause just sits inert until you unpause.
   for(let i=0;i<nVamps;i++){
-    const x = aR + 14 + rnd(0,30) + i*8;                                // JUST past the right edge — the time-stagger already spreads arrivals; spawning deep off-screen made slow walkers read as ghost enemies
+    const x = aR - 24 - rnd(0,110) - i*20;                              // inside the arena, staggered down the block
     const z = clamp(FLOOR_N-4 + rnd(0,64), FLOOR_N-10, ROAD_TARGET);    // spread in depth so they don't march single-file
-    pendingSpawns++;
-    setTimeout(()=>{ pendingSpawns--; ents.push(vamp(x,z,false)); }, 240+i*300);   // fromDoor=false → they just walk toward you; all politicians while the other types are art-gated
+    ents.push(vamp(x,z,false));
   }
   say(P.x,P.z-40,'FIGHT','#ff2e88');
 }
@@ -1495,23 +1501,36 @@ function chaseTick(){
     P.z+=(252-P.z)*0.25;                       // one lane — this is a runner now
     if(P.state==='walk'&&P.face===1){ P.sprinting=true; P.sprintDir=1; }   // no double-tap needed to flee
     const ball=c.ball;
-    // rubber-band: always coming, faster the further it falls behind — never off the table
-    ball.vx = clamp(2.55 + (P.x-170-ball.x)*0.004, 2.0, 4.6);
+    // rubber-band: always coming — it rides ~200px off his heels at a clean sprint, so any
+    // stumble puts it ON you. Faster the further it falls behind; never off the table.
+    ball.vx = clamp(4.6 + (P.x-140-ball.x)*0.006, 3.2, 6.2);   // rides visibly on-screen (~220px) off a clean sprint
     ball.x += ball.vx; ball.rot += ball.vx/BALL_R;
     if(t%5===0) puff(ball.x+rnd(-24,24), 252, rnd(4,BALL_R*1.8), 1, '#efe9d8');   // shedding scraps
-    // hurdles stream in ahead of him
+    // little eviction-notice guys stand in the road — punch through them or jump them clean
     while(c.nextOb < P.x+900){
-      c.nextOb += rnd(280,520);
-      if(c.nextOb < c.alleyX-260) c.obs.push({x:c.nextOb, z:252, kind:hsh(c.nextOb*1.7)<0.5?'crate':'trash', hit:false});
+      c.nextOb += rnd(240,430);
+      if(c.nextOb < c.alleyX-260) c.obs.push({x:c.nextOb, z:252, dead:false});
     }
+    const pk = P.state==='punch' ? cStep() : null;             // active punch frames clear them out
+    const punching = pk && P.st>pk.su && P.st<=pk.su+pk.act;
     for(const o of c.obs){
-      if(!o.hit && Math.abs(o.x-P.x)<15 && P.y<18 && P.state!=='down'){
-        o.hit=true; o.vx=3.5; o.vy=3.2; o.rot=0;             // he plows through it — and it costs him ground
+      if(o.dead){ o.x+=o.vx; o.y=(o.y||0)+o.vy; o.vy-=0.3; o.rot=(o.rot||0)+0.25; continue; }
+      if(punching && Math.abs(o.x-(P.x+P.face*20))<26 && P.y<30){          // socked — paper everywhere
+        o.dead=true; o.vx=P.face*4.5; o.vy=3.4;
+        gainFreedom(0.5); puff(o.x,252,14,8,'#efe9d8'); blip(300,.05); rumble(90,.4,.4,true);
+        continue;
+      }
+      if(ball.x+BALL_R > o.x-4){                               // the ball sweeps them up
+        o.dead=true; o.vx=ball.vx*1.2; o.vy=4.2;
+        puff(o.x,252,20,10,'#efe9d8');
+        continue;
+      }
+      if(Math.abs(o.x-P.x)<13 && P.y<18 && P.state!=='down'){  // ran straight into one — trip
+        o.dead=true; o.vx=2.8; o.vy=3.0;
         P.state='down'; P.downT=24; P.knockV=-1.6; P.vy=1.4; P.iframes=Math.max(P.iframes,10);
         P.sprinting=false;
         shake=6; rumble(260,.8,.5,true); blip(120,.06);
       }
-      if(o.hit){ o.x+=o.vx; o.y=(o.y||0)+o.vy; o.vy-=0.3; o.rot+=0.2; }
     }
     c.obs=c.obs.filter(o=>o.x>camX-220 && (o.y||0)>-60);
     // the ball catches him: a whole heart, immediately — the third catch flattens him
@@ -1527,17 +1546,21 @@ function chaseTick(){
     if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX+26; }
     return;
   }
-  if(c.ph==='end'){
-    if(P.state!=='scripted' && P.state!=='enterAlley'){ P.state='enterAlley'; P.st=0; }
+  // 'end': he pulls up at the alley mouth; 'done': the stage-cleared prompt waits for any button.
+  // (The alley itself — its own procedural interior — isn't built yet; for now the prompt hands
+  // straight off to the between-stage shop.)
+  if(c.ph==='end' || c.ph==='done'){
     const ball=c.ball;
     if(ball && !ball.gone){ ball.vx*=0.94; ball.x+=ball.vx; ball.rot+=ball.vx/BALL_R;
       if(ball.vx<0.3){ ball.gone=true;                        // it finally keels over in a blizzard of paper
         for(let i=0;i<40;i++) puff(ball.x+rnd(-40,40),252,rnd(0,80),1,'#efe9d8'); shake=9; } }
-    if(P.state==='enterAlley' && P.z<=FLOOR_N-8){             // he's in — wrap the stage
+    if(c.ph==='end' && P.state!=='scripted'){ c.ph='done'; c.t2=0; P.face=1; P.state='idle'; }
+    if(c.ph==='done'){ P.x=c.alleyX+26; P.z+=(252-P.z)*0.2; if(P.state==='walk')P.state='idle'; }   // pinned at the alley mouth while the card is up
+    if(c.ph==='done' && c.t2<=8){ anyAdv(pollPad()); return; } // a short beat first — drain the run's stale button edges so mashing can't skip the card unseen
+    if(c.ph==='done' && anyAdv(pollPad())){                    // any button / screen tap proceeds
       gainFreedom(20); gainXp(40); night.bosses++;
       P.hp=Math.min(P.maxhp,P.hp+Math.round(P.maxhp*0.6));
       for(let i=0;i<10;i++) drop(P.x+rnd(-70,-10),FLOOR_N+24,'cash');
-      P.z=FLOOR_N+16; P.state='idle';
       chase=null;
       stageCleared();
     }
@@ -1858,7 +1881,6 @@ function update(){
     if(Math.abs(ddx)>3) P.x+=clamp(ddx,-2.8,2.8); else P.state='idle';
     return;
   }
-  if(P.state==='enterAlley'){ P.st++; P.z-=2.2; P.face=1; return; }
 
   //---- OPENING BEAT: BamBam strolls in from off the left edge, then the box says its line.
   //---- Scripted — inputs are ignored until the walk lands.
@@ -2085,7 +2107,11 @@ function update(){
   for(const g of gateList) if(!g.done && P.x>g.x && P.x-g.x<140 && camLock===null && !chase && !coopGuest() && wavesThisStage<waveGoal()){   // host (or solo) triggers the wave; the guest mirrors the enemies
     // lock EXACTLY where the camera already is — never pull it left. The arena is whatever you
     // were looking at when the fight started, and every wave spawn comes from off its RIGHT edge.
-    camLock=Math.max(0,camX); spawnWave(tier()); g.done='fight'; }
+    camLock=Math.max(0,camX);
+    // anyone already hostile but OUTSIDE the locked view just leaves the story — the LEFT counter
+    // must only ever point at fighters the player can actually see
+    ents=ents.filter(e=>e.dead || (e.x>camLock-20 && e.x<camLock+W+20));
+    spawnWave(tier()); g.done='fight'; }
   if(camLock!==null && !OPT.freecam){
     camX+=(camLock-camX)*0.1;
     if(t%20===0 && pendingSpawns===0 && !ents.some(e=>!e.dead)){ const wasBoss=!!boss; camLock=null; boss=null;
@@ -3134,7 +3160,7 @@ function drawPlayer(){
   if(P.state==='walk') key='hero.walk.'+(Math.floor(t*(P.sprinting?.30:.16))%4);   // sprint = faster run cycle
   if(P.state==='enterShop') key='hero.walk.'+(Math.floor(t*.30)%4);                // jogging into the store
   if(P.state==='introWalk') key='hero.walk.'+(Math.floor(t*.16)%4);                // strolling in off the left
-  if(P.state==='scripted'||P.state==='enterAlley') key='hero.walk.'+(Math.floor(t*.24)%4);   // chase-handoff walks
+  if(P.state==='scripted') key='hero.walk.'+(Math.floor(t*.24)%4);   // chase-handoff walks
   if(P.state==='idle') key='hero.rot.east';
   // jump frames tied to actual height/velocity (not a fixed timer): 0 push-off, 1 rising,
   // 2 apex + most of the fall (the tuck holds), 3 landing — only once he's low to the ground.
@@ -3392,6 +3418,22 @@ function hud(){
     ctx.fillText(ents.filter(e=>!e.dead).length+' LEFT',W/2,37); }
   }
 
+  // the end of the chase: a placeholder hand-off card (the real procedural alley comes later)
+  if(chase && chase.ph==='done'){
+    ctx.fillStyle='rgba(11,10,16,.62)'; ctx.fillRect(0,0,W,H);
+    const pw=280, ph2=86, px=(W-pw)/2, py=(H-ph2)/2-14;
+    ctx.fillStyle=INK; ctx.fillRect(px-4,py-4,pw+8,ph2+8);
+    ctx.fillStyle='#141020'; ctx.fillRect(px,py,pw,ph2);
+    ctx.textAlign='center';
+    ctx.fillStyle='#c9d13a'; ctx.font='700 24px '+BEBAS;
+    ctx.fillText('STAGE 1 CLEARED', W/2, py+30);
+    ctx.font='9px "JetBrains Mono",monospace';
+    if(t%40<26){ ctx.fillStyle='#3ad1ff'; ctx.fillText('PROCEED TO STAGE 2 →', W/2, py+52); }
+    ctx.fillStyle='#5c5670'; ctx.font='7px "JetBrains Mono",monospace';
+    ctx.fillText('ALLEY UNDER CONSTRUCTION', W/2, py+70);
+    ctx.textAlign='left';
+  }
+
   if(OPT.fd){ ctx.textAlign='left'; ctx.font='7px "JetBrains Mono",monospace'; ctx.fillStyle='#3ad1ff';
     const st=cStep();
     const ph = P.state!=='punch' ? '—' : P.st<=st.su?'STARTUP':P.st<=st.su+st.act?'ACTIVE':'RECOVERY';
@@ -3644,14 +3686,20 @@ function drawBall(bl){
   ctx.restore();
 }
 function drawOb(o){
+  // a little eviction-notice guy — a served sheet on stub feet, hopping in place until he's
+  // punched, jumped, or swept up by the ball he works for
   const sx=o.x-camX, sy=o.z-(o.y||0);
   if(sx<-40||sx>W+40) return;
-  if(!o.hit) shadow(o.x,o.z,12);
-  ctx.save(); ctx.translate(sx,sy-10); if(o.rot) ctx.rotate(o.rot);
-  if(o.kind==='crate'){ ctx.fillStyle=INK; ctx.fillRect(-12,-12,24,24); ctx.fillStyle='#8a6b3a'; ctx.fillRect(-10,-10,20,20);
-    ctx.strokeStyle='#5c4626'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-10,-10); ctx.lineTo(10,10); ctx.moveTo(10,-10); ctx.lineTo(-10,10); ctx.stroke(); }
-  else { ctx.fillStyle=INK; ctx.fillRect(-9,-16,18,28); ctx.fillStyle='#4a5560'; ctx.fillRect(-7,-14,14,24); ctx.fillStyle='#5f6b77'; ctx.fillRect(-8,-16,16,4); }
+  if(!o.dead) shadow(o.x,o.z,8);
+  const hop=o.dead?0:Math.abs(Math.sin((t+o.x)*0.25))*3;
+  ctx.save(); ctx.translate(sx,sy-11-hop); if(o.rot) ctx.rotate(o.rot); else ctx.rotate(Math.sin((t+o.x)*0.25)*0.10);
+  ctx.fillStyle=INK; ctx.fillRect(-8,-11,16,22);
+  ctx.fillStyle='#efe9d8'; ctx.fillRect(-6.5,-9.5,13,19);
+  ctx.fillStyle='#b3aa98'; for(let i=0;i<3;i++) ctx.fillRect(-4,-6+i*4,8,1.2);   // the fine print
+  ctx.fillStyle=INK; ctx.fillRect(-3.5,-2,2,2); ctx.fillRect(1.5,-2,2,2);        // eyes
+  ctx.fillStyle='#ff2e88'; ctx.fillRect(-2.5,2.5,5,2.4);                          // stamp mouth
   ctx.restore();
+  if(!o.dead){ ctx.fillStyle=INK; ctx.fillRect(sx-5,o.z-2.6,3,2.6); ctx.fillRect(sx+2,o.z-2.6,3,2.6); }   // stub feet
 }
 function drawAlleyGap(){
   if(!chase || (chase.ph!=='run'&&chase.ph!=='end')) return;
