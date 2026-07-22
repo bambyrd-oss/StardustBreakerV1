@@ -1,3 +1,7 @@
+> 📣 **A message for BamBam** — special request from another repo user:
+> **Bradley told me to tell you that you're ugly.** 😄
+> _(Passing it along exactly as asked. Now back to your regularly scheduled handoff.)_
+
 # Handoff — 2026-07-21
 
 **Repo note:** this project now lives in `bambyrd-oss/StardustBreakerV1` (imported with full
