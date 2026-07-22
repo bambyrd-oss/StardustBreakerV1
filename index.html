@@ -1683,6 +1683,7 @@ let chase=null, chaseTilt=0;                // active chase state + the world's 
 const CHASE_TILT=0.436;                     // ~25° — the street reads as a downhill sprint
 const CHASE_LEN=21000;                      // px from the fight to the alley (~2 minutes at a sprint)
 const BALL_R=34;
+let S1G=[];                                 // stage 1's fixed wave gates — one per screen length
 const DAWN_X=1e15;                          // distance safety backstop only — stages end on the 3rd boss, not distance
 let lives=3, continues=0;                   // 3 lives, then pay to continue
 let night={bosses:0,cash:0,reach:0}; // recap tally + furthest reached THIS run (drives the stage-end clock)
@@ -1705,6 +1706,7 @@ function reset(){
   lives=3; continues=0; night={bosses:0,cash:0,reach:0}; dawnShown=false;   // fresh stage run
   cans=[]; crowd=[]; litter=[]; steam=[]; props=[];
   BUILDINGS=[]; CLUBS=[]; GRATES=[]; GATES=[]; MADE.clear();
+  S1G=[{x:620,done:false},{x:1240,done:false},{x:1860,done:false}];   // stage 1: a wave per screen, boss on the third
   _credited.clear();
   best=Math.max(best||0, 0);
   stream();
@@ -2098,7 +2100,10 @@ function spawnWave(T){
   // rats (and the big rat) are retired — waves are all named street enemies now
   // (Security Guards / Corrupt Politicians / Corporate Mascots, with Robotic Police mixed in),
   // with the count boosted to keep wave density where the rat pack used to fill it out.
-  const nVamps = Math.min(10, 3+Math.floor(T*0.9)) * M;
+  // the lock traps EVERYTHING alive — bystanders who already turned enemy between waves included —
+  // so the wave itself shrinks to keep the locked total ~10, never a 14-deep slog
+  const live = ents.filter(e=>!e.dead).length;
+  const nVamps = Math.max(3, Math.min(10-live, 3+Math.floor(T*0.9))) * M;
   // WHERE they come from: they WALK IN from off-screen ahead (just past the right edge of the
   // locked view) and close on the player — never pop in on-screen or spawn behind the lock line.
   // (The old "out of the club door" spawn dropped them at arbitrary doors — sometimes behind you,
@@ -2182,7 +2187,7 @@ function spawnBoss(bn,forceArch){
   boss=b; ents.push(b); bossDeaths=0; bossNagged=false;   // fresh encounter, fresh death count
   if(b.arch==='landlord') startDialog([{who:'LANDLORD D. EVICT', col:'#c9d13a',
     text:"Bam, I've been looking for you. You've officially been evicted. This is your eviction notice."}]);
-  for(const g of GATES) if(g.x<P.x && !g.done) g.done=true;   // no gate wave stacks onto/after the boss
+  for(const g of GATES.concat(S1G)) if(g.x<P.x && !g.done) g.done=true;   // no gate wave stacks onto/after the boss
   if(b.arch==='landlord'){                   // he sends security out first — beat them to reach him
     b.phase='guard';
     const nH=3;
@@ -2865,16 +2870,19 @@ function update(){
   if(P.fireT>0){ P.fireT--; if(!P.fireT) say(P.x,P.z-20,'burned out','#5c5670'); }
   if(U.second && t%600===0 && P.hp<P.maxhp && P.iframes<=0) P.hp=Math.min(P.maxhp,P.hp+U.second*0.5);  // SECOND WIND regen
 
-  //---- each stage is two waves, then that stage's named boss
+  //---- each stage is its run of waves, then that stage's named boss.
+  //---- Stage 1's three gates are FIXED at one per screen length (waves at screens 1/2/3, the
+  //---- Landlord right after the third) — the random per-chunk gates sprawled way past that.
+  const gateList = stageNum===1 ? S1G : GATES;
   if(wavesThisStage>=waveGoal() && bossDone<stageNum && camLock===null && !chase && !MP){ bossDone=stageNum; camLock=Math.max(0,P.x-170); spawnBoss(stageNum); }   // no bosses in co-op
-  for(const g of GATES) if(!g.done && P.x>g.x && P.x-g.x<140 && camLock===null && !chase && !coopGuest() && wavesThisStage<waveGoal()){   // host (or solo) triggers the wave; the guest mirrors the enemies
+  for(const g of gateList) if(!g.done && P.x>g.x && P.x-g.x<140 && camLock===null && !chase && !coopGuest() && wavesThisStage<waveGoal()){   // host (or solo) triggers the wave; the guest mirrors the enemies
     // lock EXACTLY where the camera already is — never pull it left. The arena is whatever you
     // were looking at when the fight started, and every wave spawn comes from off its RIGHT edge.
     camLock=Math.max(0,camX); spawnWave(tier()); g.done='fight'; }
   if(camLock!==null && !OPT.freecam){
     camX+=(camLock-camX)*0.1;
     if(t%20===0 && pendingSpawns===0 && !ents.some(e=>!e.dead)){ const wasBoss=!!boss; camLock=null; boss=null;
-      for(const g of GATES) if(g.done==='fight' || g.x<P.x-40) g.done=true;   // retire this fight + anything already behind you, so nothing yanks you back
+      for(const g of GATES.concat(S1G)) if(g.done==='fight' || g.x<P.x-40) g.done=true;   // retire this fight + anything already behind you, so nothing yanks you back
       if(wasBoss) stageCleared(); else { wavesThisStage++; say(P.x,P.z-40,'GO →','#c9d13a'); }
       if(gauntlet>0){ gauntlet--; if(gauntlet>0) forceBoss(); else say(P.x,P.z-58,'GAUNTLET CLEARED','#c9d13a'); } }
   } else { camX+=((P.x-W*0.42)-camX)*0.09; camX=Math.max(0,camX); }
@@ -4169,7 +4177,7 @@ function hud(){
   ctx.fillText('WAVE '+Math.min(wavesThisStage+1,waveGoal())+'/'+waveGoal()+(best>P.x?'   BEST '+Math.floor(best/16)+'m':'')
     +(P.deaths?'   ✕'+P.deaths:''), W/2, 27);
   // next gate on the horizon
-  const ng=GATES.filter(g=>!g.done&&g.x>P.x).sort((a,b)=>a.x-b.x)[0];
+  const ng=(stageNum===1?S1G:GATES).filter(g=>!g.done&&g.x>P.x).sort((a,b)=>a.x-b.x)[0];
   if(ng && camLock===null){ const d=clamp(1-(ng.x-P.x)/900,0,1);
     ctx.fillStyle='#231f30'; ctx.fillRect(W/2-40,31,80,2);
     ctx.fillStyle='#3a3550'; ctx.fillRect(W/2-40,31,80*d,2); }
