@@ -38,7 +38,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 | Jump | `K` / `Space` | **A** | JUMP |
 | Imagination attack | `L` | **B** | IMAGINE |
 | Interact / eat | `E` | **Y** | TALK |
-| Pause | `Esc` / `P` | Menu | — |
+| Pause | `Esc` / `P` | Menu | chip under the portrait |
 
 Plug in a pad and the touch controls hide themselves. Unplug and they come back.
 
