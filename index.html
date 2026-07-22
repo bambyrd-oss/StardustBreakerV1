@@ -58,8 +58,8 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
 #bD{right:25%;bottom:5%;width:12vmin;height:12vmin;max-width:74px;max-height:74px;font-size:2.6vmin}
 #bE{right:21%;bottom:37%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
   border-color:#5a2340;background:rgba(60,14,34,.55)}
-#bF{right:4%;top:18%;width:12vmin;height:12vmin;max-width:70px;max-height:70px;font-size:2.4vmin;
-  border-color:#2c5c3a;background:rgba(14,44,26,.6)}   /* FIGHT/SHOOT mode toggle, up top out of the action cluster */
+#bF{right:5%;bottom:50%;width:13vmin;height:13vmin;max-width:80px;max-height:80px;font-size:2.8vmin;
+  border-color:#2c5c3a;background:rgba(14,44,26,.6)}   /* dedicated SHOOT action, top of the right-hand action column */
 #pauseBtn{position:absolute;left:50%;top:2.5%;opacity:0;pointer-events:none;transition:opacity .2s;transform:translateX(-50%);width:34px;height:22px;border-radius:4px;
   border:1px solid #2f2b3d;background:rgba(15,13,22,.6);display:flex;align-items:center;justify-content:center;
   color:var(--dim);font-size:11px;pointer-events:auto;letter-spacing:.1em}
@@ -207,7 +207,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Punch <i style="color:#5c5670">(mash = combo)</i></span><b><kbd>J</kbd></b></div>
             <div class="row"><span>Kick</span><b><kbd>I</kbd></b></div>
             <div class="row"><span>Jump</span><b><kbd>K</kbd></b></div>
-            <div class="row"><span>Fight / Shoot</span><b><kbd>U</kbd></b></div>
+            <div class="row"><span>Shoot <i style="color:#5c5670">(finger gun)</i></span><b><kbd>U</kbd></b></div>
             <div class="row"><span>Drink</span><b><kbd>L</kbd></b></div>
             <div class="row"><span>Talk</span><b><kbd>E</kbd></b></div>
             <div class="row"><span>Pause</span><b><kbd>ESC</kbd></b></div>
@@ -216,7 +216,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Move</span><b>Stick / D-pad</b></div>
             <div class="row"><span>Punch</span><b style="color:#3a7fd5">X</b> <span style="color:#5c5670">/ RB / RT</span></div>
             <div class="row"><span>Kick</span><b>LB</b></div>
-            <div class="row"><span>Fight / Shoot</span><b>LT</b></div>
+            <div class="row"><span>Shoot</span><b>LT</b></div>
             <div class="row"><span>Jump</span><b style="color:#5aa84a">A</b></div>
             <div class="row"><span>Drink</span><b style="color:#d54a44">B</b></div>
             <div class="row"><span>Talk</span><b style="color:#d5b23a">Y</b></div>
@@ -819,7 +819,7 @@ const P={};
 function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
-    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:true,airPunch:false,landHold:0,beamFace:1,
+    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,airPunch:false,landHold:0,beamFace:1,
     stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
@@ -1758,8 +1758,7 @@ function update(){
         jDrink=tap('KeyL')||tapT('C')||(pad&&pad.DRINK),
         jTalk =tap('KeyE')||tapT('D')||(pad&&pad.TALK),
         jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK),
-        jGun  =tap('KeyU')||tapT('F')||(pad&&pad.GUN);
-  if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); $('bF').textContent=P.gunMode?'SHOOT':'FIGHT'; }   // toggle FIGHT ⇄ SHOOT
+        jGun  =tap('KeyU')||tapT('F')||(pad&&pad.GUN);   // dedicated SHOOT action (no longer a FIGHT/SHOOT mode toggle)
   if(pad&&pad.PAUSE) setPause(true);
 
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
@@ -1775,12 +1774,6 @@ function update(){
     if(P.fireT>0 && P.st===s.su+1){                   // FISTS OF FIRE — each swing hurls a fireball
       fires.push({x:P.x+P.face*18, z:P.z, y:20, vx:P.face*5.4, vz:0, vy:0.03, r:7, life:46, max:48, foe:false});
       blip(90,.05); }
-    // finger guns — SHOOT mode only: every swing pops off a little dot projectile,
-    // BANG-style, no real gun art yet so it's just imagination made literal. Toggled by
-    // FIGHT/SHOOT (default on, matching the always-on behavior before the toggle existed).
-    if(P.gunMode && P.st===s.su+1){
-      fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
-      blip(520,.02); }
     if(active && !P.hitDone){
       const b=atkBox();
       const W = P.weapon && WEAPONS[P.weapon.type];    // a weapon reshapes the hit — heavier, longer stun, it launches
@@ -1847,6 +1840,15 @@ function update(){
       P.hitDone=true; shake=Math.max(shake,4); }
     if(P.st>=20) P.state='idle';
   }
+  else if(P.state==='shoot'){                   // DEDICATED SHOOT — finger-gun dot; he backpedals (recoil) instead of stepping in
+    P.st++;
+    if(P.st===1) P.stepV=-P.face*2.4;           // kick off a backward glide, away from the shot
+    if(P.stepV){ P.x+=P.stepV; P.stepV*=0.82; if(Math.abs(P.stepV)<0.12) P.stepV=0; }
+    if(P.st===5 && !P.hitDone){                 // muzzle frame — spit the dot straight ahead
+      fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
+      blip(520,.02); P.hitDone=true; }
+    if(P.st>=18) P.state='idle';
+  }
   else if(P.state==='air'){                    // JUMP then PUNCH = dive punch, JUMP then KICK = drop kick
     P.st++;
     P.x += P.face*(P.airPunch?2.1:2.9);         // punch dives a bit shorter than the flying kick
@@ -1911,6 +1913,13 @@ function update(){
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       P.state='kick'; P.st=0; P.hitDone=false; blip(360,.03);
+    }
+    if(jGun && P.y===0 && !P.weapon){                       // dedicated SHOOT button → finger-gun shot (backpedals)
+      let best=null,bd=260;                                 // aims further than melee — it's a ranged dot
+      for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
+        if(d<bd){bd=d;best=e;} }
+      if(best) P.face = best.x>P.x?1:-1;
+      P.state='shoot'; P.st=0; P.hitDone=false; blip(520,.03);
     }
     if(jPunch && P.y===0 && wantUp && !P.weapon){          // UP + PUNCH → rising uppercut launcher
       let best=null,bd=80;
@@ -3012,6 +3021,8 @@ function drawPlayer(){
                                                 : 'hero.jump.3');
   if(P.state==='kick') key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+clamp(Math.floor(P.st/5),0,3)   // standing kick — feet stay on the ground
                                                      : 'hero.kick.2';
+  if(P.state==='shoot') key= IDX['hero.shoot.0'] ? 'hero.shoot.'+clamp(Math.floor(P.st/4),0,3)   // dedicated finger-gun point
+                                                  : 'hero.punch.2';
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
       const uf = P.landHold>0 ? 3 : (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land (landHold forces the true landing frame — vy=0 while frozen would otherwise land on the BAM index)
@@ -3020,8 +3031,7 @@ function drawPlayer(){
     } else key='hero.jump.2';
   }
   if(P.state==='down') key='hero.jump.'+(P.downT>40?0:3);   // flat on the pavement (drawn rotated below); reuse a low crouch pose
-  if(P.state==='punch') key= P.gunMode && IDX['hero.shoot.0'] ? 'hero.shoot.'+clamp(Math.floor(P.st/3),0,3)   // SHOOT mode: finger-gun point instead of a fist
-                                                               : comboKey(cStep());
+  if(P.state==='punch') key=comboKey(cStep());   // always melee now — shooting is its own state
   // hit recoil — while the flash is fresh and you're not mid-action, stumble back.
   // driven off the hitFlash timer (16→0) so it plays once per hit, then hands
   // control back to idle/walk. faces the attacker (hurtPlayer set P.face), so the
@@ -3098,6 +3108,7 @@ function drawRemotePlayer(o, pos, idx){
     case 'jump':  key='hero.jump.'+clamp(3-Math.floor(pos.y/16),0,3); break;   // low near the ground (crouch), high mid-air (rising/tucked) — no vy synced, so push-off/landing share a frame
     case 'air':   key= IDX['hero.kick.0'] ? 'hero.kick.'+(pos.y>20?1:2) : 'hero.jump.3'; break;   // drop kick
     case 'kick':  key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+(Math.floor(t*0.3)%4) : 'hero.kick.2'; break;   // standing kick — no y/st synced, just cycle locally like the punch case below
+    case 'shoot': key= IDX['hero.shoot.0'] ? 'hero.shoot.'+(Math.floor(t*0.3)%4) : 'hero.punch.2'; break;   // dedicated finger-gun shot
     case 'upper': key= IDX['hero.uppercut.0'] ? 'hero.uppercut.'+(pos.y>24?1:pos.y>8?2:3) : 'hero.jump.2'; break;   // uppercut
     case 'imagine': key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*0.4)%4) : 'hero.rot.east'; break;
     case 'down':  key='hero.jump.3'; break;
@@ -3212,11 +3223,6 @@ function hud(){
   for(let i=0;i<Math.min(lives,8);i++){ ctx.fillStyle='#ff2e88';
     ctx.beginPath(); ctx.arc(LX+30+i*9, VY+2, 3, 0, 7); ctx.fill(); }
   if(lives>8){ ctx.fillStyle='#ff2e88'; ctx.fillText('+'+(lives-8), LX+30+8*9, VY+5); }
-
-  // attack mode — FIGHT (melee) or SHOOT (finger guns)
-  ctx.textAlign='left'; ctx.font='bold 7px "JetBrains Mono",monospace';
-  ctx.fillStyle= P.gunMode?'#ffb545':'#3ad17a';
-  ctx.fillText(P.gunMode?'▶ SHOOT':'▶ FIGHT', LX, VY+16);
 
   ctx.textAlign='right'; ctx.font='9px "JetBrains Mono",monospace'; ctx.fillStyle='#c9d13a';
   ctx.fillText(P.bucks+' BB',W-12,20);

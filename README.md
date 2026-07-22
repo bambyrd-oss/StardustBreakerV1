@@ -34,7 +34,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 | Move | `WASD` / arrows | Stick / D-pad | Left stick |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
 | Kick | `I` | **LB** | KICK |
-| Fight / Shoot toggle | `U` | **LT** | FIGHT/SHOOT |
+| Shoot (finger gun) | `U` | **LT** | SHOOT |
 | Jump | `K` / `Space` | **A** | JUMP |
 | Imagination attack | `L` | **B** | IMAGINE |
 | Interact / eat | `E` | **Y** | TALK |
@@ -52,9 +52,10 @@ enemies into the air. Special attacks come off direction + button:
   that drives forward through the crowd.
 - **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
 
-**Fight vs. Shoot** — tap `U` (or the FIGHT/SHOOT button) to toggle attack modes.
-In **Fight** you brawl with the melee combo; in **Shoot** every punch also pops off
-a finger-gun projectile (on by default). The HUD shows which mode you're in.
+**Shoot** — tap `U` (or the SHOOT button) for a dedicated finger-gun shot: BamBam
+pops off a ranged dot **and backpedals** as he fires, so it doubles as a spacing/
+retreat tool. It's its own button now, separate from the melee punch combo — no
+mode to toggle.
 
 ## The design
 

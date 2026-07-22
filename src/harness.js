@@ -270,6 +270,22 @@ if(!err){
     if(g.P.state!=='idle') throw new Error('kick should release back to idle, got '+g.P.state);
     console.log('        I on the ground -> kick state, standing kick connected for '+(hp0-e.hp)+' dmg');
   });
+  scene('shoot: dedicated SHOOT button fires a finger-gun dot and backpedals', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle'; g.P.face=1; g.P.weapon=null; g.P.iframes=999; g.setCamLock(Math.max(0,g.P.x-170));
+    const e=g.vamp(g.P.x+90,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
+    const x0=g.P.x;
+    __key('KeyU',true); __tick(1); __key('KeyU',false);
+    if(g.P.state!=='shoot') throw new Error('SHOOT button should enter the shoot state, got '+g.P.state);
+    const hp0=e.hp; __tick(6);                                  // through the muzzle frame (st===5)
+    if(!g.fires.some(f=>f.dot)) throw new Error('shoot should spawn a finger-gun dot projectile');
+    if(!(g.P.x<x0)) throw new Error('shoot should backpedal — x should drop below '+x0+', got '+g.P.x);
+    __tick(20);                                                 // let the dot fly into the enemy
+    if(!(e.hp<hp0)) throw new Error('the finger-gun dot should have connected, enemy hp unchanged at '+e.hp);
+    __tick(10);
+    if(g.P.state!=='idle') throw new Error('shoot should release back to idle, got '+g.P.state);
+    console.log('        SHOOT -> shoot state, backpedaled '+(x0-g.P.x).toFixed(1)+'px, dot connected for '+(hp0-e.hp)+' dmg');
+  });
   scene('uppercut: UP+PUNCH on the ground launches a grounded enemy', ()=>{
     const g=__G(); g.releaseArena();
     g.P.x=1200; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle'; g.P.face=1; g.P.weapon=null; g.setCamLock(Math.max(0,g.P.x-170));
