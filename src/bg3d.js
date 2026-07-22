@@ -241,16 +241,55 @@ const awnings=[ awningTexture('#e0503f','#f4ead6'), awningTexture('#2f8f5a','#f4
 // construction. Each kind owns its facade palette, sign colour, awning (striped or solid),
 // a chunky 3D icon on the sign band, and its own sidewalk dressing.
 const SHOP_KINDS=[
-  { k:'coffee',   fac:['#6f4e37','#ffd98a'], sign:'#4a3222', awA:'#6f4e37', awB:'#f4ead6', solid:false, icon:'cup',      dress:'aframe' },
-  { k:'matcha',   fac:['#7fae7a','#eaffd8'], sign:'#2f6a44', awA:'#4f9a52', awB:'#4f9a52', solid:true,  icon:'leaf',     dress:'lantern' },
-  { k:'smoothie', fac:['#ff8a5a','#fff2b0'], sign:'#e0503f', awA:'#ff8a5a', awB:'#ffe6b0', solid:false, icon:'cupStraw', dress:'aframe' },
-  { k:'juice',    fac:['#ffb02e','#fff2b0'], sign:'#e07a2e', awA:'#ffd23a', awB:'#fffbe8', solid:false, icon:'orange',   dress:'crates' },
-  { k:'bakery',   fac:['#e8c9a0','#fffbe8'], sign:'#c9758f', awA:'#e8a4c0', awB:'#e8a4c0', solid:true,  icon:'donut',    dress:'aframe' },
-  { k:'records',  fac:['#5f5286','#e8d8ff'], sign:'#31284e', awA:'#31284e', awB:'#c9bfe8', solid:false, icon:'vinyl',    dress:null },
-  { k:'florist',  fac:['#4f9a52','#ffd0e6'], sign:'#37703a', awA:'#4f9a52', awB:'#f4ead6', solid:false, icon:'flower',   dress:'planters' },
-  { k:'pizza',    fac:['#e8552f','#ffcf9a'], sign:'#2f8f5a', awA:'#c94436', awB:'#f4ead6', solid:false, icon:'pizza',    dress:'crates' },
+  { k:'coffee',   fac:['#6f4e37','#ffd98a'], sign:'#4a3222', awA:'#6f4e37', awB:'#f4ead6', solid:false, icon:'cup',      dress:'aframe',
+    word:'COFFEE', neon:'#ffd23a', names:['BREW & CO','THE ROASTERY','GRIND TIME','CREMA','MORNING CO','PRESS'] },
+  { k:'matcha',   fac:['#7fae7a','#eaffd8'], sign:'#2f6a44', awA:'#4f9a52', awB:'#4f9a52', solid:true,  icon:'leaf',     dress:'lantern',
+    word:'MATCHA', neon:'#7fffb0', names:['MATCHA HOUSE','ZEN MATCHA','LEAF & BEAN','STEEP'] },
+  { k:'smoothie', fac:['#ff8a5a','#fff2b0'], sign:'#e0503f', awA:'#ff8a5a', awB:'#ffe6b0', solid:false, icon:'cupStraw', dress:'aframe',
+    word:'SMOOTHIES', neon:'#ff6f9e', names:['SMOOTHIE STOP','BLEND BAR','FOAM','SIP'] },
+  { k:'juice',    fac:['#ffb02e','#fff2b0'], sign:'#e07a2e', awA:'#ffd23a', awB:'#fffbe8', solid:false, icon:'orange',   dress:'crates',
+    word:'JUICE', neon:'#ffd23a', names:['THE JUICE BOX','PULP','CITRUS BAR','SUNBEAM'] },
+  { k:'bakery',   fac:['#e8c9a0','#fffbe8'], sign:'#c9758f', awA:'#e8a4c0', awB:'#e8a4c0', solid:true,  icon:'donut',    dress:'aframe',
+    word:'BAKERY', neon:'#ff9ec8', names:['WHISK','GOLDEN HOUR','THE OVEN','BUTTER & CO'] },
+  { k:'records',  fac:['#5f5286','#e8d8ff'], sign:'#31284e', awA:'#31284e', awB:'#c9bfe8', solid:false, icon:'vinyl',    dress:null,
+    word:'RECORDS', neon:'#c98aff', names:['B-SIDE','WAX CITY','THE CRATE','SPIN'] },
+  { k:'florist',  fac:['#4f9a52','#ffd0e6'], sign:'#37703a', awA:'#4f9a52', awB:'#f4ead6', solid:false, icon:'flower',   dress:'planters',
+    word:'FLOWERS', neon:'#7fffb0', names:['BLOOM','PETAL & CO','STEM','WILDFLOWER'] },
+  { k:'pizza',    fac:['#e8552f','#ffcf9a'], sign:'#2f8f5a', awA:'#c94436', awB:'#f4ead6', solid:false, icon:'pizza',    dress:'crates',
+    word:'PIZZA', neon:'#ff5a5a', names:['SLICE HOUSE','BIG PIE','CORNER SLICE','RED SAUCE'] },
 ];
 for(const sk of SHOP_KINDS) sk.tex=facadeTexture(sk.fac[0], sk.fac[1]);
+// the shop's name, painted on its sign band
+function signTexture(kind, name){
+  const c=document.createElement('canvas'); c.width=256; c.height=48; const x=c.getContext('2d');
+  x.fillStyle=kind.sign; x.fillRect(0,0,256,48);
+  x.fillStyle='rgba(255,255,255,.10)'; x.fillRect(0,0,256,7);
+  x.strokeStyle='rgba(0,0,0,.35)'; x.lineWidth=4; x.strokeRect(2,2,252,44);
+  x.font='700 26px "Bebas Neue", Impact, "Arial Narrow", sans-serif';
+  x.textAlign='center'; x.textBaseline='middle';
+  x.fillStyle='rgba(0,0,0,.45)'; x.fillText(name,150,27);
+  x.fillStyle='#f4ead6'; x.fillText(name,148,25);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+// the display window: warm-lit interior, stocked shelves in the kind's colours, and a neon
+// word buzzing in the glass — same language as the item store's OPEN
+function shopWindowTexture(kind, seed){
+  const c=document.createElement('canvas'); c.width=192; c.height=96; const x=c.getContext('2d');
+  x.fillStyle='#1d1410'; x.fillRect(0,0,192,96);
+  const g=x.createLinearGradient(0,0,0,96); g.addColorStop(0,'#5a3a22'); g.addColorStop(1,'#2a1a12');
+  x.fillStyle=g; x.fillRect(5,5,182,86);
+  const cols=[kind.awA, kind.awB, '#f4ead6'];
+  for(let r=0;r<2;r++){ const ry=56+r*26;
+    x.fillStyle='rgba(0,0,0,.4)'; x.fillRect(10,ry,172,3);
+    for(let i=0;i<8;i++){ const hh=8+((Math.floor(seed*13)+i*7+r*3)%9);
+      x.fillStyle=cols[(i+r)%cols.length]; x.globalAlpha=.85; x.fillRect(14+i*21, ry-hh, 14, hh); x.globalAlpha=1; } }
+  x.font='700 24px "Bebas Neue", Impact, sans-serif'; x.textAlign='center'; x.textBaseline='middle';
+  x.shadowColor=kind.neon; x.shadowBlur=14;
+  x.fillStyle=kind.neon; x.fillText(kind.word, 96, 26);
+  x.fillText(kind.word, 96, 26);
+  x.shadowBlur=0; x.fillStyle='#fff8f0'; x.globalAlpha=.85; x.fillText(kind.word, 96, 26); x.globalAlpha=1;
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
 
 // ---- deterministic per-column pseudo-random so recycling stays stable ----
 function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27d4eb2d); n=n^(n>>>15); return ((n>>>0)%100000)/100000; }
@@ -340,13 +379,16 @@ function buildColumn(band, baseX, seed, fixedW){
   }
   // storefront: glass front + frame + door + mullions + sign + awning
   if(band.store){
-    detail(extras, boxGeo, MAT.glass, baseX, w*0.86,4.2,0.3, baseX,2.3,front+0.22);
+    // display window: a lit interior with stocked shelves + a neon word buzzing in the glass.
+    // MeshBasicMaterial so it GLOWS against the dusk instead of taking the street light.
+    detail(extras, boxGeo, new THREE.MeshBasicMaterial({ map:shopWindowTexture(kind, seed) }), baseX, w*0.86,4.2,0.3, baseX,2.3,front+0.22);
     detail(extras, boxGeo, MAT.metal, baseX, w*0.9,0.5,0.5, baseX,0.35,front+0.25);
     detail(extras, boxGeo, MAT.dark,  baseX, 1.2,3.0,0.34, baseX+w*0.25,1.7,front+0.27);           // door
     for(let mi=-1;mi<=1;mi++) detail(extras, boxGeo, MAT.metal, baseX, 0.12,4.2,0.33, baseX+mi*w*0.22,2.3,front+0.24);
-    // sign band in the shop's own colour (drops to a roof sign on the one-storey joints)
+    // sign band with the shop's NAME painted on it (drops to a roof sign on the one-storey joints)
     const sy=Math.min(6.5, h+0.4);
-    detail(extras, boxGeo, toonMat({ color:kind.sign, roughness:.7, emissive:kind.sign, emissiveIntensity:.14 }), baseX, w*0.8,1.5,0.35, baseX,sy,front+0.2);
+    const name=kind.names[Math.floor(hash(seed*37+2)*kind.names.length)];
+    detail(extras, boxGeo, toonMat({ map:signTexture(kind,name), emissive:'#ffffff', emissiveIntensity:.10 }), baseX, w*0.8,1.5,0.35, baseX,sy,front+0.2);
     detail(extras, boxGeo, MAT.trim, baseX, w*0.8,0.28,0.4, baseX,sy-0.75,front+0.22);
     // awning: striped or solid, in the kind's colours
     const awMat = kind.solid ? toonMat({ color:kind.awA, roughness:.85 })
