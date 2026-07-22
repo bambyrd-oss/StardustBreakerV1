@@ -37,14 +37,17 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
 #touch *{pointer-events:auto}
 #touch.dating{opacity:0}               /* hide the stick/buttons — the note board is the input */
 #touch.dating *{pointer-events:none}   /* and let taps fall through to the board */
-/* left half of the screen is the stick zone; the pad spawns under the thumb */
-#stickzone{position:absolute;left:0;top:0;width:50%;height:100%;pointer-events:auto}
-#stick{position:absolute;width:27vmin;height:27vmin;max-width:158px;max-height:158px;
-  transform:translate(-50%,-50%);display:none;pointer-events:none;
-  border-radius:50%;border:2px solid #2f2b3d;background:rgba(15,13,22,.5);backdrop-filter:blur(3px)}
-#stick.show{display:block}
-#nub{position:absolute;left:50%;top:50%;width:44%;height:44%;margin:-22% 0 0 -22%;border-radius:50%;
-  background:rgba(232,226,212,.32);border:1px solid rgba(232,226,212,.5)}
+/* movement D-pad: a fixed 8-way pad in the bottom-left (digital directions — smoother on touch than analog) */
+#dpad{position:absolute;left:5%;bottom:11%;width:30vmin;height:30vmin;max-width:172px;max-height:172px;
+  border-radius:20%;border:2px solid #2f2b3d;background:rgba(15,13,22,.5);backdrop-filter:blur(3px);
+  pointer-events:auto;touch-action:none}
+#dpad::before,#dpad::after{content:"";position:absolute;left:50%;top:50%;
+  background:rgba(232,226,212,.22);border-radius:7px;transform:translate(-50%,-50%)}   /* the "+" cross graphic */
+#dpad::before{width:28%;height:72%}   /* vertical bar */
+#dpad::after{width:72%;height:28%}    /* horizontal bar */
+#dnub{position:absolute;left:50%;top:50%;width:30%;height:30%;margin:-15% 0 0 -15%;border-radius:30%;
+  background:rgba(232,226,212,.34);border:1px solid rgba(232,226,212,.55);transition:transform .05s linear;
+  pointer-events:none}
 .btn{position:absolute;border-radius:50%;border:2px solid #2f2b3d;background:rgba(15,13,22,.55);
   backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;
   font-family:'Bebas Neue',sans-serif;letter-spacing:.08em;color:var(--bone);font-size:3.2vmin}
@@ -163,8 +166,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
     <div id="frame">
       <canvas id="c" width="640" height="360"></canvas>
       <div id="touch">
-        <div id="stickzone"></div>
-        <div id="stick"><div id="nub"></div></div>
+        <div id="dpad"><div id="dnub"></div></div>
         <div class="btn" id="bA">PUNCH</div>
         <div class="btn" id="bB">JUMP</div>
         <div class="btn" id="bC">SHOOT</div>
@@ -569,32 +571,31 @@ function pollPad(){
 // true while the drink button is physically held down, on whichever input made the last press
 const heldDrink=()=> !!(key.KeyL || T.C || (PAD.now && PAD.now.DRINK));
 
-// virtual stick + buttons
+// virtual D-pad + buttons
 const T={ax:0,az:0, A:false,B:false,C:false,D:false,E:false,F:false, Ap:false,Bp:false,Cp:false,Dp:false,Ep:false,Fp:false};
-let stickId=null, sBase={x:0,y:0,r:60};
-const stick=$('stick'), nub=$('nub'), stickzone=$('stickzone');
-// floating pad: press anywhere in the left half and the stick spawns under your thumb
-stickzone.addEventListener('pointerdown',e=>{
-  if(!OPT.touch)return;
-  e.preventDefault(); stickId=e.pointerId;
-  stick.style.left=e.offsetX+'px'; stick.style.top=e.offsetY+'px';   // frame-local: put the pad under the thumb
-  stick.classList.add('show');
-  const r=stick.getBoundingClientRect(); sBase={x:e.clientX,y:e.clientY,r:r.width/2};
-  moveStick(e);
-});
-// tracked on window, not the pad — your thumb can leave the circle and still steer
-addEventListener('pointermove',e=>{ if(e.pointerId===stickId) moveStick(e); },{passive:false});
-function endStick(e){ if(e.pointerId!==stickId)return; stickId=null; T.ax=T.az=0; nub.style.transform=''; stick.classList.remove('show'); }
-addEventListener('pointerup',endStick); addEventListener('pointercancel',endStick);
-function moveStick(e){
-  // portrait means the whole app is CSS-rotated 90deg — swap the axes back
+// ---- movement D-pad: a fixed 8-way pad. reads the thumb's angle from the pad centre and snaps to one
+// of eight clean directions — far easier to steer on a touchscreen than a free-floating analog stick.
+let padId=null, padC={x:0,y:0,r:60};
+const dpad=$('dpad'), dnub=$('dnub');
+function padCenter(){ const r=dpad.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2, r:r.width/2}; }
+dpad.addEventListener('pointerdown',e=>{ if(!OPT.touch)return; e.preventDefault(); padId=e.pointerId; padC=padCenter(); movePad(e); });
+// tracked on window so your thumb can slide past the pad edge and keep steering
+addEventListener('pointermove',e=>{ if(e.pointerId===padId) movePad(e); },{passive:false});
+function endPad(e){ if(e.pointerId!==padId)return; padId=null; T.ax=T.az=0; dnub.style.transform=''; }
+addEventListener('pointerup',endPad); addEventListener('pointercancel',endPad);
+// screen sector -> game axes. sector 0 = right, going clockwise. screen +x = right, +y = down (= south / toward camera).
+const PAD_AX=[1,1,0,-1,-1,-1,0,1], PAD_AZ=[0,1,1,1,0,-1,-1,-1];
+function movePad(e){
+  // portrait means the whole app is CSS-rotated 90deg — swap the screen delta back into game axes
   const p=document.body.classList.contains('portrait');
-  let dx=e.clientX-sBase.x, dy=e.clientY-sBase.y;
+  let dx=e.clientX-padC.x, dy=e.clientY-padC.y;
   if(p){ const t=dx; dx=dy; dy=-t; }
-  const d=Math.hypot(dx,dy), m=sBase.r*0.62, k=d>m?m/d:1;
-  T.ax=clamp(dx/m,-1,1); T.az=clamp(dy/m,-1,1);
-  if(d<sBase.r*0.16){T.ax=0;T.az=0;}
-  nub.style.transform=`translate(${dx*k}px,${dy*k}px)`;   // dx/dy are already local
+  const d=Math.hypot(dx,dy);
+  if(d < padC.r*0.30){ T.ax=0; T.az=0; dnub.style.transform=''; return; }   // centre deadzone = neutral (no drift)
+  const sect=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;               // nearest of 8 compass points
+  T.ax=PAD_AX[sect]; T.az=PAD_AZ[sect];
+  const k=padC.r*0.42;
+  dnub.style.transform=`translate(${T.ax*k}px,${T.az*k}px)`;                // pop the hub toward the pressed direction
 }
 function bindBtn(id,k){ const el=$(id);
   el.addEventListener('pointerdown',e=>{e.preventDefault(); if(!T[k])T[k+'p']=true; T[k]=true; el.classList.add('hit');});
@@ -1753,8 +1754,8 @@ function update(){
         jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK);
   if(pad&&pad.PAUSE) setPause(true);
 
-  //---- SPRINT: double-tap a horizontal direction to run. works for keys, d-pad and the
-  // touch stick (lift + re-push counts as a second tap). sprint holds while that direction
+  //---- SPRINT: double-tap a horizontal direction to run. works for keys, the gamepad d-pad and the
+  // touch D-pad (lift + re-push counts as a second tap). sprint holds while that direction
   // is held; releasing or reversing stops it.
   const sdir = ix>0.5?1 : ix<-0.5?-1 : 0;
   if(sdir!==0 && P.lastDir===0){                              // rising edge into a direction

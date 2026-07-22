@@ -31,7 +31,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 
 | | Keyboard | Xbox | Touch |
 |---|---|---|---|
-| Move | `WASD` / arrows | Stick / D-pad | Left stick |
+| Move | `WASD` / arrows | Stick / D-pad | D-pad (bottom-left) |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
 | Kick | `I` | **LB** | KICK |
 | Jump | `K` / `Space` | **A** | JUMP |
