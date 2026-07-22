@@ -150,7 +150,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #2</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #3</small></h1>
         <div id="pcols">
           <div class="col">
             <h2>DISPLAY</h2>
@@ -2294,9 +2294,18 @@ function chaseTick(){
     P.z+=(252-P.z)*0.25;                       // one lane — this is a runner now
     if(P.state==='walk'&&P.face===1){ P.sprinting=true; P.sprintDir=1; }   // no double-tap needed to flee
     const ball=c.ball;
-    // rubber-band: always coming — it rides ~200px off his heels at a clean sprint, so any
-    // stumble puts it ON you. Faster the further it falls behind; never off the table.
-    ball.vx = clamp(4.6 + (P.x-140-ball.x)*0.006, 3.2, 6.2);   // rides visibly on-screen (~220px) off a clean sprint
+    // The ball does NOT hunt. It paces a hair SLOWER than a clean sprint, so running flat-out
+    // always opens the gap — you can't be caught by outrunning it. Its one active behaviour is
+    // refusing to slide off the LEFT of the screen: drift too far back and it rubber-bands just
+    // enough to climb back on-screen, never toward you. The only thing that closes the gap is
+    // YOU losing ground — trip over the notice guys and the ball keeps rolling while you're down,
+    // so two or three stumbles in a row are what actually put it on you.
+    const SPRINT=2.15*1.8;                    // the player's clean sprint (no boots), ~3.87 px/frame
+    const cruise=SPRINT-0.5;                  // the ball's pace — slightly slower, so a clean run pulls away
+    const onScreen=camX+BALL_R+6;             // its left half starts leaving the view below this x
+    let target=cruise;
+    if(ball.x<onScreen) target=clamp(SPRINT+0.8+(onScreen-ball.x)*0.05, cruise, SPRINT+3.2);   // climb back on-screen — and no further
+    ball.vx += (target-ball.vx)*0.12;         // smooth, no snapping
     ball.x += ball.vx; ball.rot += ball.vx/BALL_R;
     if(t%5===0) puff(ball.x+rnd(-24,24), 252, rnd(4,BALL_R*1.8), 1, '#efe9d8');   // shedding scraps
     // little eviction-notice guys stand in the road — punch through them or jump them clean
