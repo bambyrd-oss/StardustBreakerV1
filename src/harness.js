@@ -514,8 +514,8 @@ if(!err){
   });
   scene('shop: open, buy every rank of everything', ()=>{
     const g=__G();
-    const b=g.BUILDINGS.find(q=>q.kind==='burger');
-    if(!b) throw new Error('no burger shop generated in 4000px');
+    const b=g.BUILDINGS.find(q=>q.kind==='store');
+    if(!b) throw new Error('no item store generated in 4000px');
     g.P.bucks=99999; g.setShop(true,b);
     for(const k in g.UPG) for(let i=0;i<g.UPG[k].max+2;i++) g.buy(k);
     g.P.hp=1; g.buy('burger'); g.buy('burger'); g.buy('life');

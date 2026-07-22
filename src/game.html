@@ -102,33 +102,7 @@ input[type=range]{width:78px;accent-color:var(--club);height:14px}
 .mini{background:#191725;border:1px solid #2f2b3d;color:#9990ad;font:inherit;font-size:9px;
   padding:4px 8px;border-radius:3px;cursor:pointer;letter-spacing:.08em}
 .mini:active{background:#2a2440;color:var(--bone)}
-#shop{position:absolute;inset:0;background:rgba(6,4,10,.93);z-index:35;display:none;
-  align-items:center;justify-content:center;padding:2%}
-#shop.on{display:flex}
-#shop .board{width:100%;max-width:560px;max-height:94%;overflow:auto;background:#141009;
-  border:1px solid #4a3a18;border-radius:4px;padding:14px 16px;
-  box-shadow:0 0 60px -10px rgba(255,181,69,.28), inset 0 0 90px -40px rgba(255,181,69,.5)}
-#shop .bhead{display:flex;justify-content:space-between;align-items:flex-start;
-  border-bottom:1px dashed #4a3a18;padding-bottom:9px;margin-bottom:9px}
-#shop h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(20px,4.4vmin,32px);letter-spacing:.12em;
-  color:#ffd98a;line-height:.95}
-#shop small{font-size:7px;letter-spacing:.22em;color:#7a6338}
-#shopCash{font-family:'Bebas Neue',sans-serif;font-size:clamp(18px,3.6vmin,26px);color:#c9d13a;letter-spacing:.06em}
-.item{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:3px;cursor:pointer;
-  border:1px solid transparent}
-.item:hover{background:rgba(255,181,69,.06);border-color:#4a3a18}
-.item.no{opacity:.34;cursor:default}
-.item.no:hover{background:none;border-color:transparent}
-.item .nm{font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.1em;color:#ffd98a;min-width:64px}
-.item .ds{flex:1;font-size:8px;line-height:1.5;color:#9d8a63}
-.item .pips{display:flex;gap:2px}
-.item .pips i{width:6px;height:6px;border:1px solid #6a5326;border-radius:1px}
-.item .pips i.f{background:#ffb545;border-color:#ffb545}
-.item .pr{font-family:'JetBrains Mono',monospace;font-size:10px;color:#c9d13a;min-width:44px;text-align:right}
-.item.maxed .pr{color:#5c5670}
-#shopClose{margin-top:10px;width:100%;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.14em;
-  background:none;border:1px solid #4a3a18;color:#9d8a63;padding:7px;border-radius:3px;cursor:pointer}
-#shopClose:active{background:#ffb545;color:#141009}
+/* the shop is drawn in-world on the game canvas now (see drawStore) — no DOM overlay */
 #a2hs{position:absolute;inset:0;background:rgba(4,3,8,.94);z-index:40;display:none;
   align-items:center;justify-content:center;padding:5%}
 #a2hs.on{display:flex}
@@ -225,16 +199,6 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
           </div>
         </div>
         <button id="resume">RESUME</button>
-      </div>
-      <div id="shop">
-        <div class="board">
-          <div class="bhead">
-            <div><h2 id="shopName">DEL'S</h2><small>OPEN LATE · CASH ONLY</small></div>
-            <div id="shopCash">$0</div>
-          </div>
-          <div id="shopList"></div>
-          <button id="shopClose">BACK TO THE STREET</button>
-        </div>
       </div>
       <div id="a2hs">
         <div class="sheet">
@@ -411,31 +375,33 @@ function a2hsText(){
 
 const $=id=>document.getElementById(id);   // hoisted: the shop + install code above needs it
 
-//====================== shop ======================
+//====================== the item store (walk-in, in-world) ======================
+// No DOM overlay any more. The storefront on the street has a neon OPEN sign and a lit
+// doorway; walk into it and you're INSIDE, browsing the shelves. Same buy()/UPG machinery
+// underneath — only the presentation moved in-world (see storeTick / drawStore below).
 let shopOpen=false, shopB=null;
-function renderShop(){
-  $('shopCash').textContent=P.bucks+' BB';
-  const L=$('shopList'); let h='';
-  const full = P.hp>=P.maxhp, canB = P.bucks>=burgerCost && !full;
-  h+=`<div class="item ${canB?'':'no'}" data-k="burger">
-    <div class="nm">FOOD</div>
-    <div class="ds">Back to full health. ${full?'You look fine.':'You look like hell.'}</div>
-    <div class="pr">${burgerCost} BB</div></div>`;
-  h+=`<div class="item ${P.bucks>=750?'':'no'}" data-k="life">
-    <div class="nm">EXTRA LIFE</div>
-    <div class="ds">One more shot at it. Currently ${lives}.</div>
-    <div class="pr">750 BB</div></div>`;
-  for(const k in UPG){ const u=UPG[k], r=U[k], maxed=r>=u.max;
-    const cost=maxed?0:u.cost[r], can=!maxed&&P.bucks>=cost;
-    let pips=''; for(let i=0;i<u.max;i++) pips+=`<i class="${i<r?'f':''}"></i>`;
-    h+=`<div class="item ${can?'':'no'} ${maxed?'maxed':''}" data-k="${k}">
-      <div class="nm">${u.n}</div>
-      <div class="ds">${u.d}</div>
-      <div class="pips">${pips}</div>
-      <div class="pr">${maxed?'MAX':cost+' BB'}</div></div>`;
-  }
-  L.innerHTML=h;
+let storeSel=0, storeNav=0, storeLastDir=0, storeT=0, storeScroll=0, storeWalkT=0, storeBuyFlash=0;
+
+// the wares, left to right along the aisle: the two consumables, then every permanent
+// upgrade, then the exit. Rebuilt every frame so pip/afford state is always live.
+function storeItems(){
+  const list=[{k:'burger'},{k:'life'}];
+  for(const k in UPG) list.push({k});
+  list.push({k:'exit'});
+  return list;
 }
+// resolve one ware to its display: name, blurb, price, whether you can buy it, and rank pips.
+function storeInfo(k){
+  if(k==='burger'){ const full=P.hp>=P.maxhp;
+    return {n:'FOOD', d:full?'You look fine — already topped off.':'A full meal. Back to full health.',
+      pr:burgerCost, can:P.bucks>=burgerCost&&!full, icon:'burger'}; }
+  if(k==='life')  return {n:'EXTRA LIFE', d:'One more shot at the block. You have '+lives+'.',
+      pr:750, can:P.bucks>=750, icon:'life'};
+  if(k==='exit')  return {n:'LEAVE', d:'Head back out to the street.', pr:0, can:true, exit:true, icon:'exit'};
+  const u=UPG[k], r=U[k], maxed=r>=u.max, cost=maxed?0:u.cost[r];
+  return {n:u.n, d:u.d, pr:cost, can:!maxed&&P.bucks>=cost, pips:u.max, rank:r, maxed, icon:k};
+}
+function renderShop(){}   // in-world store reads live state every frame — nothing to pre-render into the DOM
 function buy(k){
   if(k==='burger'){
     if(P.bucks<burgerCost||P.hp>=P.maxhp) return;
@@ -454,10 +420,49 @@ function buy(k){
   blip(760,.07); rumble(240,.5,.8,true); renderShop();
 }
 function setShop(v,b){
-  shopOpen=v; $('shop').classList.toggle('on',v);
-  if(v){ shopB=b; $('shopName').textContent=b.name; renderShop(); }
+  shopOpen=v;
+  if(v){ shopB=b||{name:'CORNER STORE'}; storeSel=0; storeNav=0; storeScroll=0; storeWalkT=0; storeBuyFlash=0; blip(300,.05); }
   else if(stageShopPending){ stageShopPending=false; stageNum++; wavesThisStage=0;
     say(P.x,P.z-40,'STAGE '+stageNum+' — GO →','#c9d13a'); }
+}
+
+// input while you're inside the store: browse the aisle with left/right, a face button buys the
+// ware you're standing at, jump/back walks you out. Runs from the game loop while shopOpen (in
+// place of update()), so it polls the same keyboard / gamepad / touch inputs everything else does.
+function storeTick(){
+  storeT++;
+  const pad=pollPad();
+  // held direction (keys / touch d-pad / stick) drives auto-repeat; a key EDGE steps instantly so
+  // a quick tap can't be missed between frames.
+  let held=(key.KeyD||key.ArrowRight?1:0)-(key.KeyA||key.ArrowLeft?1:0);
+  if(Math.abs(T.ax)>0.3) held=T.ax>0?1:-1;
+  if(pad && Math.abs(PAD.ax)>0.3) held=PAD.ax>0?1:-1;
+  const edge=(tap('KeyD')||tap('ArrowRight')?1:0)-(tap('KeyA')||tap('ArrowLeft')?1:0);
+  const items=storeItems();
+  let step=0;
+  if(edge!==0) step=edge;                                     // instant on tap
+  else if(held!==0 && (held!==storeLastDir || storeNav<=0)) step=held;   // repeat while held
+  if(step!==0){
+    const ns=clamp(storeSel+step,0,items.length-1);
+    if(ns!==storeSel){ storeSel=ns; storeWalkT=9; storeLastDir=step; blip(360,.02); }
+    storeNav = (held!==storeLastDir)?16:8;
+  }
+  if(held===0) storeNav=0; else if(storeNav>0) storeNav--;
+  if(held!==0) storeLastDir=held;
+  if(storeWalkT>0) storeWalkT--;
+  if(storeBuyFlash>0) storeBuyFlash--;
+
+  const leave = tap('KeyK')||tap('Space')||tapT('B')||(pad&&pad.JUMP);
+  if(leave){ setShop(false); return; }
+  const confirm = tap('KeyU')||tap('KeyJ')||tap('KeyE')||tapT('A')||tapT('F')||tapT('D')||(pad&&(pad.PUNCH||pad.GUN||pad.TALK));
+  if(confirm){
+    const it=items[storeSel];
+    if(it.k==='exit'){ setShop(false); return; }
+    const before=P.bucks;
+    buy(it.k);
+    if(P.bucks!==before){ storeBuyFlash=14; }               // a purchase actually went through
+    else blip(120,.03);                                     // couldn't afford / maxed — a low bonk
+  }
 }
 // a boss just went down — either the between-stage shop, or (stage 3) the run is won
 let stageShopPending=false;
@@ -528,8 +533,6 @@ $('install').onclick=async()=>{
   $('a2hsBody').innerHTML=a2hsText(); $('a2hs').classList.add('on');
 };
 $('a2hsClose').onclick=()=>$('a2hs').classList.remove('on');
-$('shopClose').onclick=()=>setShop(false);
-$('shopList').addEventListener('click',e=>{ const it=e.target.closest('.item'); if(it) buy(it.dataset.k); });
 
 //====================== input ======================
 const key={}, pressed={};
@@ -644,7 +647,7 @@ const CLUBNAMES=['BREW & CO','MATCHA HOUSE','GRIND TIME','THE ROASTERY','BLEND B
 const SHOPNAMES=['HARDWARE','BAKERY','FLORIST','CHICKEN','BODEGA','LAUNDRY','RECORDS','BOOKS',
   'TATTOO','PIZZA','ART SUPPLY','PHONE REPAIR','DELI','FURNITURE','KEYS CUT','GYROS'];
 const CLUBHUE=['#6f4e37','#8fbf6f','#ffb37a','#f2a6c4'];
-const BURGERNAMES=['DEL\'S','NITE OWL','THE GRIDDLE','PATTY WAGON','BIG MIKE\'S','SMASH BURGER','2AM DINER'];
+const STORENAMES=['DEL\'S CORNER','THE PLUG','STOCK UP','CITY GOODS','QUICK MART','THE HOOK-UP','FIVE STAR DELI','NITE OWL SUPPLY'];
 const SHOPHUE=['#d6de5a','#ffcf70','#4dffc0','#5aa8e8'];
 let BUILDINGS=[], CLUBS=[], GRATES=[], GATES=[];
 const MADE=new Set();
@@ -741,16 +744,17 @@ function genChunk(ci){
     }
     x += w + 8 + Math.floor(R()*26);
   }
-  // one burger joint on roughly every other chunk — the only place money means anything.
-  // if the chunk rolled a burger it GETS one: prefer a shop, but a club will do. the roll wins.
+  // one item store on roughly every other chunk — the only place money means anything. Neon OPEN
+  // sign, lit doorway, walk in to shop. If the chunk rolled a store it GETS one: prefer a plain
+  // shop to convert, but a club will do. the roll wins.
   if(hsh(ci*7.77+2.3+WSEED)<0.48){
     const mine=BUILDINGS.filter(b=>b.chunk===ci);
     if(mine.length){
       const shops=mine.filter(b=>b.kind==='shop');
       const pool = shops.length?shops:mine;
       const b=pool[Math.floor(R()*pool.length)];
-      b.kind='burger'; b.hue='#ffb545';
-      b.name=BURGERNAMES[Math.floor(R()*BURGERNAMES.length)];
+      b.kind='store'; b.hue='#ff2e88';
+      b.name=STORENAMES[Math.floor(R()*STORENAMES.length)];
       CLUBS=BUILDINGS.filter(q=>q.kind==='club');
     }
   }
@@ -827,7 +831,7 @@ function reset(){
     dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,shootCd:0,shootT:0,airPunch:false,punchHand:true,
     sprinting:false,sprintDir:0,tapDir:0,tapT:-99,lastDir:0,landHold:0,beamFace:1,
     stepV:0,downT:0,knockV:0,weapon:null,downed:false,wasAtShop:false});
-  U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
+  U={spirit:0,hands:0,shot:0,rapid:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
   ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0;
   boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0;
@@ -912,6 +916,8 @@ const UPG={
   spirit:{n:'SPIRIT', max:3, cost:[60,140,280],
     d:'+8% Freedom Meter from every knockdown, each rank. Reach Imagination attacks faster.'},
   hands:{n:'HANDS', max:3, cost:[40,90,180],  d:'+15% damage on everything, each rank.'},
+  shot: {n:'BIG SHOTS', max:3, cost:[60,130,260], d:'Finger-gun shots fly bigger and hit harder, each rank.'},
+  rapid:{n:'RAPID FIRE',max:2, cost:[80,180],  d:'Finger guns fire faster — less cooldown between shots.'},
   body: {n:'BODY',  max:3, cost:[50,110,220], d:'+half a heart of max health, each rank.'},
   chin: {n:'CHIN',  max:2, cost:[70,150],     d:'Takes a lot more to knock you down.'},
   hustle:{n:'HUSTLE',max:3, cost:[50,120,240],d:'+15% Bammy Bucks from every drop, each rank.'},
@@ -924,7 +930,7 @@ const UPG={
   second:{n:'SECOND WIND',max:2,cost:[70,150],d:'Slowly regenerate health when you stay out of a fresh hit.'},
   pockets:{n:'POCKETS',max:2,cost:[80,170],   d:'Bank an extra full Imagination charge, each rank.'},
 };
-let U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0};
+let U={spirit:0,hands:0,shot:0,rapid:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0};
 let burgerCost=25;
 
 const heavyHitAt = ()=> 10+U.chin*4;                 // raw dmg at/above this costs a full heart (and knocks you down); below it costs half
@@ -1857,8 +1863,8 @@ function update(){
         if(!(ix||iz)){ let best=null,bd=260;                    // standing still → auto-aim the nearest mark; walking → point where you move
           for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2); if(d<bd){bd=d;best=e;} }
           if(best) P.face = best.x>P.x?1:-1; }
-        fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
-        P.shootCd=7; P.shootT=10; blip(520,.02);               // 7-tick cadence ≈ fast finger-gun spam
+        fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3+U.shot*1.6, life:32, max:32, foe:false, dot:true, dmg:5+U.shot*3});  // BIG SHOTS: bigger, harder dots
+        P.shootCd=Math.max(3,7-U.rapid*2); P.shootT=10; blip(520,.02);   // RAPID FIRE trims the 7-tick cadence toward a 3-tick spam
       }
     }
     if(jPunch && P.y===0 && P.state!=='air' && wantUp && !P.weapon){        // UP + PUNCH → rising uppercut launcher
@@ -2019,7 +2025,7 @@ function update(){
   //---- the counter. Opens automatically when you walk up (once per approach — leave the
   //---- doorway to re-arm), and TALK/E still opens it manually. Only once the street's quiet.
   P.atShop=null;
-  for(const b of BUILDINGS){ if(b.kind!=='burger') continue;
+  for(const b of BUILDINGS){ if(b.kind!=='store') continue;
     if(Math.abs(b.doorX-P.x)<34 && P.z<FLOOR_N+34){ P.atShop=b; break; } }
   const shopEnter = P.atShop && !P.wasAtShop;   // rising edge: just stepped into the doorway
   P.wasAtShop = !!P.atShop;
@@ -2220,25 +2226,25 @@ function bg(){
         ctx.fillStyle='rgba(0,0,0,.15)'; ctx.fillRect(sx+9+w*28,top+24+h*22,18,2); }   // sill
     // storefront sign lettering removed (flavor text); keep a thin sign band for shape
     ctx.fillStyle=b.hue; ctx.globalAlpha=0.5; ctx.fillRect(sx+8,groundTop+24,b.w-16,1); ctx.globalAlpha=1;
-    if(b.kind==='burger'){
+    if(b.kind==='store'){
       const gy=groundTop+8;
-      inkRect(sx+4,gy,b.w-8,FLOOR_N-gy-2,'#5a4020');
+      // a warm, lit shop window packed with stock
+      inkRect(sx+4,gy,b.w-8,FLOOR_N-gy-2,'#241a14');
       const wg=ctx.createLinearGradient(0,gy,0,FLOOR_N);
-      wg.addColorStop(0,'#ffd98a'); wg.addColorStop(1,'#c97a1a');
-      ctx.globalAlpha=.85; ctx.fillStyle=wg; ctx.fillRect(sx+8,gy+22,b.w-16,FLOOR_N-gy-30);
-      ctx.globalAlpha=1;
-      ctx.fillStyle='#3a2a12';                   // people at the counter
-      for(let i=0;i<3;i++){ const px2=sx+18+i*((b.w-36)/2.4);
-        ctx.fillRect(px2, FLOOR_N-40+Math.sin(t*.02+i*2)*1, 9, 26); }
-      ctx.fillStyle='#4a3618'; ctx.fillRect(sx+8,FLOOR_N-14,b.w-16,5);   // counter
-      // burger sign, on the storefront awning above the window
-      const by2=groundTop-24;
-      ctx.fillStyle='#fff8ec'; ctx.fillRect(sx+b.w/2-30,by2,60,20);
-      ctx.fillStyle='#ffb545'; ctx.fillRect(sx+b.w/2-24,by2+5,12,3);     // bun
-      ctx.fillStyle='#8a4a22'; ctx.fillRect(sx+b.w/2-24,by2+8,12,3);     // patty
-      ctx.fillStyle='#c9d13a'; ctx.fillRect(sx+b.w/2-24,by2+11,12,2);
-      ctx.fillStyle='#ffb545'; ctx.fillRect(sx+b.w/2-24,by2+13,12,3);
-      // burger-shop name lettering removed (flavor text) — the burger icon stays
+      wg.addColorStop(0,'#ffe6a8'); wg.addColorStop(1,'#e2963a');
+      ctx.globalAlpha=.9; ctx.fillStyle=wg; ctx.fillRect(sx+8,gy+18,b.w-16,FLOOR_N-gy-26); ctx.globalAlpha=1;
+      // shelf rows of little products, silhouetted against the glow
+      ctx.fillStyle='rgba(42,26,12,.55)';
+      for(let r=0;r<2;r++){ const ry=gy+30+r*17;
+        for(let i=0;i<Math.floor((b.w-20)/9);i++){ const pw=6, ph=6+Math.floor(hsh(b.x+r*3+i)*4);
+          ctx.fillRect(sx+11+i*9, ry-ph, pw, ph); }
+        ctx.fillRect(sx+10,ry,b.w-20,2); }
+      // warm light spilling out onto the sidewalk
+      const wgl=ctx.createRadialGradient(sx+b.w/2,FLOOR_N-6,4,sx+b.w/2,FLOOR_N-6,b.w*0.7);
+      wgl.addColorStop(0,'rgba(255,190,90,.20)'); wgl.addColorStop(1,'rgba(255,190,90,0)');
+      ctx.fillStyle=wgl; ctx.fillRect(sx-20,FLOOR_N-30,b.w+40,40);
+      // the neon OPEN sign + open door are drawn by drawStoreFacade() as an overlay, so they
+      // show over the 3D background too (this window backdrop only exists on the procedural path).
     }
     // contact shadow — a soft dark gradient where the ground floor meets the sidewalk, so
     // buildings feel planted instead of floating on a flat fill
@@ -2249,9 +2255,10 @@ function bg(){
     const dw=b.kind==='club'?54:40, dx=b.doorX-camX;
     inkRect(dx-dw/2,FLOOR_N-58,dw,58,'#2a2018');
     ctx.fillStyle='#8a7860'; ctx.fillRect(dx-dw/2-3,FLOOR_N-60,3,60); ctx.fillRect(dx+dw/2,FLOOR_N-60,3,60);
+    // (the item store's lit/open door + neon sign are drawn by drawStoreFacade() as an overlay)
     // a striped storefront awning over the door — the commercial-strip signature.
-    // burger joints skip it — their sign box already occupies that spot.
-    if(b.kind!=='burger'){
+    // the item store skips it — its neon sign already owns that spot.
+    if(b.kind!=='store'){
       const awW=dw+16, ay=FLOOR_N-72;
       inkPoly([[dx-awW/2,ay+10],[dx-awW/2+4,ay],[dx+awW/2-4,ay],[dx+awW/2,ay+10]], b.hue);
       ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(dx-awW/2,ay+9,awW,2);
@@ -2331,19 +2338,8 @@ function bg(){
     ctx.fillStyle='#a8823a'; ctx.fillRect(lx-2,146,3,FLOOR_N-146);
     inkRect(lx-4,144,7,4,'#8a6a3a'); }
 
-  //---- shop prompt
-  for(const b of BUILDINGS){ if(b.kind!=='burger') continue;
-    const dx=b.doorX-camX; if(dx<-60||dx>W+60) continue;
-    if(P.atShop===b){
-      const busy=ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6);
-      if(!busy){                                    // only show the control cue when the shop can actually open
-        ctx.textAlign='center'; ctx.font='bold 8px "JetBrains Mono",monospace';
-        ctx.fillStyle='#ffd98a'; ctx.globalAlpha=.6+.4*Math.sin(t*.12);
-        ctx.fillText(OPT.touch?'TALK TO SHOP':'[E] SHOP', dx, FLOOR_N-66);
-        ctx.globalAlpha=1;
-      }
-    }
-  }
+  // (the store's neon sign, open door and "step inside" cue are drawn by drawStoreFacade(),
+  // an overlay that runs on top of BOTH the 3D and procedural backgrounds)
 
   //---- steam, behind everyone
   for(const sp of steam){ const a=Math.min(1,sp.life/sp.max)*0.16;
@@ -3184,7 +3180,190 @@ function hud(){
     ctx.fillText('buf '+P.buf+'  hit '+P.connected+'  ents '+ents.length,12,H-12); }
 }
 
+//====================== the store, drawn in-world ======================
+// A warm little corner-store interior: shelves on the back wall, a lit aisle of pedestals you
+// browse left/right, BamBam standing at whichever ware is selected. Everything reads off live
+// state each frame (bucks, ranks, affordability) — there's no cached DOM to keep in sync.
+const ICON_COL={burger:'#ffb545',life:'#ff3a5e',body:'#ff7a9e',second:'#ff5a7e',hands:'#e8e2d4',
+  shot:'#3ad1ff',rapid:'#7ad1ff',spirit:'#ffd54a',pockets:'#c98aff',chin:'#8fa4b0',hustle:'#c9d13a',
+  flow:'#5aa8e8',insight:'#8fd6ff',boots:'#c98a5a',reach:'#d6a86a',knuck:'#d9c15a',hide:'#7fd06a',exit:'#c9d13a'};
+function starShape(cx,cy,r,c){ ctx.fillStyle=c; ctx.beginPath();
+  for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, rr=i%2?r*0.45:r;
+    const px=cx+Math.cos(a)*rr, py=cy+Math.sin(a)*rr; i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+  ctx.closePath(); ctx.fill(); }
+function shieldShape(cx,cy,s,c){ ctx.fillStyle=c; ctx.beginPath();
+  ctx.moveTo(cx-s*0.6,cy-s*0.6); ctx.lineTo(cx+s*0.6,cy-s*0.6); ctx.lineTo(cx+s*0.6,cy+s*0.1);
+  ctx.quadraticCurveTo(cx+s*0.6,cy+s*0.72, cx,cy+s*0.85);
+  ctx.quadraticCurveTo(cx-s*0.6,cy+s*0.72, cx-s*0.6,cy+s*0.1); ctx.closePath(); ctx.fill(); }
+function storeIcon(k,cx,cy,s,acc){
+  const R=(ax,ay,aw,ah,c)=>{ ctx.fillStyle=c; ctx.fillRect(Math.round(cx+ax*s),Math.round(cy+ay*s),Math.max(1,Math.round(aw*s)),Math.max(1,Math.round(ah*s))); };
+  const heart=(hs,c)=>{ ctx.fillStyle=c; ctx.beginPath();
+    ctx.arc(cx-hs*0.4,cy-hs*0.16,hs*0.44,0,7); ctx.arc(cx+hs*0.4,cy-hs*0.16,hs*0.44,0,7);
+    ctx.moveTo(cx-hs*0.82,cy+hs*0.02); ctx.lineTo(cx,cy+hs*0.9); ctx.lineTo(cx+hs*0.82,cy+hs*0.02); ctx.closePath(); ctx.fill(); };
+  switch(k){
+    case 'burger': R(-.7,-.5,1.4,.34,'#ffcf70'); R(-.7,-.16,1.4,.24,'#8a4a22'); R(-.7,.06,1.4,.14,'#7fd06a'); R(-.7,.18,1.4,.34,'#ffb545'); break;
+    case 'life': heart(s,'#ff3a5e'); break;
+    case 'body': heart(s,'#ff3a5e'); ctx.fillStyle='#fff'; R(-.12,-.32,.24,.64,'#fff'); R(-.34,-.1,.68,.22,'#fff'); break;
+    case 'second': heart(s,'#ff5a7e'); ctx.strokeStyle='#fff'; ctx.lineWidth=1.4; ctx.beginPath();
+      ctx.moveTo(cx-s*.68,cy); ctx.lineTo(cx-s*.28,cy); ctx.lineTo(cx-s*.08,cy-s*.4); ctx.lineTo(cx+s*.12,cy+s*.4); ctx.lineTo(cx+s*.32,cy); ctx.lineTo(cx+s*.68,cy); ctx.stroke(); break;
+    case 'hands': R(-.5,-.46,.72,.34,'#ffe0b8'); R(-.5,-.16,.72,.66,'#e8c9a0'); R(.22,-.04,.32,.5,'#e8c9a0'); break;
+    case 'shot': ctx.globalAlpha=.35; ctx.fillStyle=acc; ctx.beginPath(); ctx.arc(cx,cy,s*1.0,0,7); ctx.fill(); ctx.globalAlpha=1;
+      ctx.fillStyle=acc; ctx.beginPath(); ctx.arc(cx,cy,s*0.66,0,7); ctx.fill();
+      ctx.fillStyle='#eafcff'; ctx.beginPath(); ctx.arc(cx-s*0.2,cy-s*0.2,s*0.2,0,7); ctx.fill(); break;
+    case 'rapid': for(let i=0;i<3;i++){ ctx.globalAlpha=1-i*0.28; ctx.fillStyle=acc; ctx.beginPath(); ctx.arc(cx+(i-1)*s*0.62, cy, s*(0.5-i*0.09),0,7); ctx.fill(); } ctx.globalAlpha=1; break;
+    case 'spirit': starShape(cx,cy,s*0.9,'#ffd54a'); break;
+    case 'pockets': starShape(cx,cy,s*0.9,'#c98aff'); break;
+    case 'boots': R(-.5,-.5,.5,.92,'#c98a5a'); R(-.5,.42,1.15,.3,'#8a5a30'); R(-.5,-.5,.5,.18,'#e0a878'); break;
+    case 'knuck': ctx.fillStyle='#d9c15a'; for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(cx+(i-1)*s*0.55, cy-s*0.18, s*0.27,0,7); ctx.fill(); } R(-.72,-.06,1.44,.4,'#d9c15a'); break;
+    case 'hide': shieldShape(cx,cy,s,'#7fd06a'); break;
+    case 'chin': shieldShape(cx,cy,s,'#8fa4b0'); ctx.fillStyle='#dfeef2'; R(-.06,-.4,.12,.7,'#dfeef2'); break;
+    case 'exit': ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.strokeRect(cx-s*.5,cy-s*.72,s,s*1.44);
+      ctx.fillStyle=acc; ctx.beginPath(); ctx.moveTo(cx-s*.12,cy-s*.34); ctx.lineTo(cx+s*.5,cy); ctx.lineTo(cx-s*.12,cy+s*.34); ctx.closePath(); ctx.fill(); break;
+    default:
+      ctx.fillStyle=acc; ctx.beginPath(); ctx.arc(cx,cy,s*0.85,0,7); ctx.fill();
+      ctx.fillStyle='#1a1220'; ctx.textAlign='center'; ctx.font='700 '+Math.round(s*1.15)+'px '+BEBAS;
+      ctx.fillText((storeInfo(k).n||'?')[0], cx, cy+s*0.42);
+  }
+}
+function drawWareCard(k, cx, top, sel){
+  const info=storeInfo(k), acc=ICON_COL[info.icon]||'#c9d13a';
+  const w = sel?122:96, h = sel?122:100;
+  const x = Math.round(cx-w/2), y=Math.round(top+(sel?0:12));
+  ctx.fillStyle='rgba(0,0,0,.32)'; ctx.beginPath(); ctx.ellipse(cx,y+h+7,w*0.5,6,0,0,7); ctx.fill();   // pedestal shadow
+  if(sel){ ctx.globalAlpha=.13; ctx.fillStyle=acc; ctx.fillRect(x-14,y-8,w+28,h+20); ctx.globalAlpha=1; }  // selection halo
+  ctx.fillStyle= sel?'#2a2036':'#1e1628'; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=acc; ctx.globalAlpha=sel?1:.55; ctx.fillRect(x,y,w,4); ctx.globalAlpha=1;                // top accent
+  ctx.strokeStyle= sel?acc:'#3a2f44'; ctx.lineWidth= sel?2:1; ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);
+  storeIcon(info.icon, cx, y+(sel?42:36), sel?21:17, acc);
+  ctx.textAlign='center'; ctx.fillStyle= (info.can||info.exit)?'#ffe6b0':'#8a7d70';
+  ctx.font='700 '+(sel?15:12)+'px '+BEBAS; ctx.fillText(info.n, cx, y+h-30);
+  if(info.pips){ const pw=8, px0=cx-info.pips*pw/2+1;                                                    // rank pips
+    for(let i=0;i<info.pips;i++){ ctx.fillStyle= i<info.rank?acc:'#4a3f52'; ctx.fillRect(px0+i*pw, y+h-24, 6,6); } }
+  ctx.font='700 '+(sel?13:11)+'px '+BEBAS;
+  if(info.exit){ ctx.fillStyle=acc; ctx.fillText('EXIT', cx, y+h-8); }
+  else if(info.maxed){ ctx.fillStyle='#7a6b8a'; ctx.fillText('MAXED', cx, y+h-8); }
+  else { ctx.fillStyle= info.can?'#c9d13a':'#b05a5a'; ctx.fillText('$'+info.pr, cx, y+h-8); }
+}
+function drawStore(){
+  const cx=W/2;
+  let g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#241a2e'); g.addColorStop(.5,'#2c2033'); g.addColorStop(1,'#180f1c');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // ceiling lights + warm wash
+  ctx.fillStyle='#372a3e'; ctx.fillRect(0,0,W,26);
+  for(let i=0;i<5;i++){ const lx=52+i*132;
+    ctx.fillStyle='#fff3d0'; ctx.fillRect(lx,10,64,6);
+    const lg=ctx.createRadialGradient(lx+32,16,4,lx+32,16,120);
+    lg.addColorStop(0,'rgba(255,224,150,.15)'); lg.addColorStop(1,'rgba(255,224,150,0)');
+    ctx.fillStyle=lg; ctx.fillRect(lx-70,16,200,180); }
+  // back-wall shelves stocked with little product cans (ambience)
+  ctx.fillStyle='rgba(0,0,0,.13)'; ctx.fillRect(0,30,W,180);
+  for(let s=0;s<3;s++){ const sy=60+s*46;
+    for(let i=0;i<27;i++){ const px=4+i*24+((s%2)*6);
+      const hue=['#c9d13a','#ff8c3a','#5aa8e8','#ff3a5e','#7fd06a','#ffd54a','#c98aff'][Math.floor(hsh(s*13+i*7+1.3)*7)];
+      const hh=9+Math.floor(hsh(s*3+i*5)*11);
+      ctx.fillStyle=hue; ctx.globalAlpha=.42; ctx.fillRect(px,sy-hh,15,hh); ctx.globalAlpha=1;
+      ctx.fillStyle='rgba(255,255,255,.1)'; ctx.fillRect(px,sy-hh,15,2); }
+    ctx.fillStyle='#4a3a52'; ctx.fillRect(0,sy,W,4); ctx.fillStyle='rgba(0,0,0,.22)'; ctx.fillRect(0,sy+4,W,3); }
+  // floor
+  const floorY=214;
+  let fg=ctx.createLinearGradient(0,floorY,0,H);
+  fg.addColorStop(0,'#3a2e34'); fg.addColorStop(1,'#221820');
+  ctx.fillStyle=fg; ctx.fillRect(0,floorY,W,H-floorY);
+  ctx.strokeStyle='rgba(0,0,0,.22)'; ctx.lineWidth=1;
+  for(let i=-1;i<11;i++){ const bx=i*80 - (storeScroll*150)%80;   // boards drift as you browse the aisle
+    ctx.beginPath(); ctx.moveTo(bx,floorY); ctx.lineTo(bx-46,H); ctx.stroke(); }
+  ctx.fillStyle='rgba(0,0,0,.2)'; ctx.fillRect(0,floorY,W,2);
+
+  // header
+  ctx.textAlign='left'; ctx.fillStyle='#ffd98a'; ctx.font='700 22px '+BEBAS;
+  ctx.fillText((shopB&&shopB.name)||'CORNER STORE', 14, 23);
+  ctx.fillStyle='#7a6b8a'; ctx.font='7px "JetBrains Mono",monospace';
+  ctx.fillText('OPEN LATE · CASH ONLY', 15, 34);
+  ctx.textAlign='right'; ctx.fillStyle= storeBuyFlash>0?'#ffffff':'#c9d13a'; ctx.font='700 20px '+BEBAS;
+  ctx.fillText('$'+P.bucks+' BB', W-14, 23);
+
+  // the aisle of wares — draw outer-to-inner so the selected pedestal overlaps its neighbours
+  const items=storeItems();
+  storeScroll += (storeSel - storeScroll)*0.22;
+  const CW=150, rowY=82;
+  const order=items.map((_,i)=>i).sort((a,b)=>Math.abs(b-storeScroll)-Math.abs(a-storeScroll));
+  for(const i of order){ const dxc=cx+(i-storeScroll)*CW;
+    if(dxc<-CW||dxc>W+CW) continue;
+    drawWareCard(items[i].k, dxc, rowY, i===storeSel); }
+
+  // BamBam standing at the selected pedestal, under a soft spotlight
+  ctx.fillStyle='rgba(255,232,180,.10)'; ctx.beginPath(); ctx.ellipse(cx,300,58,14,0,0,7); ctx.fill();
+  const walking = storeWalkT>0 && IDX['hero.walk.0'];
+  const hk = walking ? 'hero.walk.'+(Math.floor((9-storeWalkT)*0.5)%4)
+                     : (IDX['hero.rot.south']?'hero.rot.south':'hero.rot.east');
+  const hface = walking ? (storeLastDir||1) : 1;
+  spr(hk, cx, 302, hface, storeBuyFlash>0?'#c9d13a':null, storeBuyFlash>0?0.45:0, 1.18);
+
+  // selected ware blurb + status
+  const info=storeInfo(items[storeSel].k);
+  ctx.fillStyle='rgba(10,7,14,.82)'; ctx.fillRect(0,312,W,32);
+  ctx.fillStyle='#3a2f44'; ctx.fillRect(0,312,W,1);
+  ctx.textAlign='center'; ctx.fillStyle='#cbb9d6'; ctx.font='9px "JetBrains Mono",monospace';
+  ctx.fillText(info.d, cx, 326);
+  let status='';
+  if(info.maxed) status='FULLY UPGRADED';
+  else if(!info.exit && P.bucks<info.pr) status='NOT ENOUGH — need $'+info.pr;   // money-specific: full-HP food isn't "not enough"
+  if(status){ ctx.fillStyle= info.maxed?'#7a6b8a':'#ff6a6a'; ctx.font='700 10px '+BEBAS; ctx.fillText(status, cx, 339); }
+
+  // footer control hints
+  ctx.fillStyle='rgba(8,6,12,.9)'; ctx.fillRect(0,344,W,16);
+  ctx.fillStyle='#9990ad'; ctx.font='8px "JetBrains Mono",monospace';
+  const buyTxt = OPT.touch?'SHOOT = BUY' : '[U]/[J]/[E] BUY';
+  const leaveTxt = OPT.touch?'JUMP = LEAVE' : '[K] LEAVE';
+  ctx.fillText('◀ ▶  BROWSE      '+buyTxt+'      '+leaveTxt, cx, 356);
+  ctx.textAlign='left';
+}
+
+// The item store's storefront, drawn as a 2D overlay ON TOP of whatever background is up (3D or
+// procedural) so the neon OPEN sign and lit open doorway are always visible in the world — that's
+// how you find the store and know you can walk in. Runs behind the player/entities.
+function drawStoreFacade(){
+  for(const b of BUILDINGS){ if(b.kind!=='store') continue;
+    const dx=b.doorX-camX; if(dx<-70||dx>W+70) continue;
+    const dw=40;
+    // an OPEN, lit doorway — warm light pouring out onto the stoop
+    inkRect(dx-dw/2,FLOOR_N-58,dw,58,'#2a2018');
+    const ig=ctx.createLinearGradient(0,FLOOR_N-54,0,FLOOR_N);
+    ig.addColorStop(0,'#ffe0a6'); ig.addColorStop(1,'#dd9038');
+    ctx.fillStyle=ig; ctx.fillRect(dx-dw/2+4,FLOOR_N-54,dw-8,54);
+    ctx.fillStyle='rgba(38,22,10,.45)'; ctx.fillRect(dx-3,FLOOR_N-44,6,44);        // a shopper's silhouette inside
+    ctx.fillStyle='#8a7860'; ctx.fillRect(dx-dw/2-3,FLOOR_N-60,3,60); ctx.fillRect(dx+dw/2,FLOOR_N-60,3,60);   // jambs
+    ctx.fillStyle='#5a3a20'; ctx.fillRect(dx-dw/2+1,FLOOR_N-56,4,54);              // the open door leaf, folded back
+    ctx.fillStyle='#3a2a1a'; ctx.fillRect(dx-dw/2,FLOOR_N-58,dw,3);                // lintel
+    const pool=ctx.createRadialGradient(dx,FLOOR_N+2,2,dx,FLOOR_N+2,dw);          // light pool on the sidewalk
+    pool.addColorStop(0,'rgba(255,214,140,.30)'); pool.addColorStop(1,'rgba(255,214,140,0)');
+    ctx.fillStyle=pool; ctx.fillRect(dx-dw,FLOOR_N-8,dw*2,26);
+    // ---- neon OPEN sign hung over the door, flashing (~2s on, ~0.4s off) ----
+    const on=(t%150)<126, ny=FLOOR_N-80;
+    ctx.fillStyle='#2a2230'; ctx.fillRect(dx-1,ny-16,2,8);                         // hanger bracket
+    inkRect(dx-27,ny-11,54,21,'#140a12');
+    if(on){
+      const glow=ctx.createRadialGradient(dx,ny-1,2,dx,ny-1,46);
+      glow.addColorStop(0,'rgba(255,60,150,.6)'); glow.addColorStop(1,'rgba(255,60,150,0)');
+      ctx.fillStyle=glow; ctx.fillRect(dx-46,ny-28,92,56);
+      ctx.textAlign='center';
+      ctx.font='700 15px '+BEBAS; ctx.fillStyle='#ff7ab8'; ctx.fillText('OPEN',dx,ny+5);
+      ctx.font='700 13px '+BEBAS; ctx.fillStyle='#ffe0f0'; ctx.fillText('OPEN',dx,ny+4.5);
+      ctx.textAlign='left';
+    } else { ctx.textAlign='center'; ctx.font='700 13px '+BEBAS; ctx.fillStyle='#40222f'; ctx.fillText('OPEN',dx,ny+4.5); ctx.textAlign='left'; }
+    // "step inside" cue when you're at the door and the street's quiet
+    if(P.atShop===b && !ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){
+      ctx.textAlign='center'; ctx.font='bold 8px "JetBrains Mono",monospace';
+      ctx.fillStyle='#ffd98a'; ctx.globalAlpha=.6+.4*Math.sin(t*.12);
+      ctx.fillText(OPT.touch?'STEP INSIDE':'[E] STEP INSIDE', dx, ny-14); ctx.globalAlpha=1;
+    }
+  }
+  ctx.textAlign='left';
+}
+
 function render(){
+  if(shopOpen){ drawStore(); composite(); return; }   // in-world store interior fully replaces the street view
   ctx.save();
   const sh=shake*OPT.shake;
   if(sh>1) ctx.translate(rnd(-sh,sh),rnd(-sh,sh));
@@ -3193,6 +3372,7 @@ function render(){
   // so the scene scrolls 1:1 with the player's stride where he walks.
   if(globalThis.__bg3d){ globalThis.__bg3d.render(camX*0.0805); ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H); }
   else bg();
+  drawStoreFacade();   // neon OPEN sign + lit open door, over whichever background is up
   const list=[];
   // the 3D scene supplies its own pedestrians + street furniture; the procedural
   // crowd/props still SIMULATE (aggro etc.) but only draw on the fallback path
@@ -3401,6 +3581,7 @@ function loop(now){ requestAnimationFrame(loop);
     if(gp && gp.buttons.some(b=>b&&b.pressed)) chooseMode(false);   // any button = start
     titleRender(); return;
   }
+  if(shopOpen && !paused){ storeTick(); }                 // inside the store: browse/buy in place of the sim
   if(dawnShown||continueOn||noticeOn||paused||shopOpen){ acc=0; render(); return; }
   while(acc>=1/60){ update(); acc-=1/60; }
   render();

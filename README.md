@@ -72,8 +72,15 @@ long range, hits everything in its path, can turn a fight around.
 
 **XP and Bammy Bucks** are the two currencies. XP unlocks new combo strings,
 stronger attacks, movement abilities, and stat increases as you level up.
-Bammy Bucks are earned from enemies and spent between stages on food (health),
-permanent stat upgrades, and special items.
+Bammy Bucks are earned from enemies and spent at the **item store** — a
+storefront on the block with a flashing neon **OPEN** sign and a lit doorway.
+Walk into the door and you're inside, browsing the shelves in-world: **FOOD**
+(heal), an **EXTRA LIFE**, and a wall of permanent upgrades — **BIG SHOTS** and
+**RAPID FIRE** for the finger guns, **BODY** (more health), **HANDS** (more
+damage), **SPIRIT**/**POCKETS** (more Freedom / imagination charges), plus
+speed, crit, hustle, and toughness. Browse left/right, a face button buys, jump
+walks you back out. It also opens automatically between stages when you clear a
+boss.
 
 Each level is two enemy waves — the screen locks until every enemy is down —
 followed by a boss fight with its own moves and a weakness to find.
