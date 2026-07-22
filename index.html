@@ -378,14 +378,8 @@ const backlot = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 135),
 backlot.rotation.x = -Math.PI/2; backlot.position.set(0, -0.06, -79.5);   // spans z -12 .. -147, tucked just under the sidewalk
 backlot.receiveShadow = true; scene.add(backlot);
 
-// double yellow centre line — two solid stripes straddling the road's exact centre. The road is
-// bounded by the lane edges at z -3.4 and 18.4, so its middle is z 7.5; the stripes sit at 7.5 ± 1.4
-// (the perspective foreshortens the road hard, so they need real spacing to read as a pair, not one).
-for(const z of [ 6.1, 8.9 ]){
-  const line=new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 0.42),
-    toonMat({ color:'#f2c53a', roughness:.7 }));
-  line.rotation.x=-Math.PI/2; line.position.set(0,0.02,z); scene.add(line);
-}
+// (the double yellow centre line is built AFTER the crosswalks below — it breaks at every
+// crosswalk like real road paint, so its segments must ride the same scroll/recycle slots)
 
 // solid edge lines near each side of the road (static — a solid line reads the same scrolling or not)
 for(const z of [ -3.4, 18.4 ]){
@@ -429,6 +423,21 @@ for(let k=0;k<CW_N;k++){
   const cw=new THREE.Mesh(new THREE.PlaneGeometry(9,20), toonMat({ map:cwTex, transparent:true, roughness:.9 }));
   cw.rotation.x=-Math.PI/2; cw.position.set(0,0.03,7);
   scene.add(cw); road.push({ mesh:cw, baseX:-260/2 + k*(260/CW_N) });
+}
+// double yellow centre line — two solid stripes straddling the road's centre (z 7.5 ± 1.4; the
+// foreshortening needs real spacing for them to read as a pair). Like real road paint (MUTCD:
+// longitudinal lines don't run through a crossing), the pair BREAKS at every crosswalk: each
+// segment spans crosswalk-to-crosswalk minus a setback, and rides the SAME recycle slots as the
+// crosswalk decals so the gaps stay glued to the crossings as the street scrolls.
+{ const intv=260/CW_N, setback=2.0, segLen=intv-9-setback*2;   // 9 = crosswalk width along the road
+  const yellow=toonMat({ color:'#f2c53a', roughness:.7 });
+  for(let k=0;k<CW_N;k++){
+    for(const z of [6.1,8.9]){
+      const seg=new THREE.Mesh(new THREE.PlaneGeometry(segLen,0.42), yellow);
+      seg.rotation.x=-Math.PI/2; seg.position.set(0,0.02,z);
+      scene.add(seg); road.push({ mesh:seg, baseX:-260/2 + k*intv + intv/2 });   // centred between crossings
+    }
+  }
 }
 const decals=[];
 for(let k=0;k<10;k++){
