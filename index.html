@@ -703,27 +703,27 @@ function openTexture(lit){
 }
 const OPEN_ON=openTexture(true), OPEN_OFF=openTexture(false);
 function buildStoreMesh(){
-  // local x=0 is the DOOR (the game's trigger point); the body hangs left of it like the old facade
+  // local x=0 is the DOOR (the game's trigger point); the body is laid out per-frame by
+  // layoutStore() to exactly fill the slot of the ONE front-row building it replaces.
   const g=new THREE.Group();
   const brick=brickTexture(); brick.repeat.set(3,4);
   const body=new THREE.Mesh(boxGeo, toonMat({ map:brick, roughness:.95 }));
-  body.scale.set(STORE_W,STORE_H,STORE_D); body.position.set(-2.2,STORE_H/2,-STORE_D/2);
   body.castShadow=true; body.receiveShadow=true; g.add(body);
-  const ol=new THREE.Mesh(boxGeo, OUTLINE_MAT); ol.scale.set(STORE_W,STORE_H+0.7,STORE_D+0.7); ol.position.copy(body.position); g.add(ol);
-  const cor=new THREE.Mesh(boxGeo, toonMat({ color:'#d9c6a8', roughness:.9 }));
-  cor.scale.set(STORE_W*1.06,0.6,STORE_D*1.1); cor.position.set(-2.2,STORE_H-0.1,-STORE_D/2); g.add(cor);
+  const ol=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(ol);
+  const cor=new THREE.Mesh(boxGeo, toonMat({ color:'#d9c6a8', roughness:.9 })); g.add(cor);
+  const winUp=[];
   for(let i=0;i<3;i++){ const wm=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.5),
       i===1? new THREE.MeshBasicMaterial({ color:0xffcf8a }) : toonMat({ color:'#2a2036', roughness:.4 }));
-    wm.position.set(-5.2+i*3, 7.6, 0.06); g.add(wm); }
-  // pink striped awning over the shopfront
+    g.add(wm); winUp.push(wm); }
+  // pink striped awning, extending OUT toward the camera — the store's depth cue
   const awc=document.createElement('canvas'); awc.width=64; awc.height=16; const ax=awc.getContext('2d');
   for(let i=0;i<8;i++){ ax.fillStyle=i%2?'#ff2e88':'#ffe6f2'; ax.fillRect(i*8,0,8,16); }
   const awt=new THREE.CanvasTexture(awc); awt.colorSpace=THREE.SRGBColorSpace; awt.wrapS=THREE.RepeatWrapping; awt.repeat.set(3,1);
   const aw=new THREE.Mesh(boxGeo, toonMat({ map:awt, roughness:.85 }));
-  aw.scale.set(STORE_W*0.98,0.45,2.0); aw.position.set(-2.2,5.6,0.7); aw.rotation.x=-0.3; g.add(aw);
+  aw.rotation.x=-0.3; g.add(aw);
   // display window with the OPEN sign (texture-swapped for the flash)
   const win=new THREE.Mesh(new THREE.PlaneGeometry(4.4,4.4), new THREE.MeshBasicMaterial({ map:OPEN_ON }));
-  win.position.set(-4.5,2.5,0.06); g.add(win); g.userData.win=win;
+  g.add(win);
   // the open doorway: lit interior, dark frame, door leaf swung to the jamb, welcome mat
   const dg=new THREE.Mesh(new THREE.PlaneGeometry(3.7,4.7), new THREE.MeshBasicMaterial({ color:0xffd9a0 }));
   dg.position.set(0,2.35,0.05); g.add(dg);
@@ -735,7 +735,31 @@ function buildStoreMesh(){
   leaf.scale.set(0.35,4.6,0.3); leaf.position.set(-1.7,2.3,0.28); g.add(leaf);
   const mat=new THREE.Mesh(boxGeo, toonMat({ color:'#7a2f3a', roughness:1 }));
   mat.scale.set(3.2,0.1,1.1); mat.position.set(0,0.05,0.6); g.add(mat);
+  // face on the SAME plane as the front row (z=-8.5, the 1:1 plane) — children put the face at
+  // local z0, so the whole group shifts back. This was the "floating on the sidewalk" bug.
+  g.position.z=-8.5;
+  g.userData={body,ol,cor,winUp,aw,win};
   return g;
+}
+// mould the store to the slot it fills: body centred where the replaced building stood (local c,
+// relative to the door at x=0), body width = that building's width — the row stays seamless.
+function layoutStore(s, c, bw){
+  const u=s.userData, h=STORE_H, d=STORE_D;
+  u.body.scale.set(bw,h,d);        u.body.position.set(c,h/2,-d/2);
+  u.ol.scale.set(bw,h+0.7,d+0.7);  u.ol.position.copy(u.body.position);
+  u.cor.scale.set(bw*1.04,0.6,d*1.1); u.cor.position.set(c,h-0.1,-d/2);
+  const sp=Math.min(3, Math.max(2.2, bw/3.4));
+  for(let i=0;i<3;i++){ const px=c+(i-1)*sp;
+    u.winUp[i].position.set(px, 7.6, 0.06);
+    u.winUp[i].visible = Math.abs(px-c) < bw/2-1.0; }   // keep windows on the wall
+  u.aw.scale.set(bw*0.98,0.45,2.2); u.aw.position.set(c,5.6,0.75);
+  // the OPEN window goes on whichever side of the door has more wall
+  const leftW=(-2.0)-(c-bw/2), rightW=(c+bw/2)-2.0;
+  const side=leftW>=rightW?-1:1, spaceW=Math.max(leftW,rightW);
+  const ww=Math.min(4.4, spaceW-0.6);
+  if(ww<1.6){ u.win.visible=false; }
+  else { u.win.visible=true; u.win.scale.set(ww/4.4, Math.max(0.75,ww/4.4), 1);
+    u.win.position.set(side*(2.0+ww/2+0.2), 2.5, 0.06); }
 }
 const storePool=[]; for(let i=0;i<3;i++){ const s=buildStoreMesh(); s.visible=false; scene.add(s); storePool.push(s); }
 let bgTick=0;
@@ -744,18 +768,31 @@ let bgTick=0;
   let scroll=0;
   function stepBg(sc, storeXs){
     scroll=sc; bgTick++;
-    // park the pooled store buildings at the on-screen store doors; hide the rest
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
     const lit=(bgTick%150)<126;
-    for(let i=0;i<storePool.length;i++){ const s=storePool[i];
-      if(i<xs.length){ s.visible=true; s.position.x=xs[i]-scroll; s.userData.win.material.map= lit?OPEN_ON:OPEN_OFF; }
-      else s.visible=false; }
-    const gaps=xs.map(x=>x-scroll-2.2);   // store body centres, in screen space (door is +2.2 off-centre)
+    // position the row first (all visible), collecting the front band
+    const fronts=[];
     for(const b of world){ const sx=b.baseX-scroll; if(sx<-SPAN/2)b.baseX+=SPAN; else if(sx>SPAN/2)b.baseX-=SPAN;
       const nx=b.baseX-scroll; b.mesh.position.x=nx; for(const e of b.extras) e.position.x=nx+(e.userData.ox||0);
-      // the front row leaves a GAP where a store stands — hide any of its buildings that overlap
-      if(b.band.store){ const hide=gaps.some(gx=>Math.abs(nx-gx) < b.mesh.scale.x/2 + STORE_W/2 - 0.4);
-        if(b.mesh.visible!==!hide){ b.mesh.visible=!hide; for(const e of b.extras) e.visible=!hide; } } }
+      if(b.band.store){ if(!b.mesh.visible){ b.mesh.visible=true; for(const e of b.extras) e.visible=true; } fronts.push(b); } }
+    // each store REPLACES exactly the one front-row building behind its door: hide that building
+    // and mould the store to fill its slot (same centre, same width) — the row stays seamless,
+    // no oversized gap. The store's face shares the row's z-plane (see buildStoreMesh).
+    for(let i=0;i<storePool.length;i++){ const s=storePool[i];
+      if(i>=xs.length){ s.visible=false; continue; }
+      const gx=xs[i]-scroll;
+      s.visible=true; s.position.x=gx;
+      s.userData.win.material.map= lit?OPEN_ON:OPEN_OFF;
+      let best=null,bd=1e9;
+      for(const b of fronts){ const d=Math.abs(b.mesh.position.x-gx); if(d<bd){bd=d;best=b;} }
+      let c=0, bw=STORE_W;
+      if(best && bd<12){
+        best.mesh.visible=false; for(const e of best.extras) e.visible=false;
+        c=best.mesh.position.x-gx; bw=best.mesh.scale.x+0.5;
+      }
+      const lim=Math.max(0,bw/2-2.6); c=Math.max(-lim,Math.min(lim,c));   // keep the door inside the wall
+      layoutStore(s, c, bw);
+    }
     for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN; p.g.position.x=p.baseX-scroll; }
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
       pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
