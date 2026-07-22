@@ -870,8 +870,13 @@ function buy(k){
 function setShop(v,b){
   shopOpen=v;
   if(v){ shopB=b||{name:'CORNER STORE'}; storeSel=0; storeNav=0; storeScroll=0; storeWalkT=0; storeBuyFlash=0; blip(300,.05); }
-  else if(stageShopPending){ stageShopPending=false; stageNum++; wavesThisStage=0;
-    say(P.x,P.z-40,'STAGE '+stageNum+' — GO →','#c9d13a'); }
+  else {
+    // step back out the door onto the street (only when this shop is a real storefront —
+    // the between-stage shop after a boss is a pseudo-building with no door)
+    if(shopB && shopB.doorX!=null){ P.x=shopB.doorX; P.z=FLOOR_N+18; P.face=1; P.wasAtShop=true; }
+    if(stageShopPending){ stageShopPending=false; stageNum++; wavesThisStage=0;
+      say(P.x,P.z-40,'STAGE '+stageNum+' — GO →','#c9d13a'); }
+  }
 }
 
 // input while you're inside the store: browse the aisle with left/right, a face button buys the
@@ -2184,6 +2189,21 @@ function update(){
   if(P.sprinting && (sdir===0 || sdir!==P.sprintDir)) P.sprinting=false;   // released / reversed → stop
   P.lastDir=sdir;
 
+  //---- GOING INSIDE: he physically jogs to the store's open door and steps up into it, then the
+  //---- interior takes over. Scripted — inputs are ignored for the half-second it takes.
+  if(P.state==='enterShop'){
+    const eb=P.enterB;
+    if(!eb){ P.state='idle'; }
+    else {
+      P.st++;
+      const ddx=eb.doorX-P.x;
+      if(Math.abs(ddx)>3){ P.x+=clamp(ddx,-2.6,2.6); P.face=ddx>0?1:-1; }   // jog to the doorway
+      else { P.x=eb.doorX; P.z-=2.0; P.face=1; }                            // step up into the door
+      if(P.z<=FLOOR_N-20 || P.st>90){ P.z=FLOOR_N; setShop(true,eb); P.state='idle'; }
+    }
+    return;
+  }
+
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
   if(P.landHold>0){ /* frozen in the landing pose — see the landHold countdown further down */ }
   else if(P.state==='punch'){
@@ -2490,17 +2510,20 @@ function update(){
   //---- doorway to re-arm), and TALK/E still opens it manually. Only once the street's quiet.
   P.atShop=null;
   for(const b of BUILDINGS){ if(b.kind!=='store') continue;
-    if(Math.abs(b.doorX-P.x)<34 && P.z<FLOOR_N+34){ P.atShop=b; break; } }
-  const shopEnter = P.atShop && !P.wasAtShop;   // rising edge: just stepped into the doorway
-  P.wasAtShop = !!P.atShop;
-  // the door is OPEN — walking into it takes you inside. Three ways in, all equivalent:
-  // step into the doorway (rising edge), keep walking north INTO the door (hold up — this also
-  // covers "the fight ended while I was standing in the doorway", where no edge ever fires),
-  // or press TALK/E. Blocked only while enemies are on you — and the door says so (see
-  // drawStoreFacade's busy cue; say() is a no-op so a float would be silent).
-  const wantIn = iz<-0.35;                      // pressing up = walking through the door
-  if(P.atShop && (jTalk||shopEnter||wantIn) && P.y===0 && P.state!=='down'){
-    if(!ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){ setShop(true,P.atShop); P.state='idle'; return; }
+    if(Math.abs(b.doorX-P.x)<44 && P.z<FLOOR_N+40){ P.atShop=b; break; } }
+  const nearDoor = P.atShop && P.z<FLOOR_N+14;  // right in the doorway, hugging the wall
+  const doorEdge = nearDoor && !P.wasAtShop;    // just walked up into the doorway itself
+  P.wasAtShop = !!nearDoor;
+  // walking into the open door is THE way in: walk north toward it (or step right up into the
+  // doorway, or press TALK/E) and BamBam jogs inside himself — the enterShop state above walks
+  // him to the door and through it before the interior takes over. Walking PAST the shop along
+  // the sidewalk doesn't yank him in; only moving INTO the door does. Blocked while enemies are
+  // on you — the door says so (drawStoreFacade's cue; say() is a no-op so a float would be silent).
+  const wantIn = P.atShop && iz<-0.35;
+  if(P.atShop && (jTalk||doorEdge||wantIn) && P.y===0 && P.state!=='down' && P.state!=='enterShop' && !shopOpen){
+    if(!ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){
+      P.state='enterShop'; P.st=0; P.enterB=P.atShop; P.sprinting=false; blip(340,.04);
+    }
   }
 
   //---- fire lives on the pavement for a second after it leaves the mouth
@@ -3396,6 +3419,7 @@ function drawPlayer(){
   let key='hero.rot.east';
   let drawFace=P.face;   // normally P.face; overridden to +1 for the dedicated left-facing (un-mirrored) uppercut frame
   if(P.state==='walk') key='hero.walk.'+(Math.floor(t*(P.sprinting?.30:.16))%4);   // sprint = faster run cycle
+  if(P.state==='enterShop') key='hero.walk.'+(Math.floor(t*.30)%4);                // jogging into the store
   if(P.state==='idle') key='hero.rot.east';
   // jump frames tied to actual height/velocity (not a fixed timer): 0 push-off, 1 rising,
   // 2 apex + most of the fall (the tuck holds), 3 landing — only once he's low to the ground.
@@ -3793,43 +3817,75 @@ function drawStore(){
 // procedural) so the neon OPEN sign and lit open doorway are always visible in the world — that's
 // how you find the store and know you can walk in. Runs behind the player/entities.
 function drawStoreFacade(){
+  // The store gets its OWN full building face — brick, upstairs windows, awning, stocked display
+  // window with the flashing neon OPEN, and the open doorway built INTO it — instead of a door
+  // decal floating over whatever 3D building happens to scroll by. It's BamBam's one enterable
+  // building; he jogs up into the lit doorway to go inside (the enterShop state in update()).
   for(const b of BUILDINGS){ if(b.kind!=='store') continue;
-    const dx=b.doorX-camX; if(dx<-70||dx>W+70) continue;
-    const dw=40;
-    // an OPEN, lit doorway — warm light pouring out onto the stoop
-    inkRect(dx-dw/2,FLOOR_N-58,dw,58,'#2a2018');
-    const ig=ctx.createLinearGradient(0,FLOOR_N-54,0,FLOOR_N);
-    ig.addColorStop(0,'#ffe0a6'); ig.addColorStop(1,'#dd9038');
-    ctx.fillStyle=ig; ctx.fillRect(dx-dw/2+4,FLOOR_N-54,dw-8,54);
-    ctx.fillStyle='rgba(38,22,10,.45)'; ctx.fillRect(dx-3,FLOOR_N-44,6,44);        // a shopper's silhouette inside
-    ctx.fillStyle='#8a7860'; ctx.fillRect(dx-dw/2-3,FLOOR_N-60,3,60); ctx.fillRect(dx+dw/2,FLOOR_N-60,3,60);   // jambs
-    ctx.fillStyle='#5a3a20'; ctx.fillRect(dx-dw/2+1,FLOOR_N-56,4,54);              // the open door leaf, folded back
-    ctx.fillStyle='#3a2a1a'; ctx.fillRect(dx-dw/2,FLOOR_N-58,dw,3);                // lintel
-    const pool=ctx.createRadialGradient(dx,FLOOR_N+2,2,dx,FLOOR_N+2,dw);          // light pool on the sidewalk
-    pool.addColorStop(0,'rgba(255,214,140,.30)'); pool.addColorStop(1,'rgba(255,214,140,0)');
-    ctx.fillStyle=pool; ctx.fillRect(dx-dw,FLOOR_N-8,dw*2,26);
-    // ---- neon OPEN sign hung over the door, flashing (~2s on, ~0.4s off) ----
-    const on=(t%150)<126, ny=FLOOR_N-80;
-    ctx.fillStyle='#2a2230'; ctx.fillRect(dx-1,ny-16,2,8);                         // hanger bracket
-    inkRect(dx-27,ny-11,54,21,'#140a12');
+    const dx=b.doorX-camX; if(dx<-150||dx>W+150) continue;
+    const fx=dx-88, fw=124, top=110;
+    // brick slab + cornice
+    inkRect(fx,top,fw,FLOOR_N-top,'#8a4438');
+    ctx.globalAlpha=.3; ctx.fillStyle=BRICK_PAT; ctx.fillRect(fx,top,fw,FLOOR_N-top); ctx.globalAlpha=1;
+    inkRect(fx-4,top-7,fw+8,9,'#d9c6a8');
+    ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(fx-4,top+2,fw+8,2);
+    // upstairs windows — somebody's home over the shop
+    for(let i=0;i<3;i++){ const ux=fx+12+i*38;
+      inkRect(ux,top+12,26,22,'#241a2e');
+      ctx.fillStyle= i===1?'#ffcf8a':'#3a2c48'; ctx.fillRect(ux+2,top+14,22,18);
+      ctx.fillStyle=INK; ctx.fillRect(ux+12,top+12,1,22); }
+    inkRect(fx,top+42,fw,5,'#5a2c24');                                  // band between floors
+    // striped awning across the storefront
+    const ay=top+50;
+    inkPoly([[fx-2,ay+12],[fx+3,ay],[fx+fw-3,ay],[fx+fw+2,ay+12]], '#ff2e88');
+    for(let i=0;i<Math.floor((fw+4)/9);i++){ const tx=fx-2+i*9;
+      ctx.fillStyle= i%2?'#ff2e88':'rgba(255,255,255,.6)';
+      ctx.beginPath(); ctx.moveTo(tx,ay+12); ctx.lineTo(tx+4.5,ay+17); ctx.lineTo(tx+9,ay+12); ctx.closePath(); ctx.fill(); }
+    // display window left of the door, stocked shelves glowing warm
+    const wx=fx+8, wy=ay+22, ww=(dx-28)-wx, wh=FLOOR_N-4-wy;
+    inkRect(wx,wy,ww,wh,'#241a14');
+    const wg=ctx.createLinearGradient(0,wy,0,wy+wh);
+    wg.addColorStop(0,'#ffe6a8'); wg.addColorStop(1,'#e2963a');
+    ctx.globalAlpha=.9; ctx.fillStyle=wg; ctx.fillRect(wx+3,wy+3,ww-6,wh-6); ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(42,26,12,.55)';
+    for(let r=0;r<2;r++){ const ry=wy+16+r*16;
+      for(let i=0;i<Math.floor((ww-12)/8);i++){ const ph=5+Math.floor(hsh(b.x+r*3+i)*5);
+        ctx.fillRect(wx+7+i*8, ry-ph, 5, ph); }
+      ctx.fillRect(wx+6,ry,ww-12,2); }
+    // neon OPEN in the display window, flashing (~2s on, ~0.4s off)
+    const on=(t%150)<126, nx=wx+ww/2, nyy=wy+Math.round(wh*0.5);
+    inkRect(nx-24,nyy-10,48,19,'#140a12');
     if(on){
-      const glow=ctx.createRadialGradient(dx,ny-1,2,dx,ny-1,46);
+      const glow=ctx.createRadialGradient(nx,nyy,2,nx,nyy,40);
       glow.addColorStop(0,'rgba(255,60,150,.6)'); glow.addColorStop(1,'rgba(255,60,150,0)');
-      ctx.fillStyle=glow; ctx.fillRect(dx-46,ny-28,92,56);
+      ctx.fillStyle=glow; ctx.fillRect(nx-40,nyy-26,80,52);
       ctx.textAlign='center';
-      ctx.font='700 15px '+BEBAS; ctx.fillStyle='#ff7ab8'; ctx.fillText('OPEN',dx,ny+5);
-      ctx.font='700 13px '+BEBAS; ctx.fillStyle='#ffe0f0'; ctx.fillText('OPEN',dx,ny+4.5);
+      ctx.font='700 14px '+BEBAS; ctx.fillStyle='#ff7ab8'; ctx.fillText('OPEN',nx,nyy+5);
+      ctx.font='700 12px '+BEBAS; ctx.fillStyle='#ffe0f0'; ctx.fillText('OPEN',nx,nyy+4.5);
       ctx.textAlign='left';
-    } else { ctx.textAlign='center'; ctx.font='700 13px '+BEBAS; ctx.fillStyle='#40222f'; ctx.fillText('OPEN',dx,ny+4.5); ctx.textAlign='left'; }
-    // door cue when you're in the doorway: walk in when it's quiet, told why when it's not —
+    } else { ctx.textAlign='center'; ctx.font='700 12px '+BEBAS; ctx.fillStyle='#40222f'; ctx.fillText('OPEN',nx,nyy+4.5); ctx.textAlign='left'; }
+    // the OPEN doorway, centred on doorX — recessed, lit, door leaf swung to the jamb
+    const dwid=46;
+    inkRect(dx-dwid/2-3,FLOOR_N-62,dwid+6,62,'#3a221c');
+    const ig=ctx.createLinearGradient(0,FLOOR_N-58,0,FLOOR_N);
+    ig.addColorStop(0,'#ffe0a6'); ig.addColorStop(1,'#dd9038');
+    ctx.fillStyle=ig; ctx.fillRect(dx-dwid/2,FLOOR_N-58,dwid,58);
+    ctx.fillStyle='rgba(38,22,10,.4)'; ctx.fillRect(dx+8,FLOOR_N-44,6,44);        // someone browsing inside
+    ctx.fillStyle='#5a3a20'; ctx.fillRect(dx-dwid/2+1,FLOOR_N-60,5,58);            // the open door leaf
+    ctx.fillStyle='#3a2a1a'; ctx.fillRect(dx-dwid/2-3,FLOOR_N-62,dwid+6,4);        // lintel
+    inkRect(dx-dwid/2+4,FLOOR_N,dwid-8,5,'#7a2f3a');                               // welcome mat
+    const pool=ctx.createRadialGradient(dx,FLOOR_N+4,2,dx,FLOOR_N+4,dwid+8);       // light spilling out
+    pool.addColorStop(0,'rgba(255,214,140,.30)'); pool.addColorStop(1,'rgba(255,214,140,0)');
+    ctx.fillStyle=pool; ctx.fillRect(dx-dwid-8,FLOOR_N-6,dwid*2+16,30);
+    // door cue: you WALK IN when the street's quiet, and the door says why when you can't —
     // a mute door mid-fight reads as broken (say() is a no-op, so this is the only feedback)
-    if(P.atShop===b){
+    if(P.atShop===b && !shopOpen){
       ctx.textAlign='center'; ctx.font='bold 8px "JetBrains Mono",monospace';
       ctx.globalAlpha=.6+.4*Math.sin(t*.12);
       if(ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){
-        ctx.fillStyle='#ff5a6a'; ctx.fillText('CLEAR THE STREET FIRST', dx, ny-14);
+        ctx.fillStyle='#ff5a6a'; ctx.fillText('CLEAR THE STREET FIRST', dx, top-12);
       } else {
-        ctx.fillStyle='#ffd98a'; ctx.fillText(OPT.touch?'▲ WALK IN':'[W] WALK IN', dx, ny-14);
+        ctx.fillStyle='#ffd98a'; ctx.fillText(OPT.touch?'▲ WALK IN':'[W] WALK IN', dx, top-12);
       }
       ctx.globalAlpha=1;
     }
