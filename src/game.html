@@ -727,7 +727,7 @@ const SHOPNAMES=['HARDWARE','BAKERY','FLORIST','CHICKEN','BODEGA','LAUNDRY','REC
 const CLUBHUE=['#6f4e37','#8fbf6f','#ffb37a','#f2a6c4'];
 const STORENAMES=['DEL\'S CORNER','THE PLUG','STOCK UP','CITY GOODS','QUICK MART','THE HOOK-UP','FIVE STAR DELI','NITE OWL SUPPLY'];
 const SHOPHUE=['#d6de5a','#ffcf70','#4dffc0','#5aa8e8'];
-let BUILDINGS=[], CLUBS=[], GRATES=[], GATES=[];
+let BUILDINGS=[], CLUBS=[], GRATES=[], GATES=[], XSTREETS=[];   // XSTREETS: cross-street intersection world-x's (visual only)
 const MADE=new Set();
 let cans=[], ents=[], drops=[], parts=[], floats=[], fires=[];
 let crowd=[], litter=[], steam=[], props=[];
@@ -836,6 +836,9 @@ function genChunk(ci){
       CLUBS=BUILDINGS.filter(q=>q.kind==='club');
     }
   }
+  // a cross-street intersection every third block or so — purely a view down another block of the
+  // neighbourhood (evenly spaced so you actually pass them; deterministic for co-op)
+  if(ci>0 && ci%3===1) XSTREETS.push(x0 + CHUNK*(0.3+R()*0.4));
   for(let i=0;i<3;i++) GRATES.push({x:x0+R()*CHUNK, z:FLOOR_N+32+R()*(FLOOR_S-FLOOR_N-44), open:0, chunk:ci});
   // a few breakables, mixed — not a wall of trash cans. boxes spilled off a truck belong in
   // the street, not the sidewalk, so they get the road's z-range (same band the jaywalking
@@ -923,7 +926,7 @@ function reset(){
   boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0; pendingSpawns=0;
   lives=3; continues=0; night={bosses:0,cash:0,reach:0}; dawnShown=false;   // fresh stage run
   cans=[]; crowd=[]; litter=[]; steam=[]; props=[];
-  BUILDINGS=[]; CLUBS=[]; GRATES=[]; GATES=[]; MADE.clear();
+  BUILDINGS=[]; CLUBS=[]; GRATES=[]; GATES=[]; XSTREETS=[]; MADE.clear();
   S1G=[{x:620,done:false},{x:1240,done:false},{x:1860,done:false}];   // stage 1: a wave per screen, boss on the third
   _credited.clear();
   best=Math.max(best||0, 0);
@@ -1481,7 +1484,9 @@ function beatLandlord(b){
   for(let i=0;i<18;i++) puff(b.x+rnd(-40,40),b.z,rnd(0,60),1,b.pal.glow);
   startDialog([{who:'LANDLORD D. EVICT', col:'#c9d13a',
     text:"I don't give a fuck about none of that. You're still getting evicted."}],
-    ()=>{ chase={ph:'jump',t:0,t2:0,hits:0,boss:b,startX:P.x,alleyX:P.x+CHASE_LEN,obs:[],nextOb:P.x+700,ball:null}; });
+    ()=>{ chase={ph:'jump',t:0,t2:0,hits:0,boss:b,startX:P.x,alleyX:P.x+CHASE_LEN,
+      turnX:P.x+CHASE_LEN*0.42, turned:false, turnSub:null, yaw:0,   // one cross-street corner partway down
+      obs:[],nextOb:P.x+700,ball:null}; });
 }
 
 // the eviction chase, phase by phase: he jumps to the left edge -> Bam is waved to the right ->
@@ -1568,7 +1573,25 @@ function chaseTick(){
       if(c.hits>=3) P.hp=0;                                   // flattened — the death flow takes it from here
       else ball.x=Math.min(ball.x,P.x-300);                   // it rolls past and you scramble back ahead
     }
+    if(!c.turned && P.x>=c.turnX){ c.ph='turn'; c.turnSub='in'; c.t2=0; return; }   // reach the cross-street → turn the corner
     if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX; }   // pull up centred on the gap
+    return;
+  }
+  // the corner turn: Bam runs up into the intersection, the camera whips 90° down the cross-street,
+  // and he comes out running down the next block of the same neighbourhood (the ball reset behind).
+  if(c.ph==='turn'){
+    const ball=c.ball; ball.x=Math.min(ball.x, P.x-240); ball.rot+=0.05;   // ball held back during the cinematic
+    if(c.turnSub==='in'){ c.t2++; P.face=1; P.state='walk'; P.z+=((FLOOR_N+12)-P.z)*0.16;
+      if(c.t2>=22){ c.turnSub='swing'; c.t2=0; blip(300,.08); rumble(360,1,.7,true); }
+      return; }
+    if(c.turnSub==='swing'){ c.t2++;
+      c.yaw=Math.min(1.55, c.t2*0.085);              // whip the camera ~90° down the cross-street
+      if(c.t2>=20){                                  // snap back to side-on, hidden by a flash — now on the new street
+        c.yaw=0; camFlash=Math.max(camFlash,0.55); shake=Math.max(shake,7);
+        P.z=252; P.state='walk'; P.sprinting=true; P.sprintDir=1;
+        ball.x=P.x-430; ball.vx=3.0; c.turned=true;
+        c.ph='run'; c.t2=0; }
+      return; }
     return;
   }
   // 'end': he pulls up at the alley mouth; 'done': the stage-cleared prompt waits for any button.
@@ -3806,7 +3829,11 @@ function render(){
     // exactly 320px right of where the gameplay actually happens.
     // the chase alley is a REAL gap carved into the 3D front row at its x (same -320 centring)
     const alley3d = (chase && (chase.ph==='run'||chase.ph==='end'||chase.ph==='done')) ? (chase.alleyX-320)*0.0805 : null;
-    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt, alley3d);
+    // cross-street intersections near the view, plus (during the chase) the corner you turn down
+    const xs3d = XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4).map(x=>(x-320)*0.0805);
+    if(chase && chase.turnX!=null && !chase.turned) xs3d.push((chase.turnX-320)*0.0805);
+    const yaw3d = (chase && chase.yaw) ? chase.yaw : 0;
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt, alley3d, xs3d, yaw3d);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();
@@ -3849,8 +3876,15 @@ function render(){
   // angle (same 4th arg above), and this rotates the sprite layer about the same screen centre,
   // so feet stay planted on the rolled 3D ground.
   const tl = chaseTilt>0.01 ? chaseTilt : 0;
+  // during the corner-turn swing the 3D camera yaws 90° — the flat sprite layer can't follow, so we
+  // hide it and let motion-streaks cover the whip. On the far side we're on the continued street.
+  const swinging = chase && chase.ph==='turn' && chase.turnSub==='swing';
   if(tl){ ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(tl); ctx.translate(-W/2,-H/2); }
-  for(const o of list) o.f();
+  if(!swinging) for(const o of list) o.f();
+  else { ctx.save(); ctx.globalAlpha=0.5; ctx.strokeStyle='#e8e2d4'; ctx.lineWidth=2;   // horizontal speed-streaks
+    for(let i=0;i<26;i++){ const yy=(i*15+ (t*11)%15); const len=60+((i*53)%120);
+      ctx.beginPath(); ctx.moveTo((t*40+i*90)%(W+200)-100, yy); ctx.lineTo((t*40+i*90)%(W+200)-100+len, yy); ctx.stroke(); }
+    ctx.restore(); }
 
   for(const p of parts){ ctx.globalAlpha=clamp(p.life/20,0,1); ctx.fillStyle=p.col;
     ctx.fillRect(p.x-camX,p.z-p.y,2,2); } ctx.globalAlpha=1;

@@ -487,6 +487,25 @@ if(!err){
     if(e.state==='launch') throw new Error('a healed enemy should re-enter the fight (walk), not stay stuck airborne');
     console.log('        NaN enemy snapped back to solid ground inside the arena');
   });
+  scene('the chase turns a corner: reach the cross-street, swing, resume running on the next block', ()=>{
+    const g=__G(); g.releaseArena(); g.setStage(1); g.setWaves(3); g.setBossDone(0); g.closeDialog();
+    g.P.hp=g.P.maxhp; g.P.x=200; g.P.z=300; g.P.state='idle';
+    let ticks=0; while(!g.boss && ticks++<200){ __tick(1); }
+    g.closeDialog(); g.killBoss(g.boss); g.closeDialog(true);       // beat him → chase starts
+    ticks=0; while(g.chase && g.chase.ph!=='run' && ticks++<800){ __tick(1); }
+    if(!g.chase || g.chase.ph!=='run') throw new Error('chase never reached the run');
+    if(g.chase.turnX==null) throw new Error('the chase has no corner to turn');
+    // jump the player to the corner and let the turn play out
+    g.P.state='walk'; g.P.x=g.chase.turnX+1;
+    ticks=0; let sawTurn=false, maxYaw=0;
+    while(g.chase && !g.chase.turned && ticks++<300){ __tick(1);
+      if(g.chase.ph==='turn'){ sawTurn=true; maxYaw=Math.max(maxYaw, g.chase.yaw||0); } }
+    if(!sawTurn) throw new Error('reaching the cross-street never triggered the corner turn');
+    if(maxYaw<0.5) throw new Error('the camera never actually swung (yaw stayed at '+maxYaw.toFixed(2)+')');
+    if(!g.chase || !g.chase.turned) throw new Error('the turn never completed');
+    if(g.chase.ph!=='run') throw new Error('after the corner it should be running the next block, got '+g.chase.ph);
+    console.log('        reached the corner, camera swung ('+maxYaw.toFixed(2)+' rad), resumed the run');
+  });
   scene('a SHOT kill drops Bam Bucks — same payout as a melee kill', ()=>{
     const g=__G(); g.releaseArena();
     g.P.x=1200; g.P.z=260; g.P.face=1;

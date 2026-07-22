@@ -417,13 +417,13 @@ function buildColumn(band, baseX, seed, fixedW){
     for(let v=0;v<vn;v++){ const vx=baseX+(hash(seed*8+v*3)-0.5)*w*0.7;
       detail(extras, boxGeo, MAT.vent, baseX, 0.8+hash(seed*8+v)*0.9,0.7,0.9, vx,h+0.5,band.z+(hash(seed*8+v+2)-0.5)*band.depth*0.4); }
   }
-  // storefront: glass front + frame + door + mullions + sign + awning
+  // storefront: glass front + frame + mullions + sign + awning. NO door — only the real walk-in
+  // item store (its own rig) has one; a painted door on a shop you can't enter just reads as a lie.
   if(band.store){
     // display window: a lit interior with stocked shelves + a neon word buzzing in the glass.
     // MeshBasicMaterial so it GLOWS against the dusk instead of taking the street light.
     detail(extras, boxGeo, new THREE.MeshBasicMaterial({ map:shopWindowTexture(kind, seed) }), baseX, w*0.86,4.2,0.3, baseX,2.3,front+0.22);
     detail(extras, boxGeo, MAT.metal, baseX, w*0.9,0.5,0.5, baseX,0.35,front+0.25);
-    detail(extras, boxGeo, MAT.dark,  baseX, 1.2,3.0,0.34, baseX+w*0.25,1.7,front+0.27);           // door
     for(let mi=-1;mi<=1;mi++) detail(extras, boxGeo, MAT.metal, baseX, 0.12,4.2,0.33, baseX+mi*w*0.22,2.3,front+0.24);
     // sign band with the shop's NAME painted on it (drops to a roof sign on the one-storey joints)
     const sy=Math.min(6.5, h+0.4);
@@ -673,44 +673,90 @@ function layoutStore(s, c, bw){
 }
 const storePool=[]; for(let i=0;i<3;i++){ const s=buildStoreMesh(); s.visible=false; scene.add(s); storePool.push(s); }
 
-// ---- a real back-alley: a recessed corridor dropped into the front row where the chase ends ----
-// Same trick as the store — hide the ONE front building at the alley's x and fill its slot — but
-// instead of a shopfront it's a gap you see DOWN: two grimy side walls receding back to a dark far
-// wall, a single dim light, a dumpster. Reads as an actual break between buildings, not a decal.
-const ALLEY_H=12, ALLEY_D=8.5;
+// ---- a back-alley: an OPEN path receding between two rows of buildings (no wall in front) ----
+// Hide the front building at the alley's x and drop in a corridor you can see straight DOWN: brick
+// walls step back along both sides, the floor runs to a hazy far end — a path, not a dead-end box.
+const ALLEY_H=12, ALLEY_D=22;
 function buildAlleyMesh(){
   const g=new THREE.Group();
   const brick=brickTexture(); brick.repeat.set(2,4);
-  const wallMat=toonMat({ map:brick, color:'#7a6450', roughness:1 });   // grimier + darker than the lit storefronts
-  const backMat=toonMat({ color:'#241c2e', roughness:1 });
-  const mk=(mat)=>{ const m=new THREE.Mesh(boxGeo, mat); g.add(m);
-    const o=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(o); return {m,o}; };
-  const L=mk(wallMat), R=mk(wallMat), B=mk(backMat);
-  const F=new THREE.Mesh(boxGeo, toonMat({ color:'#161320', roughness:1 })); g.add(F);   // wet-dark asphalt floor
-  // one dim sodium light on the back wall so the recess isn't a flat black hole
-  const glow=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.7), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.92 }));
-  g.add(glow);
-  const bin=new THREE.Mesh(boxGeo, toonMat({ color:'#2f5a3a', roughness:1 }));         // a dumpster down the far end
+  const wallMat=toonMat({ map:brick, color:'#7a6450', roughness:1 });   // grimier than the lit storefronts
+  const F=new THREE.Mesh(boxGeo, toonMat({ color:'#161320', roughness:1 })); g.add(F);   // wet-dark asphalt path
+  // stepped brick walls down BOTH sides (segments receding in z) — reads as a path with depth
+  const wallsL=[], wallsR=[];
+  for(let i=0;i<4;i++){ for(const [side,arr] of [[-1,wallsL],[1,wallsR]]){
+    const m=new THREE.Mesh(boxGeo, wallMat); g.add(m);
+    const o=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(o); arr.push({m,o,side,i}); } }
+  // the far end fades to warm haze (a lit opening) instead of a black wall
+  const far=new THREE.Mesh(new THREE.PlaneGeometry(3,6), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.7 })); g.add(far);
+  const bin=new THREE.Mesh(boxGeo, toonMat({ color:'#2f5a3a', roughness:1 }));         // a dumpster against one wall
   const binOl=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(bin); g.add(binOl);
-  g.position.z=-8.5;   // face on the 1:1 front-row plane, same as the store (children recede in -z)
-  g.userData={L,R,B,F,glow,bin,binOl};
+  g.position.z=-8.5;   // mouth on the front-row plane; children recede in -z
+  g.userData={F,wallsL,wallsR,far,bin,binOl};
   g.visible=false;
   return g;
 }
 function layoutAlley(a, bw){
   const u=a.userData, H=ALLEY_H, D=ALLEY_D, hw=bw/2, wt=0.6;
-  u.L.m.scale.set(wt,H,D);       u.L.m.position.set(-hw+wt/2, H/2, -D/2);
-  u.L.o.scale.set(wt+0.3,H+0.3,D+0.3); u.L.o.position.copy(u.L.m.position);
-  u.R.m.scale.set(wt,H,D);       u.R.m.position.set(hw-wt/2, H/2, -D/2);
-  u.R.o.scale.set(wt+0.3,H+0.3,D+0.3); u.R.o.position.copy(u.R.m.position);
-  u.B.m.scale.set(bw,H,wt);      u.B.m.position.set(0,H/2,-D);
-  u.B.o.scale.set(bw+0.3,H+0.3,wt+0.3); u.B.o.position.copy(u.B.m.position);
-  u.F.scale.set(bw,0.3,D);       u.F.position.set(0,0.15,-D/2);
-  u.glow.position.set(hw*0.3, 5.2, -D+0.3);
-  u.bin.scale.set(2.2,2.0,1.5);  u.bin.position.set(-hw*0.35,1.0,-D+1.3);
-  u.binOl.scale.set(2.6,2.4,1.9); u.binOl.position.copy(u.bin.position);
+  u.F.scale.set(bw,0.3,D); u.F.position.set(0,0.15,-D/2);
+  for(const arr of [u.wallsL,u.wallsR]) for(const w of arr){
+    const seg=D/4, z=-w.i*seg-seg/2, h=H-w.i*1.0;                       // step DOWN a touch with distance
+    w.m.scale.set(wt,h,seg+0.4); w.m.position.set(w.side*(hw-wt/2), h/2, z);
+    w.o.scale.set(wt+0.3,h+0.3,seg+0.7); w.o.position.copy(w.m.position);
+  }
+  u.far.position.set(0,3.0,-D+0.2);
+  u.bin.scale.set(2.0,1.8,1.4); u.bin.position.set(-hw*0.4,0.9,-D*0.45);
+  u.binOl.scale.set(2.4,2.2,1.8); u.binOl.position.copy(u.bin.position);
 }
 const alleyRig=buildAlleyMesh(); scene.add(alleyRig);
+
+// ---- a cross-street intersection: a real perpendicular ROAD that cuts through the sidewalk ----
+// The front row breaks; an asphalt strip with its OWN double-yellow lines runs from the main road
+// straight back between two receding rows of buildings, with a crosswalk where it meets the drag.
+// Reads unmistakably as another street of the same neighbourhood heading off into the sunset haze.
+const XST_W=26;                                    // as wide as the main drag — it's the same kind of street
+function buildCrossStreet(){
+  const g=new THREE.Group();
+  const roadMat=toonMat({ color:'#2b2731', roughness:1 });
+  const yellowMat=toonMat({ color:'#f2c53a', roughness:.7 });
+  const cwMat=toonMat({ color:'#e8e2d4', roughness:.9 });
+  const Zfront=1.6, Zback=-72, midZ=(Zfront+Zback)/2, len=Zfront-Zback, roadW=17;
+  // the perpendicular roadway — a box whose top sits at sidewalk level, so it CUTS THROUGH the
+  // sidewalk (which shows as raised curbs either side) and fills to ground level out the back
+  const road=new THREE.Mesh(boxGeo, roadMat); road.scale.set(roadW,0.66,len); road.position.set(0,0.31,midZ); g.add(road);
+  // double yellow centre lines, running AWAY from us (perpendicular to the main road's lines)
+  for(const sx of [-1.1,1.1]){ const yl=new THREE.Mesh(new THREE.PlaneGeometry(0.45,len-8), yellowMat);
+    yl.rotation.x=-Math.PI/2; yl.position.set(sx,0.665,midZ-1); g.add(yl); }
+  // a crosswalk where the side street meets the main drag
+  for(let i=0;i<4;i++){ const st=new THREE.Mesh(new THREE.PlaneGeometry(roadW*0.82,0.6), cwMat);
+    st.rotation.x=-Math.PI/2; st.position.set(0,0.67, Zfront-0.6-i*1.0); g.add(st); }
+  // BOTH sides of the side street are lined with thin shopfront facades (razor-thin like the main
+  // row, since you look straight down the street and the far side is fully visible too). They tile
+  // back toward the vanishing point, stepping down in height for a receding roofline. The FRONT
+  // pair sits flush with the main row's face (z=-8.5) as the block's corner buildings.
+  const cols=['#c07a54','#c98a5e','#a8694c','#8f5f52','#6f4f66','#57496b','#463f5e','#3a3450'];
+  const bd=1.4;                                  // razor-thin facade, same idiom as the front row
+  for(let i=0;i<8;i++){ const z=(-8.5-bd/2) - i*5.4, h=12.5-i*1.05, w=5.6, lit=i<3;
+    const ftex=facades[i%facades.length].clone(); ftex.needsUpdate=true;
+    ftex.repeat.set(1, Math.max(2,Math.round(h/7)));
+    for(const side of [-1,1]){
+      const bx=side*(roadW/2 + w/2 - 0.2);
+      const m=new THREE.Mesh(boxGeo, toonMat({ map:ftex, color:cols[i], roughness:1, emissive:lit?'#ff8a3a':'#000', emissiveIntensity:lit?0.14:0 }));
+      m.scale.set(w,h,bd); m.position.set(bx,h/2,z); m.castShadow=true; g.add(m);
+      const o=new THREE.Mesh(boxGeo, OUTLINE_MAT); o.scale.set(w+0.25,h+0.25,bd+0.25); o.position.copy(m.position); g.add(o);
+    }
+  }
+  // a low hazy band capping the vanishing point, and a warm glow so the street glows into the sunset
+  const cap=new THREE.Mesh(boxGeo, toonMat({ color:'#5a4a63', roughness:1, emissive:'#ff8a3a', emissiveIntensity:0.15 }));
+  cap.scale.set(roadW+14,8,3); cap.position.set(0,4,Zback+1.5); g.add(cap);
+  const glow=new THREE.Mesh(new THREE.PlaneGeometry(roadW*0.7,7), new THREE.MeshBasicMaterial({ color:0xffb867, transparent:true, opacity:0.6 }));
+  glow.position.set(0,3.4,Zback+2.9); g.add(glow);
+  g.position.set(0,0,0);   // positioned in x only per frame; all z's are world-space
+  g.userData={};
+  g.visible=false;
+  return g;
+}
+const xstreetPool=[]; for(let i=0;i<2;i++){ const s=buildCrossStreet(); scene.add(s); xstreetPool.push(s); }
 let bgTick=0;
 
 // ---- Landlord D. Evict, in the flesh: a cel-shaded 3D boss rig ----
@@ -778,21 +824,27 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState, roll, alleyX){
+  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw){
     scroll=sc; bgTick++;
-    // roll the camera about its view axis (the chase's downhill tilt). Rolling about the view
-    // axis rotates the projected image around the canvas centre — the same pivot the 2D sprite
-    // layer rotates around — so the two layers stay glued.
+    // yaw = the corner-turn swing (the chase whips the camera 90° down a cross-street); roll = the
+    // downhill tilt. Roll is about the view axis so it stays glued to the 2D sprite layer; the yaw
+    // whip deliberately does NOT (sprites are hidden and speed-lines cover it during the swing).
     camera.quaternion.copy(camBaseQ);
+    if(yaw) camera.rotateY(yaw);
     if(roll) camera.rotateZ(roll);
     syncBoss(bossState);
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
     const lit=(bgTick%150)<126;
-    // position the row first (all visible), collecting the front band
-    const fronts=[];
+    // position the row first (restore ALL visible), collecting the front band AND the rows behind it
+    const fronts=[], backs=[];
     for(const b of world){ const sx=b.baseX-scroll; if(sx<-SPAN/2)b.baseX+=SPAN; else if(sx>SPAN/2)b.baseX-=SPAN;
       const nx=b.baseX-scroll; b.mesh.position.x=nx; for(const e of b.extras) e.position.x=nx+(e.userData.ox||0);
-      if(b.band.store){ if(!b.mesh.visible){ b.mesh.visible=true; for(const e of b.extras) e.visible=true; } fronts.push(b); } }
+      if(!b.mesh.visible){ b.mesh.visible=true; for(const e of b.extras) e.visible=true; }
+      (b.band.store ? fronts : backs).push(b); }
+    // an alley/intersection is a GAP you see THROUGH — so the rows BEHIND the front row can't cap it.
+    // Clear every building (back band + skyline) sitting behind an opening's mouth, so the path
+    // recedes to the rig's own far end / the sky instead of running into a wall right behind it.
+    const clearBehind=(gx,hw)=>{ for(const b of backs){ if(Math.abs(b.mesh.position.x-gx)<hw){ b.mesh.visible=false; for(const e of b.extras) e.visible=false; } } };
     // each store REPLACES exactly the one front-row building behind its door: hide that building
     // and mould the store to fill its slot (same centre, same width) — the row stays seamless,
     // no oversized gap. The store's face shares the row's z-plane (see buildStoreMesh).
@@ -818,8 +870,19 @@ function syncBoss(bs){
       for(const b of fronts){ const d=Math.abs(b.mesh.position.x-gx); if(d<bd){bd=d;best=b;} }
       let bw=7;
       if(best && bd<16){ best.mesh.visible=false; for(const e of best.extras) e.visible=false; bw=best.mesh.scale.x+0.4; }
-      layoutAlley(alleyRig, Math.max(4.5, Math.min(bw, 9)));
+      const aw=Math.max(4.5, Math.min(bw, 9));
+      clearBehind(gx, aw/2+3);                      // nothing capping the alley right behind the front row
+      layoutAlley(alleyRig, aw);
     } else alleyRig.visible=false;
+    // cross-street intersections: slot the receding-street rigs at their xs, hiding the front
+    // buildings across the mouth (same trick as the store/alley, just a wider bite)
+    const ixs=(xstreetXs||[]).filter(x=>Math.abs(x-scroll)<SPAN/2).slice(0,xstreetPool.length);
+    for(let i=0;i<xstreetPool.length;i++){ const s=xstreetPool[i];
+      if(i>=ixs.length){ s.visible=false; continue; }
+      const gx=ixs[i]-scroll; s.visible=true; s.position.x=gx;
+      for(const b of fronts){ if(Math.abs(b.mesh.position.x-gx) < XST_W/2+1){ b.mesh.visible=false; for(const e of b.extras) e.visible=false; } }
+      clearBehind(gx, XST_W/2+3);                    // clear the back rows so you see all the way down the cross-street
+    }
     for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN; p.g.position.x=p.baseX-scroll; }
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
       pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
