@@ -81,11 +81,54 @@ def reframe_centered(path, cell_h):
 def pack_one(key, folder, fname, im):
     PREFRAMED[key]=im; add(key, os.path.join(ROOT,folder,fname))
 
+# --- cap-width normalization -------------------------------------------------
+# Some source sheets were drawn at different scales (the kick sheet ~25% smaller,
+# some transition frames larger), so scaling each sheet to a fixed hero height made
+# the character grow/shrink between animations. Instead we measure a rigid feature —
+# the width of the dark cap band across the top of the head — and scale every frame
+# so that cap renders at a constant size. TARGET_CAP≈23 is what the walk cycle already
+# renders at, so the walk is unchanged and the others line up to it. PIL only (no numpy)
+# so the GitHub Pages build, which installs just Pillow, still runs.
+TARGET_CAP=23
+def cap_width(path, band=0.30):
+    im=Image.open(path).convert("RGBA")
+    bb=im.getchannel("A").getbbox()
+    if not bb: return 1
+    x0,y0,x1,y1=bb
+    crop=im.crop((x0,y0,x1,y0+max(1,int((y1-y0)*band))))
+    W,H=crop.size; px=crop.load(); best=1
+    for yy in range(H):
+        c=0
+        for xx in range(W):
+            r,g,b,a=px[xx,yy]
+            if a>120 and r<75 and g<75 and b<75: c+=1
+        if c>best: best=c
+    return best
+
+def reframe_cap(path):
+    im=Image.open(path).convert("RGBA")
+    bb=im.getchannel("A").getbbox()
+    if not bb: return im.resize((S,S),Image.LANCZOS)
+    f=TARGET_CAP/cap_width(path)
+    cx=(bb[0]+bb[2])/2; foot=bb[3]
+    sm=im.resize((max(1,round(im.width*f)),max(1,round(im.height*f))),Image.LANCZOS)
+    cell=Image.new("RGBA",(S,S),(0,0,0,0))
+    cell.paste(sm,(round(S/2-cx*f),round(FOOT-foot*f)),sm)
+    return cell
+
+def pack_frames_cap(prefix, folder, frame_files):
+    for i,fname in enumerate(frame_files):
+        p=os.path.join(ROOT,folder,fname)
+        PREFRAMED[f"{prefix}.{i}"]=reframe_cap(p); add(f"{prefix}.{i}",p)
+
 pack_frames("hero.walk", "BamBamRun",      ["frame0.png","frame1.png","frame2.png","frame3.png"])
 pack_frames("hero.punch","BamBamPunch",    ["frame0.png","frame1.png","frame2.png","frame2.png","frame3.png","frame3.png"])
+pack_frames("hero.punch2","BamBamPunch2",  ["frame0.png","frame1.png","frame2.png","frame2.png","frame3.png","frame3.png"])   # opposite-hand jab — comboKey's fallback when a named sheet isn't packed
 pack_frames("hero.jab",  "BamBamJab",      ["frame0.png","frame1.png","frame2.png","frame2.png","frame3.png","frame3.png"])  # COMBO's jab step (sheet:'jab') — right hand
 pack_frames("hero.jabL", "BamBamJabL",     ["frame0.png","frame0.png","frame1.png","frame1.png","frame2.png","frame2.png"])  # COMBO's jab-2 step (sheet:'jabL') — left hand; only 3 source frames (idle/extend/recover), no dedicated wind-up, so idle doubles as its own wind-up
-pack_frames("hero.jump", "BamBamJump",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
+# jump + kick are cap-normalized so the character stays the same size as the walk
+# (these two sheets were the ones that made him visibly grow).
+pack_frames_cap("hero.jump", "BamBamJump", ["frame0.png","frame1.png","frame2.png","frame3.png"])
 # uppercut: crouch/landing are clean (just the character) so foot-anchor them a
 # touch bigger than the normal 46px hero; the two burst frames fill the cell.
 UC="BamBamUppercut"
@@ -97,7 +140,9 @@ pack_one("hero.uppercut.3", UC, "frame3.png", reframe_solo(os.path.join(ROOT,UC,
 # would flip the "BAM!" lettering backwards. This frame already faces left with correct
 # text, so drawPlayer draws it un-mirrored when facing left instead of the flipped frame2.
 pack_one("hero.uppercutL.2", UC, "frame2_left.png", reframe_centered(os.path.join(ROOT,UC,"frame2_left.png"), 90))
-pack_frames("hero.kick", "BamBamKick",     ["frame1.png","frame2.png","frame2.png","frame3.png"], ref_file="frame3.png")  # frame0 (run start) is grounded, never shown — 'kick' state starts mid-air
+# drop kick: leap → kick extend → tuck (frame2_5, added for smoothness) → recover/land.
+# cap-normalized so he doesn't balloon (this sheet was drawn ~25% smaller at source).
+pack_frames_cap("hero.kick", "BamBamKick", ["frame1.png","frame2.png","frame2_5.png","frame3.png"])
 pack_frames("hero.kickstand", "BamBamKickStand", ["frame1.png","frame2.png","frame3.png","frame3.png"], ref_file="frame0.png")  # grounded front kick — I with feet on the ground (frame0, the ready stance, is only used as the scale reference)
 pack_frames("hero.swag", "BamBamSwag",     ["frame0.png","frame1.png","frame2.png","frame3.png"])
 pack_frames("hero.shoot","BamBamShoot",    ["frame0.png","frame1.png","frame2.png","frame3.png"])  # finger-gun point-and-step cycle, used for punch while FIGHT/SHOOT is in SHOOT mode

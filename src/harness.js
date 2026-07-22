@@ -208,8 +208,8 @@ if(!err){
     const e2=g.vamp(g.P.x+20,g.P.z,false,false,'guard'); g.spawn(e2); const hp0=e2.hp;
     __key('KeyL',true); __tick(1); __key('KeyL',false);
     if(g.P.state!=='imagine') throw new Error('a full meter should trigger the Imagination attack on press');
+    if(g.P.freedom>1) throw new Error('using the attack should drain the meter, left '+g.P.freedom);   // drained on the trigger frame — check before the burst can refill it by killing an enemy
     __tick(3);
-    if(g.P.freedom>1) throw new Error('using the attack should drain the meter, left '+g.P.freedom);
     if(!(e2.hp<hp0)) throw new Error('the Imagination burst should hit nearby enemies');
     __tick(60); __draw();
     console.log('        Freedom Meter filled on kill, drained on use, hit enemies in range');
@@ -258,6 +258,20 @@ if(!err){
     const hp0=e.hp; __tick(30);
     if(!(e.hp<hp0)) throw new Error('drop kick should have connected, enemy hp unchanged at '+e.hp);
     console.log('        jump+kick -> air state (airPunch=false), drop kick connected for '+(hp0-e.hp)+' dmg');
+  });
+  scene('sprint: double-tap a direction to run, attack mid-sprint = drop kick', ()=>{
+    const g=__G(), P=g.P; g.releaseArena();
+    P.x=1200; P.z=300; P.y=0; P.vy=0; P.state='idle'; P.face=1; P.weapon=null; P.iframes=999;
+    P.sprinting=false; P.tapDir=0; P.tapT=-99; P.lastDir=0; g.setCamLock(Math.max(0,P.x-170));
+    const e=g.vamp(P.x+60,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
+    __key('KeyD',true); __tick(2); __key('KeyD',false); __tick(3);   // tap 1
+    __key('KeyD',true); __tick(2);                                    // tap 2 within the window -> sprint
+    if(!P.sprinting) throw new Error('double-tapping D should start a sprint');
+    __key('KeyJ',true); __tick(1); __key('KeyJ',false);               // attack mid-sprint
+    if(P.state!=='air'||P.airPunch!==false) throw new Error('sprint+punch should launch the drop kick, got state='+P.state+' airPunch='+P.airPunch);
+    const hp0=e.hp; __tick(30); __key('KeyD',false);
+    if(!(e.hp<hp0)) throw new Error('the sprint drop kick should have connected, enemy hp unchanged at '+e.hp);
+    console.log('        double-tap -> sprint; sprint+punch -> drop kick, connected for '+(hp0-e.hp)+' dmg');
   });
   scene('standing kick: I with feet on the ground connects without launching', ()=>{
     const g=__G(); g.releaseArena();

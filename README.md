@@ -31,7 +31,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 
 | | Keyboard | Xbox | Touch |
 |---|---|---|---|
-| Move | `WASD` / arrows | Stick / D-pad | Left stick |
+| Move | `WASD` / arrows | Stick / D-pad | D-pad (bottom-left) |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
 | Kick | `I` | **LB** | KICK |
 | Fight / Shoot toggle | `U` | **LT** | SHOOT |
@@ -43,13 +43,15 @@ only place the landscape lock behaves properly, so on a phone, install it.
 Plug in a pad and the touch controls hide themselves. Unplug and they come back.
 
 **Mash punch** — it's a 4-hit string, not one button, and the last hit launches
-enemies into the air. Special attacks come off direction + button:
+enemies into the air. Punches come out as fast as you press them, alternating
+left and right fists. Special attacks come off direction + button:
 
 - **Uppercut** — hold **up** and punch (`W`+`J`). BamBam crouches and launches
   straight up with a rising fist, popping enemies into the air.
+- **Sprint** — **double-tap a direction** (`A` or `D`). BamBam breaks into a run.
 - **Kick** on its own, feet on the ground (`I`) — a mid-range standing front kick.
-- **Drop kick** — **jump, then kick** (`K` then `I`). A feet-first flying kick
-  that drives forward through the crowd.
+- **Drop kick** — **jump, then kick** (`K` then `I`), or **attack mid-sprint**
+  (`J`/`I` while sprinting). A feet-first flying kick that sends enemies flying.
 - **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
 
 **Fight vs. Shoot** — tap `U` (or the SHOOT button) to toggle attack modes. In

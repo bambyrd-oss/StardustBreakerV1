@@ -37,21 +37,25 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
 #touch *{pointer-events:auto}
 #touch.dating{opacity:0}               /* hide the stick/buttons — the note board is the input */
 #touch.dating *{pointer-events:none}   /* and let taps fall through to the board */
-/* left half of the screen is the stick zone; the pad spawns under the thumb */
-#stickzone{position:absolute;left:0;top:0;width:50%;height:100%;pointer-events:auto}
-#stick{position:absolute;width:27vmin;height:27vmin;max-width:158px;max-height:158px;
-  transform:translate(-50%,-50%);display:none;pointer-events:none;
-  border-radius:50%;border:2px solid #2f2b3d;background:rgba(15,13,22,.5);backdrop-filter:blur(3px)}
-#stick.show{display:block}
-#nub{position:absolute;left:50%;top:50%;width:44%;height:44%;margin:-22% 0 0 -22%;border-radius:50%;
-  background:rgba(232,226,212,.32);border:1px solid rgba(232,226,212,.5)}
+/* movement D-pad: a fixed 8-way pad in the bottom-left (digital directions — smoother on touch than analog) */
+#dpad{position:absolute;left:5%;bottom:11%;width:30vmin;height:30vmin;max-width:172px;max-height:172px;
+  border-radius:20%;border:2px solid #2f2b3d;background:rgba(15,13,22,.5);backdrop-filter:blur(3px);
+  pointer-events:auto;touch-action:none}
+#dpad::before,#dpad::after{content:"";position:absolute;left:50%;top:50%;
+  background:rgba(232,226,212,.22);border-radius:7px;transform:translate(-50%,-50%)}   /* the "+" cross graphic */
+#dpad::before{width:28%;height:72%}   /* vertical bar */
+#dpad::after{width:72%;height:28%}    /* horizontal bar */
+#dnub{position:absolute;left:50%;top:50%;width:30%;height:30%;margin:-15% 0 0 -15%;border-radius:30%;
+  background:rgba(232,226,212,.34);border:1px solid rgba(232,226,212,.55);transition:transform .05s linear;
+  pointer-events:none}
 .btn{position:absolute;border-radius:50%;border:2px solid #2f2b3d;background:rgba(15,13,22,.55);
-  backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;touch-action:none;
   font-family:'Bebas Neue',sans-serif;letter-spacing:.08em;color:var(--bone);font-size:3.2vmin}
 .btn:active,.btn.hit{background:rgba(255,46,136,.5);border-color:var(--club);transform:scale(.93)}
-#bA{right:5%;bottom:10%;width:19vmin;height:19vmin;max-width:112px;max-height:112px;font-size:4.4vmin;
+/* JUMP and PUNCH swapped: JUMP now sits in the big bottom-right primary spot, PUNCH inner */
+#bA{right:24%;bottom:20%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
   border-color:#5a2340;background:rgba(60,14,34,.55)}
-#bB{right:24%;bottom:20%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
+#bB{right:5%;bottom:10%;width:19vmin;height:19vmin;max-width:112px;max-height:112px;font-size:4.4vmin;
   border-color:#2c4a6a;background:rgba(12,32,54,.55)}
 #bC{right:6%;bottom:34%;width:13vmin;height:13vmin;max-width:80px;max-height:80px;
   border-color:#5c6320;background:rgba(40,44,12,.55)}
@@ -59,10 +63,10 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
 #bE{right:21%;bottom:37%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
   border-color:#5a2340;background:rgba(60,14,34,.55)}
 #bF{right:4%;top:18%;width:12vmin;height:12vmin;max-width:70px;max-height:70px;font-size:2.4vmin;
-  border-color:#2c5c3a;background:rgba(14,44,26,.6)}   /* FIGHT/SHOOT mode toggle, up top out of the action cluster */
+  border-color:#2c5c3a;background:rgba(14,44,26,.6);touch-action:none}   /* FIGHT/SHOOT mode toggle, up top out of the action cluster */
 #pauseBtn{position:absolute;left:50%;top:2.5%;opacity:0;pointer-events:none;transition:opacity .2s;transform:translateX(-50%);width:34px;height:22px;border-radius:4px;
   border:1px solid #2f2b3d;background:rgba(15,13,22,.6);display:flex;align-items:center;justify-content:center;
-  color:var(--dim);font-size:11px;pointer-events:auto;letter-spacing:.1em}
+  color:var(--dim);font-size:11px;pointer-events:auto;letter-spacing:.1em;touch-action:none}
 /* title mode gate — press start, straight into solo play (no mode choice anymore) */
 #startMenu{position:absolute;left:0;right:0;top:53%;display:none;flex-direction:column;
   align-items:center;gap:1.8vmin;z-index:15;pointer-events:none}
@@ -164,8 +168,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
     <div id="frame">
       <canvas id="c" width="640" height="360"></canvas>
       <div id="touch">
-        <div id="stickzone"></div>
-        <div id="stick"><div id="nub"></div></div>
+        <div id="dpad"><div id="dnub"></div></div>
         <div class="btn" id="bA">PUNCH</div>
         <div class="btn" id="bB">JUMP</div>
         <div class="btn" id="bC">IMAGINE</div>
@@ -208,17 +211,16 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Kick</span><b><kbd>I</kbd></b></div>
             <div class="row"><span>Jump</span><b><kbd>K</kbd></b></div>
             <div class="row"><span>Fight / Shoot <i style="color:#5c5670">(toggle)</i></span><b><kbd>U</kbd></b></div>
-            <div class="row"><span>Drink</span><b><kbd>L</kbd></b></div>
+            <div class="row"><span>Imagine</span><b><kbd>L</kbd></b></div>
             <div class="row"><span>Talk</span><b><kbd>E</kbd></b></div>
             <div class="row"><span>Pause</span><b><kbd>ESC</kbd></b></div>
-            <div class="row"><span style="color:#5c5670;font-size:8px">Uppercut = <kbd>W</kbd>+<kbd>J</kbd> · Standing kick = <kbd>I</kbd> on the ground · Drop kick = <kbd>K</kbd>+<kbd>I</kbd> · Dive punch = <kbd>K</kbd>+<kbd>J</kbd></span></div>
+            <div class="row"><span style="color:#5c5670;font-size:8px">Sprint = double-tap <kbd>A</kbd>/<kbd>D</kbd> · Standing kick = <kbd>I</kbd> on the ground · Drop kick = <kbd>K</kbd>+<kbd>I</kbd> or sprint + <kbd>J</kbd>/<kbd>I</kbd> · Uppercut = <kbd>W</kbd>+<kbd>J</kbd> · Dive punch = <kbd>K</kbd>+<kbd>J</kbd> · Full Freedom bar + <kbd>L</kbd> = Imagination beam</span></div>
             <h2 style="margin-top:12px">XBOX</h2>
             <div class="row"><span>Move</span><b>Stick / D-pad</b></div>
             <div class="row"><span>Punch</span><b style="color:#3a7fd5">X</b> <span style="color:#5c5670">/ RB / RT</span></div>
             <div class="row"><span>Kick</span><b>LB</b></div>
-            <div class="row"><span>Fight / Shoot</span><b>LT</b></div>
             <div class="row"><span>Jump</span><b style="color:#5aa84a">A</b></div>
-            <div class="row"><span>Drink</span><b style="color:#d54a44">B</b></div>
+            <div class="row"><span>Shoot</span><b style="color:#d54a44">B</b></div>
             <div class="row"><span>Talk</span><b style="color:#d5b23a">Y</b></div>
             <div class="row"><span>Pause</span><b>Menu</b></div>
           </div>
@@ -578,32 +580,31 @@ function pollPad(){
 // true while the drink button is physically held down, on whichever input made the last press
 const heldDrink=()=> !!(key.KeyL || T.C || (PAD.now && PAD.now.DRINK));
 
-// virtual stick + buttons
+// virtual D-pad + buttons
 const T={ax:0,az:0, A:false,B:false,C:false,D:false,E:false,F:false, Ap:false,Bp:false,Cp:false,Dp:false,Ep:false,Fp:false};
-let stickId=null, sBase={x:0,y:0,r:60};
-const stick=$('stick'), nub=$('nub'), stickzone=$('stickzone');
-// floating pad: press anywhere in the left half and the stick spawns under your thumb
-stickzone.addEventListener('pointerdown',e=>{
-  if(!OPT.touch)return;
-  e.preventDefault(); stickId=e.pointerId;
-  stick.style.left=e.offsetX+'px'; stick.style.top=e.offsetY+'px';   // frame-local: put the pad under the thumb
-  stick.classList.add('show');
-  const r=stick.getBoundingClientRect(); sBase={x:e.clientX,y:e.clientY,r:r.width/2};
-  moveStick(e);
-});
-// tracked on window, not the pad — your thumb can leave the circle and still steer
-addEventListener('pointermove',e=>{ if(e.pointerId===stickId) moveStick(e); },{passive:false});
-function endStick(e){ if(e.pointerId!==stickId)return; stickId=null; T.ax=T.az=0; nub.style.transform=''; stick.classList.remove('show'); }
-addEventListener('pointerup',endStick); addEventListener('pointercancel',endStick);
-function moveStick(e){
-  // portrait means the whole app is CSS-rotated 90deg — swap the axes back
+// ---- movement D-pad: a fixed 8-way pad. reads the thumb's angle from the pad centre and snaps to one
+// of eight clean directions — far easier to steer on a touchscreen than a free-floating analog stick.
+let padId=null, padC={x:0,y:0,r:60};
+const dpad=$('dpad'), dnub=$('dnub');
+function padCenter(){ const r=dpad.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2, r:r.width/2}; }
+dpad.addEventListener('pointerdown',e=>{ if(!OPT.touch)return; e.preventDefault(); padId=e.pointerId; padC=padCenter(); movePad(e); });
+// tracked on window so your thumb can slide past the pad edge and keep steering
+addEventListener('pointermove',e=>{ if(e.pointerId===padId) movePad(e); },{passive:false});
+function endPad(e){ if(e.pointerId!==padId)return; padId=null; T.ax=T.az=0; dnub.style.transform=''; }
+addEventListener('pointerup',endPad); addEventListener('pointercancel',endPad);
+// screen sector -> game axes. sector 0 = right, going clockwise. screen +x = right, +y = down (= south / toward camera).
+const PAD_AX=[1,1,0,-1,-1,-1,0,1], PAD_AZ=[0,1,1,1,0,-1,-1,-1];
+function movePad(e){
+  // portrait means the whole app is CSS-rotated 90deg — swap the screen delta back into game axes
   const p=document.body.classList.contains('portrait');
-  let dx=e.clientX-sBase.x, dy=e.clientY-sBase.y;
+  let dx=e.clientX-padC.x, dy=e.clientY-padC.y;
   if(p){ const t=dx; dx=dy; dy=-t; }
-  const d=Math.hypot(dx,dy), m=sBase.r*0.62, k=d>m?m/d:1;
-  T.ax=clamp(dx/m,-1,1); T.az=clamp(dy/m,-1,1);
-  if(d<sBase.r*0.16){T.ax=0;T.az=0;}
-  nub.style.transform=`translate(${dx*k}px,${dy*k}px)`;   // dx/dy are already local
+  const d=Math.hypot(dx,dy);
+  if(d < padC.r*0.30){ T.ax=0; T.az=0; dnub.style.transform=''; return; }   // centre deadzone = neutral (no drift)
+  const sect=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;               // nearest of 8 compass points
+  T.ax=PAD_AX[sect]; T.az=PAD_AZ[sect];
+  const k=padC.r*0.42;
+  dnub.style.transform=`translate(${T.ax*k}px,${T.az*k}px)`;                // pop the hub toward the pressed direction
 }
 function bindBtn(id,k){ const el=$(id);
   el.addEventListener('pointerdown',e=>{e.preventDefault(); if(!T[k])T[k+'p']=true; T[k]=true; el.classList.add('hit');});
@@ -828,7 +829,8 @@ const P={};
 function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
-    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:false,shootCd:0,shootT:0,airPunch:false,landHold:0,beamFace:1,
+    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:false,shootCd:0,shootT:0,airPunch:false,punchHand:true,
+    sprinting:false,sprintDir:0,tapDir:0,tapT:-99,lastDir:0,landHold:0,beamFace:1,
     stepV:0,downT:0,knockV:0,weapon:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
@@ -864,11 +866,11 @@ function gainBucks(n){ n=Math.round(n*(1+U.hustle*0.15)); P.bucks+=n; night.cash
 // launches. each sheet is its own 6-frame east-facing animation (0=windup … 5=recover),
 // so the combo actually looks like four different strikes instead of one recolored.
 const COMBO=[
-  {name:'jab',      su:4, act:4, rec:8,  dmg:5,  push:0,   stun:20, y:0,
+  {name:'jab',      su:2, act:3, rec:7,  dmg:5,  push:0,   stun:20, y:0,
    sheet:'jab',      wind:[0,1],   hit:[2,3], back:[4,5],   step:1.4, rum:[60,.30,.55]},
-  {name:'jab 2',    su:3, act:4, rec:8,  dmg:5,  push:0,   stun:20, y:0,
-   // left hand — sheet:'jabL' gives the combo a right(jab)/left(jab 2)/right(cross,
-   // falls back to hero.punch which is right-handed) alternating rhythm
+  {name:'jab 2',    su:2, act:3, rec:7,  dmg:5,  push:0,   stun:20, y:0,
+   // left hand — sheet:'jabL' gives the combo a right(jab)/left(jab 2)/right(cross)
+   // alternating rhythm; timing matches the jab so mashing feels as fast as you press
    sheet:'jabL',     wind:[1],     hit:[2,3], back:[4,5],   step:1.8, rum:[85,.42,.72]},
   {name:'cross',    su:5, act:5, rec:11, dmg:9,  push:0,   stun:26, y:0,
    sheet:'cross',    wind:[0,1],   hit:[2,3], back:[4,5],   step:2.6, rum:[140,.68,.92]},
@@ -887,7 +889,12 @@ function comboKey(s){
   else { a=s.back; pr=(P.st-s.su-s.act)/Math.max(1,s.rec); sheet=s.backSheet||s.sheet; }  // recovery can pull from a different sheet (e.g. snap to jab's stance instead of reversing the swing)
   const idx=a[clamp(Math.floor(pr*a.length),0,a.length-1)];
   const key='hero.'+sheet+'.'+idx;
-  return IDX[key]?key:('hero.punch.'+clamp(idx,0,5));   // fall back to Cross_Punch if the new sheet isn't packed yet
+  if(IDX[key]) return key;                              // a dedicated named sheet (jab/cross/swing) if it's ever packed
+  // otherwise alternate hands on every swing: P.punchHand flips each new punch (see the
+  // swing-start points in update), so successive presses throw right-left-right-left even
+  // when whiffing. falls back to hero.punch if punch2 isn't packed.
+  const hand = (P.punchHand && IDX['hero.punch2.0']) ? 'hero.punch2' : 'hero.punch';
+  return hand+'.'+clamp(idx,0,5);
 }
 const cStep=()=>COMBO[P.step];
 const maxComboStep=()=> P.level<2?1:(P.level<3?2:3);   // XP levels unlock cross (lvl2) then the launching SWING (lvl3)
@@ -1716,6 +1723,17 @@ function update(){
   if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); syncModeBtn(); }   // toggle FIGHT ⇄ SHOOT — relabels PUNCH↔SHOOT + the toggle button
   if(pad&&pad.PAUSE) setPause(true);
 
+  //---- SPRINT: double-tap a horizontal direction to run. works for keys, the gamepad d-pad and the
+  // touch D-pad (lift + re-push counts as a second tap). sprint holds while that direction
+  // is held; releasing or reversing stops it.
+  const sdir = ix>0.5?1 : ix<-0.5?-1 : 0;
+  if(sdir!==0 && P.lastDir===0){                              // rising edge into a direction
+    if(sdir===P.tapDir && t-P.tapT<=15){ P.sprinting=true; P.sprintDir=sdir; puff(P.x,P.z,4,5,'#c9c2ae'); blip(210,.02); }
+    P.tapDir=sdir; P.tapT=t;
+  }
+  if(P.sprinting && (sdir===0 || sdir!==P.sprintDir)) P.sprinting=false;   // released / reversed → stop
+  P.lastDir=sdir;
+
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
   if(P.landHold>0){ /* frozen in the landing pose — see the landHold countdown further down */ }
   else if(P.state==='punch'){
@@ -1750,11 +1768,14 @@ function update(){
         if(Math.abs(b.x-cw.x)<b.rw+13 && Math.abs(b.z-cw.z)<b.rd+9){
           aggro(cw,true); P.hitDone=true; P.connected=true; break; } }
     }
-    if(P.st>=cLen(s)){
+    // as-fast-as-you-press: the moment the strike is out (past startup) a buffered press
+    // throws the next punch — no waiting out the recovery frames. a lone press with nothing
+    // buffered still plays its full swing and settles to idle.
+    if(P.st>=cLen(s) || (P.buf>0 && P.st>s.su)){
       if(P.buf>0 && P.connected && P.step<maxComboStep()){       // chain
-        P.step++; P.st=0; P.buf=0; P.hitDone=false;
-      } else if(P.buf>0 && !P.connected){           // mashing air = repeat the jab
-        P.step=0; P.st=0; P.buf=0; P.hitDone=false;
+        P.step++; P.st=0; P.buf=0; P.hitDone=false; P.punchHand=!P.punchHand;   // next swing = other hand
+      } else if(P.buf>0 && !P.connected){           // mashing air = repeat the jab, still alternating hands
+        P.step=0; P.st=0; P.buf=0; P.hitDone=false; P.punchHand=!P.punchHand;
       } else { P.state='idle'; P.step=0; P.buf=0; }
     }
   }
@@ -1795,14 +1816,16 @@ function update(){
       P.hitDone=true; shake=Math.max(shake,4); }
     if(P.st>=20) P.state='idle';
   }
-  else if(P.state==='air'){                    // JUMP then PUNCH = dive punch, JUMP then KICK = drop kick
+  else if(P.state==='air'){                    // drop kick (jump+KICK or sprint+attack) / dive punch (jump+PUNCH)
     P.st++;
     P.x += P.face*(P.airPunch?2.1:2.9);         // punch dives a bit shorter than the flying kick
-    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:22),z:P.z,rw:P.airPunch?26:32,rd:22};
+    if(!P.hitDone && P.y>6){ const b={x:P.x+P.face*(P.airPunch?18:14),z:P.z,rw:P.airPunch?26:20,rd:P.airPunch?22:15};   // tighter drop-kick box — has to be close to connect
       for(const e of ents){ if(e.dead)continue;
         if(hits(b,e)){ connect(e, P.airPunch
-          ? {name:'dive',dmg:12,push:6.5,stun:34,y:2.2,launch:true,rum:[240,.9,.5]}
-          : {name:'kick',dmg:14,push:8,stun:36,y:2.2,launch:true,rum:[240,.9,.5]}); P.hitDone=true; } } }
+          ? {name:'dive',    dmg:12,push:6.5,stun:34,y:2.2,launch:true,rum:[240,.9,.5]}
+          : {name:'dropkick',dmg:8, push:14, stun:40,y:2.2,launch:true,rum:[260,1,.7]});   // a touch above a jab, sends them flying
+          if(!P.airPunch){ shake=Math.max(shake,6); hitstop=Math.max(hitstop,6); }         // extra impact on the drop kick
+          P.hitDone=true; } } }
   }
   else if(P.state==='caged'){                   // locked in the lawyer's briefcase — MASH PUNCH to break out
     P.y=0; P.vy=0;
@@ -1824,25 +1847,31 @@ function update(){
   else {
     const shooting = P.gunMode && P.shootT>0;   // mid-shot in SHOOT mode → he walks it, doesn't run
     if(ix||iz){ const l=Math.max(1,Math.hypot(ix,iz)); ix/=l; iz/=l;
-      const spd = shooting ? 1.15 : (2.15+U.boots*0.5);   // BOOTS: quicker on your feet — full run unless you're firing
+      const spd = shooting ? 1.15 : (2.15+U.boots*0.5)*(P.sprinting?1.8:1);   // BOOTS: quicker on your feet; SPRINT: faster still; firing = a slow walk
       P.x+=ix*spd; P.z+=iz*spd*0.62;
       if(Math.abs(ix)>0.25 && !shooting) P.face=ix>0?1:-1;   // while firing, hold your aim instead of snapping to movement
+      if(P.sprinting && !shooting && t%6===0) puff(P.x,P.z,3,4,'#c9c2ae');   // kicked-up dust while running
     }
 
     if(P.y===0) P.state=(ix||iz)?'walk':'idle';
-    if(jJump && P.y===0){ P.vy=5.6; P.state='jump'; P.airT=0; P.hitDone=false; blip(400,.03); }
-    if(jDrink && P.y===0){
-      if(P.freedom>=P.maxFreedom){ P.freedom-=100; P.state='imagine'; P.st=0; }
+    // SPRINT ATTACK: while sprinting, PUNCH or KICK becomes the drop kick (exclusive to sprinting)
+    if(P.sprinting && P.y===0 && (jPunch||jKick)){
+      P.face=P.sprintDir||P.face;
+      P.state='air'; P.airPunch=false; P.st=0; P.hitDone=false; P.vy=3.4; P.airT=0; P.sprinting=false; blip(300,.04);
+    }
+    else if(jJump && P.y===0){ P.vy=5.6; P.state='jump'; P.airT=0; P.hitDone=false; blip(400,.03); }
+    if(jDrink && P.y===0 && P.state!=='air'){
+      if(P.freedom>=P.maxFreedom){ P.freedom-=P.maxFreedom; P.state='imagine'; P.st=0; }   // full bar → the plasma-beam Imagination attack
       else { say(P.x,P.z-18,'NOT YET','#5c5670'); blip(90,.02); }
     }
-    if(jKick && P.y===0 && !P.weapon){                     // I with feet on the ground → standing front kick
+    if(jKick && P.y===0 && P.state!=='air' && !P.weapon){  // I with feet on the ground → standing front kick (air = the sprint attack already claimed this press)
       let best=null,bd=70;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       P.state='kick'; P.st=0; P.hitDone=false; blip(360,.03);
     }
-    if(P.gunMode && P.y===0 && !P.weapon){                     // SHOOT mode: HOLD punch to spray finger-gun dots
+    if(P.gunMode && P.y===0 && P.state!=='air' && !P.weapon){  // SHOOT mode: HOLD punch to spray finger-gun dots
       // stationary by default, spammable (short cooldown); you can still walk (slower) while firing.
       if(heldPunch && P.shootCd<=0){
         if(!(ix||iz)){ let best=null,bd=260;                    // standing still → auto-aim the nearest mark; walking → point where you move
@@ -1852,28 +1881,28 @@ function update(){
         P.shootCd=7; P.shootT=10; blip(520,.02);               // 7-tick cadence ≈ fast finger-gun spam
       }
     }
-    else if(jPunch && P.y===0 && wantUp && !P.weapon){        // FIGHT mode — UP + PUNCH → rising uppercut launcher
+    else if(jPunch && P.y===0 && P.state!=='air' && wantUp && !P.weapon){   // FIGHT mode — UP + PUNCH → rising uppercut launcher
       let best=null,bd=80;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       P.state='upper'; P.st=0; P.vy=5.0; P.airT=0; P.hitDone=false; blip(300,.04);
     }
-    else if(jPunch && P.y===0){                                 // FIGHT mode — ground punch → melee combo (or hurl an equipped weapon)
+    else if(jPunch && P.y===0 && P.state!=='air'){              // FIGHT mode — ground punch → melee combo (or hurl an equipped weapon)
       let best=null,bd=70;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       if(P.weapon){ P.state='wthrow'; P.wthrowT=0; P.wcommit=false; }   // armed: read tap (swing) vs hold (throw)
-      else { P.state='punch'; P.step=0; P.st=0; P.buf=0; P.stepV=0; P.hitDone=false; P.connected=false; }
+      else { P.state='punch'; P.step=0; P.st=0; P.buf=0; P.stepV=0; P.hitDone=false; P.connected=false; P.punchHand=!P.punchHand; }   // each new punch = other hand
     }
   }
-  if(P.state==='jump' && (jKick||jPunch) && P.y>8){        // JUMP then KICK → drop kick, JUMP then PUNCH → dive punch
+  if(P.state==='jump' && (jKick||jPunch) && P.y>8){        // JUMP then KICK → drop kick, JUMP then PUNCH → dive punch (sprint+attack also drop kicks)
     P.state='air'; P.airPunch=jKick?false:true; P.st=0; P.hitDone=false; P.vy=Math.min(P.vy,0.5); }
   if(P.y>0||P.vy>0){ P.airT++; P.y+=P.vy; P.vy-=(P.state==='air'?0.44:0.32);
     if(P.y<=0){ P.y=0;P.vy=0;
       // hold on the landing pose for a beat instead of snapping straight to idle — jump/air/upper
-      // all end on a dedicated "just touched down" frame (hero.jump.3, the punch/kick set's last
+      // all end on a dedicated "just touched down" frame (hero.jump.3, the kick set's last
       // frame, hero.uppercut.3) that reads wrong if it's skipped past instantly
       if(P.state==='jump'||P.state==='air'||P.state==='upper'){
         shake=Math.max(shake,3); puff(P.x,P.z,6,7,'#6b6478'); rumble(220,.85,.4,true); P.landHold=12;   // ~0.2s @60fps — just enough to read the touchdown pose
@@ -2911,16 +2940,11 @@ function drawPlayer(){
   shadow(P.x,P.z,16-P.y*0.06);
   let key='hero.rot.east';
   let drawFace=P.face;   // normally P.face; overridden to +1 for the dedicated left-facing (un-mirrored) uppercut frame
-  if(P.state==='walk') key='hero.walk.'+(Math.floor(t*.16)%4);
+  if(P.state==='walk') key='hero.walk.'+(Math.floor(t*(P.sprinting?.30:.16))%4);   // sprint = faster run cycle
   if(P.state==='idle') key='hero.rot.east';
-  // driven off real height/velocity, not elapsed ticks — the old airT/9 formula reached the
-  // landing-crouch frame partway through the arc, well before he was actually near the ground
-  if(P.state==='jump'){
-    if(P.airT<3) key='hero.jump.0';            // push-off, just the launch instant
-    else if(P.vy>0) key='hero.jump.1';         // rising
-    else if(P.y>14) key='hero.jump.2';         // falling, still well off the ground
-    else key='hero.jump.3';                    // about to touch down — crouch only now
-  }
+  // jump frames tied to actual height/velocity (not a fixed timer): 0 push-off, 1 rising,
+  // 2 apex + most of the fall (the tuck holds), 3 landing — only once he's low to the ground.
+  if(P.state==='jump') key='hero.jump.'+(P.airT<4 ? 0 : P.vy>1.6 ? 1 : (P.vy<0 && P.y<12) ? 3 : 2);
   if(P.state==='imagine') key= IDX['hero.shoot.0'] ? 'hero.shoot.'+clamp(Math.floor(P.st/8),0,3) : 'hero.rot.east';   // the plasma beam pours out of the finger gun — hold the point through the blast
   if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // dive punch (reuses the punch set's extend frames)
                           : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // drop kick
@@ -3120,11 +3144,6 @@ function hud(){
   for(let i=0;i<Math.min(lives,8);i++){ ctx.fillStyle='#ff2e88';
     ctx.beginPath(); ctx.arc(LX+30+i*9, VY+2, 3, 0, 7); ctx.fill(); }
   if(lives>8){ ctx.fillStyle='#ff2e88'; ctx.fillText('+'+(lives-8), LX+30+8*9, VY+5); }
-
-  // attack mode — FIGHT (melee) or SHOOT (finger guns)
-  ctx.textAlign='left'; ctx.font='bold 7px "JetBrains Mono",monospace';
-  ctx.fillStyle= P.gunMode?'#ffb545':'#3ad17a';
-  ctx.fillText(P.gunMode?'▶ SHOOT':'▶ FIGHT', LX, VY+16);
 
   ctx.textAlign='right'; ctx.font='9px "JetBrains Mono",monospace'; ctx.fillStyle='#c9d13a';
   ctx.fillText(P.bucks+' BB',W-12,20);

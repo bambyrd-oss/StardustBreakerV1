@@ -13,7 +13,35 @@ the PWA installs ("Add to Home Screen") and mobile touch controls work there.
 **Build locally:** `python3 src/build.py` (packs `art/` into the atlas, inlines everything into
 `index.html`, then runs `node src/harness.js` — the build fails if any scenario fails).
 
-## Latest session — real `git merge` with `samayiat/bambam`
+## Latest session — 3D background in the build + merge with main's parallel line
+
+**The Three.js street background is now part of the real build.** `src/bg3d.js` (the
+cel-shaded 2.5D sunset city — solved camera, road kit, props, pedestrians) + vendored
+`src/three.min.js` are spliced by `build.py` into game.html's single script via marker
+comments. render() composites the 3D layer instead of the procedural bg() whenever real
+WebGL exists; bg3d.js self-disables otherwise (that's what the node harness sees, so the
+procedural path stays tested). Procedural crowd/props still simulate but only draw on the
+fallback path — the 3D scene supplies pedestrians/street furniture.
+
+**Merged origin/main's parallel line** (11 commits: D-pad touch controls, iOS zoom fix,
+sprint, faster punches, punch-hand alternation, cap-width sprite normalization, jump-art
+fixes, Overdrive doc). Collisions resolved by per-mechanic recency of the user's own
+directions:
+- SHOOT stays this branch's FIGHT/SHOOT toggle + hold-to-fire + plasma-beam Imagination
+  (newer than main's spend-Freedom-on-L shoot, which is dropped; its `shoot`/`kickland`
+  states removed).
+- Drop kick fires BOTH ways: jump+kick (this branch) and sprint+attack (main), with
+  main's tighter hitbox/stats. Standing kick (I, grounded) kept. landHold(12) supersedes
+  main's kickland.
+- Touch layer is main's: fixed 8-way D-pad, JUMP/PUNCH swapped positions, touch-action
+  fixes — with the bF FIGHT/SHOOT toggle button restored on top.
+- Kept from main: sprint (double-tap, 1.8x, dust), faster jab timing + as-fast-as-you-press
+  chaining, punchHand alternation fallback (+BamBamPunch2 sheet), cap-normalized jump/kick
+  packing (+BamBamKick/frame2_5), main's jump frame2 crop, harness assertion fix.
+- Grab stays removed (this branch's newer decision).
+New harness scene: sprint double-tap -> sprint+punch drop kick. Full suite green.
+
+## Earlier session — real `git merge` with `samayiat/bambam`
 
 Unlike the earlier content-only port below (no shared git history at the time), this repo and
 `samayiat/bambam` share the same history through the original import commit, so this was a real
