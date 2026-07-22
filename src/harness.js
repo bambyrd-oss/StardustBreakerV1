@@ -86,20 +86,18 @@ const driver = `
    get boss(){return boss}, get camLock(){return camLock},
    get lives(){return lives}, get night(){return night}, get dawnShown(){return dawnShown},
    get continueOn(){return continueOn}, get DAWN_X(){return DAWN_X},
-   get busMob(){return busMob},
    get stageNum(){return stageNum}, get wavesThisStage(){return wavesThisStage},
    get shopOpen(){return shopOpen}, get BOSS_ARCH(){return BOSS_ARCH},
    spawn:(e)=>ents.push(e), clearEnts:()=>{ ents.length=0; },
    setCamLock:(v)=>{ camLock=v; camX=v; }, setBest:(v)=>{ best=v; }, setLives:(v)=>{ lives=v; },
    setWaves:(n)=>{ wavesThisStage=n; }, setStage:(n)=>{ stageNum=n; }, setBossDone:(n)=>{ bossDone=n; },
-   setBusMobAt:(v)=>{ busMobAt=v; },   // deterministic suite: park the once-a-run roll so it can't fire mid-scene
    releaseArena:()=>{ ents.length=0; camLock=null; boss=null; bossDone=0; hitstop=0; fires.length=0; },
    rat,vamp,connect,hurtPlayer,setShop,buy,spawnWave,tier,stream,update,render,aggro,coopApply,coopBroadcastEnts,coopMirrorEnts,
    throwWeapon,drop, get WEAPONS(){return WEAPONS},
    genBoss,spawnBoss,updateBoss,killBoss,hits,atkBox,stageCleared,
    buyContinue,callItNight,continueCost,
    gainFreedom,gainXp,loseHeart,heavyHitAt,maxComboStep,xpToLevel,
-   spawnBusMob,updateBusMob});
+   });
 ;globalThis.__key=(k,v)=>{ if(v&&!key[k]) pressed[k]=true; key[k]=v; };
 ;globalThis.__tick=(n)=>{ for(let i=0;i<n;i++){ update(); } };
 ;globalThis.__draw=()=>render();
@@ -156,8 +154,6 @@ if(!err){
   scene('PRESS START -> play', ()=>{
     __start();
     if(__mode()!=='play') throw new Error('still on title after start');
-    __G().setBusMobAt(Infinity);   // the once-a-run tour-bus roll is real randomness — park it so the
-                                    // rest of this deterministic suite can't have it land mid-scene
     __tick(120);
   });
   scene('walk right 4000 ticks (streaming, gates, waves, AI)', ()=>{
@@ -165,22 +161,6 @@ if(!err){
   });
   scene('chunks streamed + culled', ()=>{
     const g=__G(); if(!g.BUILDINGS.length) throw new Error('no buildings after walking');
-  });
-  scene('tour bus mob (dev button): rolls in, drops a horde, then leaves', ()=>{
-    const g=__G(); g.releaseArena();
-    g.spawnBusMob(true);
-    if(!g.busMob) throw new Error('spawnBusMob did not arm a bus');
-    let ticks=0;
-    while(g.busMob && g.busMob.phase==='arrive' && ticks<200){ g.updateBusMob(); ticks++; }
-    if(!g.busMob || g.busMob.phase!=='stopped') throw new Error('bus never reached its stop, phase='+(g.busMob&&g.busMob.phase));
-    const dropped=g.ents.filter(e=>e.k==='vamp').length;   // all four street-enemy types ride the 'vamp' entity kind — no rats off this bus
-    if(dropped<20) throw new Error('bus mob dropped too few enemies: '+dropped);
-    if(g.ents.some(e=>e.k==='rat')) throw new Error('bus mob spawned a rat — should be street enemies only');
-    console.log('        bus stopped and dropped '+dropped+' enemies');
-    while(g.busMob && ticks<3000){ g.updateBusMob(); ticks++; }
-    if(g.busMob) throw new Error('bus never left after '+ticks+' ticks');
-    console.log('        bus drove off after '+ticks+' ticks total');
-    g.releaseArena();
   });
   scene('mash punch 600 ticks (full combo, connects)', ()=>{
     for(let i=0;i<600;i++){ if(i%7===0) __key('KeyJ',true); else __key('KeyJ',false); __tick(1); }
@@ -200,6 +180,7 @@ if(!err){
   });
   scene('Freedom Meter: fills on kills, and a full meter unleashes the Imagination attack', ()=>{
     const g=__G(); g.releaseArena();
+    g.setStage(1); g.setWaves(0); g.setBossDone(0);   // a prior scene may have banked 2 cleared waves — without this the stage boss spawns the moment the lock clears and hijacks the scene
     g.P.x=1200; g.P.z=300; g.P.state='idle'; g.P.y=0; g.P.vy=0; g.setCamLock(0);
     g.P.freedom=0; const e=g.vamp(g.P.x+18,g.P.z,false,false,'guard'); e.hp=e.maxhp=1; g.spawn(e);
     g.connect(e,{name:'jab',dmg:20,push:0,stun:20,y:0});

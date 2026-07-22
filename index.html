@@ -172,7 +172,6 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><button class="mini" id="d_cash">+100 BB</button></div>
             <div class="row"><button class="mini" id="d_kill">CLEAR WAVE</button><button class="mini" id="d_reset">RESET RUN</button></div>
             <div class="row"><button class="mini" id="d_boss" style="width:100%">BOSS GAUNTLET</button></div>
-            <div class="row"><button class="mini" id="d_busmob" style="width:100%">TOUR BUS MOB</button></div>
             <div class="row" style="justify-content:flex-start"><span style="font-size:8px;color:#5c5670;letter-spacing:.12em">SPAWN BOSS</span></div>
             <div class="row" id="d_bosssel" style="flex-wrap:wrap;gap:4px;justify-content:flex-start"></div>
           </div>
@@ -1026,9 +1025,9 @@ function storeItems(){
 // resolve one ware to its display: name, blurb, price, whether you can buy it, and rank pips.
 function storeInfo(k){
   if(k==='burger'){ const full=P.hp>=P.maxhp;
-    return {n:'FOOD', d:full?'You look fine — already topped off.':'A full meal. Back to full health.',
+    return {n:'HOT PLATE', d:full?'You look fine — already topped off.':'A full plate from the back. All your stars back.',
       pr:burgerCost, can:P.bucks>=burgerCost&&!full, icon:'burger'}; }
-  if(k==='life')  return {n:'EXTRA LIFE', d:'One more shot at the block. You have '+lives+'.',
+  if(k==='life')  return {n:'ONE MORE RUN', d:'Another shot at the block. You have '+lives+'.',
       pr:750, can:P.bucks>=750, icon:'life'};
   if(k==='exit')  return {n:'LEAVE', d:'Head back out to the street.', pr:0, can:true, exit:true, icon:'exit'};
   const u=UPG[k], r=U[k], maxed=r>=u.max, cost=maxed?0:u.cost[r];
@@ -1165,7 +1164,6 @@ $('d_kill').onclick=()=>{ for(const e of ents) if(!e.dead){e.hp=0;e.dead=1;} };
 $('d_reset').onclick=()=>{ reset(); setPause(false); };
 $('d_boss').onclick=()=>{ for(const e of ents) e.dead=Math.max(e.dead,1); camLock=null; boss=null;
   gauntlet=3; gauntletIx=0; setPause(false); forceBoss(); };   // clear the street, then one of each
-$('d_busmob').onclick=()=>{ setPause(false); spawnBusMob(true); };   // force it on demand, bypassing the once-a-run roll
 $('install').onclick=async()=>{
   if(deferredPrompt){ deferredPrompt.prompt(); try{ await deferredPrompt.userChoice; }catch(e){} deferredPrompt=null; return; }
   $('a2hsBody').innerHTML=a2hsText(); $('a2hs').classList.add('on');
@@ -1473,7 +1471,6 @@ function reset(){
 
   ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0;
   boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0; pendingSpawns=0;
-  busMob=null; busMobAt = t + (Math.random()<0.75 ? Math.floor(rnd(1800,5400)) : Infinity);   // ~once a run, not guaranteed
   lives=3; continues=0; night={bosses:0,cash:0,reach:0}; dawnShown=false;   // fresh stage run
   cans=[]; crowd=[]; litter=[]; steam=[]; props=[];
   BUILDINGS=[]; CLUBS=[]; GRATES=[]; GATES=[]; MADE.clear();
@@ -1550,23 +1547,25 @@ const WTHROW_WIND=22;   // wind-up frames once the throw commits
 
 //====================== the between-stage shop ======================
 // every upgrade pulls a lever that already exists. no generic +stat.
+// display names are Stardust Breaker's own — the old FATBACK category names are gone.
+// (internal keys stay stable; only what the player reads changed.)
 const UPG={
-  spirit:{n:'SPIRIT', max:3, cost:[60,140,280],
+  spirit:{n:'STARDUST', max:3, cost:[60,140,280],
     d:'+8% Freedom Meter from every knockdown, each rank. Reach Imagination attacks faster.'},
-  hands:{n:'HANDS', max:3, cost:[40,90,180],  d:'+15% damage on everything, each rank.'},
+  hands:{n:'HAYMAKER', max:3, cost:[40,90,180],  d:'+15% damage on everything, each rank.'},
   shot: {n:'BIG SHOTS', max:3, cost:[60,130,260], d:'Finger-gun shots fly bigger and hit harder, each rank.'},
   rapid:{n:'RAPID FIRE',max:2, cost:[80,180],  d:'Finger guns fire faster — less cooldown between shots.'},
-  body: {n:'BODY',  max:3, cost:[50,110,220], d:'+half a heart of max health, each rank.'},
-  chin: {n:'CHIN',  max:2, cost:[70,150],     d:'Takes a lot more to knock you down.'},
-  hustle:{n:'HUSTLE',max:3, cost:[50,120,240],d:'+15% Bammy Bucks from every drop, each rank.'},
-  flow: {n:'FLOW',  max:2, cost:[80,170],     d:'Faster combo recovery — chain your string sooner.'},
-  insight:{n:'INSIGHT',max:2,cost:[90,190],   d:'+15% XP from every knockdown, each rank.'},
-  boots:{n:'BOOTS', max:2, cost:[70,150],     d:'Move faster — close the gap, press the advantage.'},
-  reach:{n:'REACH', max:2, cost:[80,180],     d:'Longer arms. Your swing catches them sooner and wider.'},
-  knuck:{n:'KNUCKLES',max:2,cost:[90,200],    d:'Brass on the knuckles — crits hit a lot harder.'},
-  hide: {n:'HIDE',  max:3, cost:[60,130,260], d:'Thicker skin. Everything hurts ~12% less, each rank.'},
-  second:{n:'SECOND WIND',max:2,cost:[70,150],d:'Slowly regenerate health when you stay out of a fresh hit.'},
-  pockets:{n:'POCKETS',max:2,cost:[80,170],   d:'Bank an extra full Imagination charge, each rank.'},
+  body: {n:'BACKBONE',  max:3, cost:[50,110,220], d:'+half a star of max health, each rank.'},
+  chin: {n:'STAND TALL',  max:2, cost:[70,150],     d:'Takes a lot more to knock you down.'},
+  hustle:{n:'BAG UP',max:3, cost:[50,120,240],d:'+15% Bammy Bucks from every drop, each rank.'},
+  flow: {n:'RHYTHM',  max:2, cost:[80,170],     d:'Faster combo recovery — chain your string sooner.'},
+  insight:{n:'STREET SMARTS',max:2,cost:[90,190],   d:'+15% XP from every knockdown, each rank.'},
+  boots:{n:'FRESH KICKS', max:2, cost:[70,150],     d:'Move faster — close the gap, press the advantage.'},
+  reach:{n:'WINGSPAN', max:2, cost:[80,180],     d:'Longer arms. Your swing catches them sooner and wider.'},
+  knuck:{n:'STAR KNUCKLES',max:2,cost:[90,200],    d:'Cosmic brass on the knuckles — crits hit a lot harder.'},
+  hide: {n:'THICK SKIN',  max:3, cost:[60,130,260], d:'Everything hurts ~12% less, each rank.'},
+  second:{n:'BOUNCE BACK',max:2,cost:[70,150],d:'Slowly regenerate health when you stay out of a fresh hit.'},
+  pockets:{n:'DREAM BANK',max:2,cost:[80,170],   d:'Bank an extra full Imagination charge, each rank.'},
 };
 let U={spirit:0,hands:0,shot:0,rapid:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0};
 let burgerCost=25;
@@ -1887,79 +1886,7 @@ function spawnWave(T){
   say(P.x,P.z-40,'FIGHT','#ff2e88');
 }
 
-// ---- tour bus mob: a rare street event. a double-decker rolls down the road, stops right
-// in view, and dumps a horde of ~30 out its door. Host-only like every other co-op set piece
-// (the enemies it spawns ride the normal ents channel for free; the bus itself is cosmetic,
-// so it's mirrored separately over 'bus' — same reliable/throttled pattern as coopBroadcastEnts).
-let busMob=null, busMobAt=Infinity;
-function spawnBusMob(force){
-  if(coopGuest()) return;                 // host (or solo) triggers; guest just watches it arrive
-  if(busMob || boss) return;
-  if(!force) busMobAt=Infinity;           // the natural roll is one-shot; the dev button leaves it armed so it can be re-fired
-  const dir=Math.random()<0.5?1:-1;
-  const stopX=camX+W*0.5;
-  busMob={x: dir>0?camX-280:camX+W+280, dir, stopX, lane: dir>0?348:334,
-    phase:'arrive', st:0, total:Math.floor(rnd(24,32))};
-  say(P.x,P.z-50,'TOUR BUS INCOMING','#ffd23a'); blip(220,.06);
-}
-function updateBusMob(){
-  if(coopGuest()){ coopMirrorBus(); return; }
-  const bm=busMob;
-  if(bm){
-    if(bm.phase==='arrive'){
-      bm.x+=bm.dir*10;
-      if((bm.dir>0&&bm.x>=bm.stopX)||(bm.dir<0&&bm.x<=bm.stopX)){
-        bm.x=bm.stopX; bm.phase='stopped'; bm.st=0; bm.stopTicks=90+bm.total*9;
-        shake=Math.max(shake,6); rumble(340,.6,.6,true); say(bm.x,FLOOR_S+8,"THEY'RE HERE",'#ff2e88');
-        for(let i=0;i<bm.total;i++){
-          setTimeout(()=>{ if(paused||busMob!==bm) return;
-            const x=bm.x+rnd(-70,70), z=rnd(FLOOR_N+10,FLOOR_S-6);
-            // straight off the tour bus — all politicians while the other types are art-gated
-            const e=vamp(x,z); e.flash=12; ents.push(e); puff(x,z,20,5,'#6b6478');
-          }, 260+i*140);
-        }
-      }
-    } else if(bm.phase==='stopped'){
-      if(++bm.st>bm.stopTicks) bm.phase='leave';
-    } else if(bm.phase==='leave'){
-      bm.x+=bm.dir*10;
-      if(bm.x<camX-340||bm.x>camX+W+340) busMob=null;
-    }
-  }
-  // always on schedule, active or not — a bus that just left must broadcast its own absence,
-  // not rely on landing exactly on a throttled tick while non-null
-  if(MP && t%3===0) coopBroadcastBus();
-}
-function coopBroadcastBus(){
-  try{ Playroom.myPlayer().setState('bus', busMob?{x:busMob.x,dir:busMob.dir,phase:busMob.phase,lane:busMob.lane}:null, true); }catch(e){}
-}
-function coopMirrorBus(){
-  try{
-    const hp=coopHostPlayer(); const snap=hp&&hp.getState('bus');
-    if(!snap){ busMob=null; return; }
-    if(!busMob) busMob=Object.assign({},snap);
-    else{ busMob.x+=(snap.x-busMob.x)*0.4; busMob.dir=snap.dir; busMob.phase=snap.phase; busMob.lane=snap.lane; }
-  }catch(e){ busMob=null; }
-}
-function drawBusMob(){
-  const bm=busMob; if(!bm) return;
-  const sx=bm.x-camX, by=bm.lane, len=170, h1=34, h2=30;
-  const doorT= bm.phase==='stopped'?clamp(bm.st/20,0,1):(bm.phase==='leave'?clamp(1-bm.st/20,0,1):0);
-  ctx.save();
-  ctx.globalAlpha=.35; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(sx,by+16,len/2,6,0,0,7); ctx.fill(); ctx.globalAlpha=1;
-  ctx.fillStyle='#c9273f'; ctx.fillRect(sx-len/2,by-h1,len,h1);                       // lower deck
-  ctx.fillStyle='#e23a54'; ctx.fillRect(sx-len/2+6,by-h1-h2,len-12,h2);               // upper deck, set back
-  ctx.fillStyle='#7a1626'; ctx.fillRect(sx-len/2,by-6,len,6);                         // skirt
-  ctx.fillStyle='#5aa0c8';
-  for(let i=0;i<6;i++) ctx.fillRect(sx-len/2+10+i*26,by-h1+8,18,14);                  // lower windows
-  for(let i=0;i<6;i++) ctx.fillRect(sx-len/2+12+i*24,by-h1-h2+7,16,14);               // upper windows
-  ctx.fillStyle= doorT>0.4?'#141822':'#0b0a10';
-  ctx.fillRect(sx-len/2+6, by-h1+8, 18+doorT*10, h1-12);                              // door, opens on the stop
-  ctx.fillStyle='#1a1a20'; ctx.beginPath();
-  ctx.arc(sx-len*0.32,by,10,0,7); ctx.arc(sx+len*0.32,by,10,0,7); ctx.fill();          // wheels
-  // "CITY TOURS" lettering removed (flavor text)
-  ctx.restore(); ctx.textAlign='left';
-}
+// (the tour-bus mob street event — a FATBACK leftover — is gone entirely)
 
 //====================== bosses ======================
 // every 250m the street clears and a giant procedural monster rises. three archetypes,
@@ -2586,8 +2513,6 @@ function update(){
   if(wavesThisStage>=2 && bossDone<stageNum && camLock===null && !MP){ bossDone=stageNum; camLock=Math.max(0,P.x-170); spawnBoss(stageNum); }   // no bosses in co-op
   for(const g of GATES) if(!g.done && P.x>g.x && P.x-g.x<140 && camLock===null && !coopGuest() && wavesThisStage<2){   // host (or solo) triggers the wave; the guest mirrors the enemies
     camLock=Math.max(0,g.x-170); spawnWave(tier()); g.done='fight'; }
-  if(!coopGuest() && !busMob && !boss && camLock===null && P.x>600 && t>=busMobAt) spawnBusMob();   // the rare tour-bus horde
-  updateBusMob();
   if(camLock!==null && !OPT.freecam){
     camX+=(camLock-camX)*0.1;
     if(t%20===0 && pendingSpawns===0 && !ents.some(e=>!e.dead)){ const wasBoss=!!boss; camLock=null; boss=null;
@@ -3787,17 +3712,18 @@ function hud(){
     ctx.restore(); ctx.textAlign='left'; }
 
   ctx.font='7px "JetBrains Mono",monospace';
-  // health — 4 hearts, each worth 2 half-heart units. a light hit costs half a heart
-  // (no knockdown), a heavy hit costs a full heart (knockdown) — see heavyHitAt().
-  const nHearts=Math.min(12,Math.ceil(P.maxhp/2));
-  for(let i=0;i<nHearts;i++){
-    const hx=LX+i*13, fill=clamp(P.hp-i*2,0,2);   // 0=empty, 1=half, 2=full
-    ctx.font='11px monospace'; ctx.textAlign='left';
-    ctx.fillStyle='#3a2030'; ctx.fillText('♥',hx,BY+9);
-    if(fill>0){ ctx.save(); ctx.beginPath(); ctx.rect(hx,BY-8,fill>=2?9:4.5,17); ctx.clip();
-      ctx.fillStyle= P.hitFlash>0?'#ff5a5a':'#ff2e88'; ctx.fillText('♥',hx,BY+9); ctx.restore(); }
+  // health — STARDUST: a row of stars, each worth 2 half-star units. a light hit costs half a
+  // star (no knockdown), a heavy hit costs a full star (knockdown) — see heavyHitAt().
+  // (the heart row was FATBACK's; this game's life is made of stardust)
+  const nStars=Math.min(12,Math.ceil(P.maxhp/2));
+  for(let i=0;i<nStars;i++){
+    const hx=LX+5.5+i*13, hy=BY+2, fill=clamp(P.hp-i*2,0,2);   // 0=empty, 1=half, 2=full
+    starShape(hx,hy,5.6,'#241d30');                            // empty socket
+    if(fill>0){ ctx.save(); ctx.beginPath(); ctx.rect(hx-6,hy-7,fill>=2?12:6,14); ctx.clip();
+      starShape(hx,hy,5.6, P.hitFlash>0?'#ffffff':'#ffd54a');  // stardust gold, white on the hit
+      ctx.restore(); }
   }
-  ctx.font='7px "JetBrains Mono",monospace';
+  ctx.font='7px "JetBrains Mono",monospace'; ctx.textAlign='left';
 
   // FREEDOM — Imagination meter
   const DY=BY+14;
@@ -3877,7 +3803,7 @@ function hud(){
 // A warm little corner-store interior: shelves on the back wall, a lit aisle of pedestals you
 // browse left/right, BamBam standing at whichever ware is selected. Everything reads off live
 // state each frame (bucks, ranks, affordability) — there's no cached DOM to keep in sync.
-const ICON_COL={burger:'#ffb545',life:'#ff3a5e',body:'#ff7a9e',second:'#ff5a7e',hands:'#e8e2d4',
+const ICON_COL={burger:'#ffb545',life:'#ffd54a',body:'#ffd54a',second:'#ffb545',hands:'#e8e2d4',
   shot:'#3ad1ff',rapid:'#7ad1ff',spirit:'#ffd54a',pockets:'#c98aff',chin:'#8fa4b0',hustle:'#c9d13a',
   flow:'#5aa8e8',insight:'#8fd6ff',boots:'#c98a5a',reach:'#d6a86a',knuck:'#d9c15a',hide:'#7fd06a',exit:'#c9d13a'};
 function starShape(cx,cy,r,c){ ctx.fillStyle=c; ctx.beginPath();
@@ -3890,14 +3816,13 @@ function shieldShape(cx,cy,s,c){ ctx.fillStyle=c; ctx.beginPath();
   ctx.quadraticCurveTo(cx-s*0.6,cy+s*0.72, cx-s*0.6,cy+s*0.1); ctx.closePath(); ctx.fill(); }
 function storeIcon(k,cx,cy,s,acc){
   const R=(ax,ay,aw,ah,c)=>{ ctx.fillStyle=c; ctx.fillRect(Math.round(cx+ax*s),Math.round(cy+ay*s),Math.max(1,Math.round(aw*s)),Math.max(1,Math.round(ah*s))); };
-  const heart=(hs,c)=>{ ctx.fillStyle=c; ctx.beginPath();
-    ctx.arc(cx-hs*0.4,cy-hs*0.16,hs*0.44,0,7); ctx.arc(cx+hs*0.4,cy-hs*0.16,hs*0.44,0,7);
-    ctx.moveTo(cx-hs*0.82,cy+hs*0.02); ctx.lineTo(cx,cy+hs*0.9); ctx.lineTo(cx+hs*0.82,cy+hs*0.02); ctx.closePath(); ctx.fill(); };
+  // health is STARDUST here — the health-adjacent icons are stars, not FATBACK hearts
   switch(k){
     case 'burger': R(-.7,-.5,1.4,.34,'#ffcf70'); R(-.7,-.16,1.4,.24,'#8a4a22'); R(-.7,.06,1.4,.14,'#7fd06a'); R(-.7,.18,1.4,.34,'#ffb545'); break;
-    case 'life': heart(s,'#ff3a5e'); break;
-    case 'body': heart(s,'#ff3a5e'); ctx.fillStyle='#fff'; R(-.12,-.32,.24,.64,'#fff'); R(-.34,-.1,.68,.22,'#fff'); break;
-    case 'second': heart(s,'#ff5a7e'); ctx.strokeStyle='#fff'; ctx.lineWidth=1.4; ctx.beginPath();
+    case 'life': starShape(cx,cy,s,'#ffd54a'); ctx.fillStyle='#1a1220'; ctx.font='700 '+Math.round(s*0.9)+'px '+BEBAS;
+      ctx.textAlign='center'; ctx.fillText('+1', cx, cy+s*0.32); break;
+    case 'body': starShape(cx,cy,s,'#ffd54a'); ctx.fillStyle='#fff'; R(-.12,-.32,.24,.64,'#fff'); R(-.34,-.1,.68,.22,'#fff'); break;
+    case 'second': starShape(cx,cy,s,'#ffb545'); ctx.strokeStyle='#fff'; ctx.lineWidth=1.4; ctx.beginPath();
       ctx.moveTo(cx-s*.68,cy); ctx.lineTo(cx-s*.28,cy); ctx.lineTo(cx-s*.08,cy-s*.4); ctx.lineTo(cx+s*.12,cy+s*.4); ctx.lineTo(cx+s*.32,cy); ctx.lineTo(cx+s*.68,cy); ctx.stroke(); break;
     case 'hands': R(-.5,-.46,.72,.34,'#ffe0b8'); R(-.5,-.16,.72,.66,'#e8c9a0'); R(.22,-.04,.32,.5,'#e8c9a0'); break;
     case 'shot': ctx.globalAlpha=.35; ctx.fillStyle=acc; ctx.beginPath(); ctx.arc(cx,cy,s*1.0,0,7); ctx.fill(); ctx.globalAlpha=1;
@@ -4163,7 +4088,6 @@ function render(){
   drawPlasmaBeam();
   drawStrikeWarning();
   drawLitter();
-  drawBusMob();
   // locked-fight edge tells: a pulsing chevron at the screen edge for every live enemy still
   // outside the view (walking in, or knocked out of it) — the wave counter never points at a ghost
   if(camLock!==null){

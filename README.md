@@ -62,8 +62,8 @@ Freedom Meter) is the finger gun's ultimate: a huge plasma beam straight ahead.
 
 ## The design
 
-**Health** is a 4-heart bar. Attacks take either half a heart or a full heart
-depending on how hard they land.
+**Health is stardust** — a row of gold stars. Attacks take either half a star
+or a full star depending on how hard they land.
 
 **The Freedom Meter** is BamBam's imagination. It fills as you clear out
 enemies who've lost theirs to greed and control, and spending it unleashes a
@@ -74,13 +74,14 @@ long range, hits everything in its path, can turn a fight around.
 stronger attacks, movement abilities, and stat increases as you level up.
 Bammy Bucks are earned from enemies and spent at the **item store** — a
 storefront on the block with a flashing neon **OPEN** sign and a lit doorway.
-Walk into the door and you're inside, browsing the shelves in-world: **FOOD**
-(heal), an **EXTRA LIFE**, and a wall of permanent upgrades — **BIG SHOTS** and
-**RAPID FIRE** for the finger guns, **BODY** (more health), **HANDS** (more
-damage), **SPIRIT**/**POCKETS** (more Freedom / imagination charges), plus
-speed, crit, hustle, and toughness. Browse left/right, a face button buys, jump
-walks you back out. It also opens automatically between stages when you clear a
-boss.
+Walk into the door and you're inside, browsing the shelves in-world: a **HOT
+PLATE** (heal), **ONE MORE RUN** (extra life), and a wall of permanent
+upgrades — **BIG SHOTS** and **RAPID FIRE** for the finger guns, **BACKBONE**
+(more stars), **HAYMAKER** (more damage), **STARDUST**/**DREAM BANK** (more
+Freedom / imagination charges), plus **FRESH KICKS**, **STAR KNUCKLES**,
+**BAG UP**, **THICK SKIN** and more. Browse left/right, a face button buys,
+jump walks you back out. It also opens automatically between stages when you
+clear a boss.
 
 Each level is two enemy waves — the screen locks until every enemy is down —
 followed by a boss fight with its own moves and a weakness to find.
