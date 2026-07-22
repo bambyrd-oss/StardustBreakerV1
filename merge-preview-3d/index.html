@@ -73,9 +73,9 @@ const HORIZON = new THREE.Color('#ff9e5a');       // warm haze the distant build
 scene.fog = new THREE.Fog(HORIZON, 58, 195);
 
 // ---- camera: side-on, slight downward tilt, pulled back so the street + skyline + sky all read ----
-const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 400);
-camera.position.set(0, 9, 33);
-camera.lookAt(0, 8, -40);
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 400);
+camera.position.set(0, 13, 24);
+camera.lookAt(0, 3, -20);
 
 // ---- golden-hour light: low warm sun + cool sky fill = saturated, contrasty colour ----
 scene.add(new THREE.HemisphereLight(0xffc98a, 0x59406a, 1.15));   // warm sky, cool violet ground bounce
@@ -310,18 +310,6 @@ function buildColumn(band, baseX, seed){
     const vn=hash(seed*8)>0.5?2:1;
     for(let v=0;v<vn;v++){ const vx=baseX+(hash(seed*8+v*3)-0.5)*w*0.7;
       detail(extras, boxGeo, MAT.vent, baseX, 0.8+hash(seed*8+v)*0.9,0.7,0.9, vx,h+0.5,band.z+(hash(seed*8+v+2)-0.5)*band.depth*0.4); }
-    // fire escape on ~30% of the near facades — airy wrought-iron, not a solid slab
-    if(band.z>-24 && hash(seed*6+1)>0.66){
-      const fw=Math.min(w*0.42,2.6), fx=baseX+(hash(seed*6+2)-0.5)*w*0.3, levels=Math.min(4,Math.max(2,Math.floor(h/4)));
-      for(let L=1;L<=levels;L++){ const py=L*3.0;
-        detail(extras, boxGeo, MAT.fesc, baseX, fw,0.1,0.8, fx,py,front+0.35);              // thin walk platform
-        detail(extras, boxGeo, MAT.fesc, baseX, fw,0.06,0.06, fx,py+0.78,front+0.7);        // top rail only — open gap below = see-through
-        detail(extras, boxGeo, MAT.fesc, baseX, 0.05,0.78,0.05, fx,py+0.4,front+0.7);       // one centre baluster
-        if(L<levels) detail(extras, boxGeo, MAT.fesc, baseX, 0.05,3.2,0.05, fx+fw*0.28,py+1.5,front+0.5).rotation.z=0.5;  // diagonal ladder up
-      }
-      detail(extras, boxGeo, MAT.fesc, baseX, 0.06,levels*3.0,0.06, fx-fw/2,levels*1.5,front+0.7);   // side stringers
-      detail(extras, boxGeo, MAT.fesc, baseX, 0.06,levels*3.0,0.06, fx+fw/2,levels*1.5,front+0.7);
-    }
   }
   // storefront: glass front + frame + door + mullions + sign + awning
   if(band.store){
