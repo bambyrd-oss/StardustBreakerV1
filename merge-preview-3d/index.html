@@ -182,8 +182,9 @@ curb.position.set(0,0.31,1.25); curb.receiveShadow=true; curb.castShadow=true; s
 
 // ---- scrolling road dressing: crosswalks + manhole/patch decals, recycled like the buildings ----
 function crosswalkTexture(){
-  const c=document.createElement('canvas'); c.width=128;c.height=32; const x=c.getContext('2d');
-  x.clearRect(0,0,128,32); x.fillStyle='#e7e2d4'; for(let i=0;i<8;i++) x.fillRect(4+i*16,2,9,28);
+  // ladder-rung zebra: each bar long ALONG the road (U/X), stacked in the crossing direction (V/Z)
+  const c=document.createElement('canvas'); c.width=32;c.height=128; const x=c.getContext('2d');
+  x.clearRect(0,0,32,128); x.fillStyle='#e7e2d4'; for(let i=0;i<8;i++) x.fillRect(2,4+i*16,28,9);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
 }
 const cwTex=crosswalkTexture();
