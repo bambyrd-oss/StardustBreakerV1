@@ -33,6 +33,17 @@ def main():
 
     if '__ATLAS__' not in tpl or '__INDEX__' not in tpl or '__TITLE__' not in tpl:
         sys.exit('src/game.html is missing the __ATLAS__ / __INDEX__ / __TITLE__ placeholders')
+    if '__BUILD__' not in tpl:
+        sys.exit('src/game.html is missing the __BUILD__ placeholder (shown in the pause menu)')
+
+    # monotonic build counter, stamped into the pause menu so a phone's cached build is
+    # always tellable apart from the latest deploy ("latest is #N — what does yours say?")
+    vfile = os.path.join(SRC, 'version.txt')
+    try:
+        build_n = int(open(vfile).read().strip()) + 1
+    except Exception:
+        build_n = 1
+    open(vfile, 'w').write(str(build_n))
 
     # splice the vendored Three.js + the 3D background module into the single game
     # script (see the marker comments in game.html — one <script> tag, harness-safe)
@@ -54,7 +65,8 @@ def main():
         tpl = tpl.replace('titleImg.src="data:image/png;base64,"+TITLE_B64;',
                           'titleImg.src="src/title.png";')
 
-    out = tpl.replace('__ATLAS__', atlas).replace('__INDEX__', idx).replace('__TITLE__', title)
+    out = (tpl.replace('__ATLAS__', atlas).replace('__INDEX__', idx).replace('__TITLE__', title)
+              .replace('__BUILD__', str(build_n)))
     dst = os.path.join(ROOT, 'index.html')
     open(dst, 'w').write(out)
 
