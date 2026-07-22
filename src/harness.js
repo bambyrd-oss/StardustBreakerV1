@@ -423,6 +423,24 @@ if(!err){
     if(!g.dawnShown) throw new Error('clearing stage 3 should end the run on the win recap');
     console.log('        2 waves -> named boss -> shop -> next stage; stage 3 wins the run');
   });
+  scene('wave enemies spawn INSIDE the locked arena (not off-screen / not a far club)', ()=>{
+    // regression: waves used to spawn at arbitrary club doors, which could land behind the lock
+    // line or clean off-screen — invisible, or culled by stream() the instant they appeared, so the
+    // screen locked with no reachable enemies. Every wave member must now land within the arena.
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=300;
+    g.setCamLock(995);                 // lock like the gate at 1165 (camLock = 1165-170); arena = [995, 1635]
+    g.stream();                        // populate clubs/buildings around the lock
+    g.spawnWave(0);                    // setTimeout is synchronous in the harness → enemies spawn inline
+    const W=640, aL=g.camLock, aR=aL+W;
+    const foes=g.ents.filter(e=>e.k==='vamp');
+    if(!foes.length) throw new Error('spawnWave produced no enemies');
+    for(const e of foes){
+      if(e.x < aL-64 || e.x > aR+64)
+        throw new Error('wave enemy spawned outside the locked arena at x='+Math.round(e.x)+' (arena '+aL+'..'+aR+')');
+    }
+    console.log('        '+foes.length+' wave enemies, all inside the locked arena');
+  });
   scene('boss hurtbox reaches ≥25px past its side (easier to hit)', ()=>{
     const g=__G(); g.clearEnts();
     g.spawnBoss(1,'landlord'); const b=g.boss;
