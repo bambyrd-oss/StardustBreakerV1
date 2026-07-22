@@ -171,6 +171,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><button class="mini" id="d_freedom">FULL FREEDOM</button><button class="mini" id="d_xp">+50 XP</button></div>
             <div class="row"><button class="mini" id="d_cash">+100 BB</button></div>
             <div class="row"><button class="mini" id="d_kill">CLEAR WAVE</button><button class="mini" id="d_reset">RESET RUN</button></div>
+            <div class="row"><button class="mini" id="d_chase" style="width:100%">CHASE RUN (NO BALL)</button></div>
             <div class="row"><button class="mini" id="d_boss" style="width:100%">BOSS GAUNTLET</button></div>
             <div class="row" style="justify-content:flex-start"><span style="font-size:8px;color:#5c5670;letter-spacing:.12em">SPAWN BOSS</span></div>
             <div class="row" id="d_bosssel" style="flex-wrap:wrap;gap:4px;justify-content:flex-start"></div>
@@ -607,6 +608,17 @@ $('d_kill').onclick=()=>{ for(const e of ents) if(!e.dead){e.hp=0;e.dead=1;} };
 $('d_reset').onclick=()=>{ reset(); setPause(false); };
 $('d_boss').onclick=()=>{ for(const e of ents) e.dead=Math.max(e.dead,1); camLock=null; boss=null;
   gauntlet=3; gauntletIx=0; setPause(false); forceBoss(); };   // clear the street, then one of each
+$('d_chase').onclick=()=>{                                     // TEST: drop straight into the eviction run, ball parked off-screen
+  if(MP) return;
+  for(const e of ents) e.dead=Math.max(e.dead,1); camLock=null; boss=null; dlg=null;
+  P.hp=P.maxhp; P.state='walk'; P.z=252; P.face=1; P.sprinting=true; P.sprintDir=1;
+  const want=P.x+2600; let tx=want,bd=1e9;
+  for(const x of XSTREETS){ if(x>P.x+900 && Math.abs(x-want)<bd){ bd=Math.abs(x-want); tx=x; } }
+  chase={ph:'run',t:0,t2:0,hits:0,boss:null,startX:P.x,alleyX:P.x+CHASE_LEN,
+    turnX:tx, turned:false, turnSub:null, yaw:0,
+    obs:[], nextOb:P.x+500, ball:{x:-1e9,vx:0,rot:0,gone:true}};   // gone:true → never drawn, never catches
+  setPause(false);
+};
 $('install').onclick=async()=>{
   if(deferredPrompt){ deferredPrompt.prompt(); try{ await deferredPrompt.userChoice; }catch(e){} deferredPrompt=null; return; }
   $('a2hsBody').innerHTML=a2hsText(); $('a2hs').classList.add('on');
@@ -1484,8 +1496,10 @@ function beatLandlord(b){
   for(let i=0;i<18;i++) puff(b.x+rnd(-40,40),b.z,rnd(0,60),1,b.pal.glow);
   startDialog([{who:'LANDLORD D. EVICT', col:'#c9d13a',
     text:"I don't give a fuck about none of that. You're still getting evicted."}],
-    ()=>{ chase={ph:'jump',t:0,t2:0,hits:0,boss:b,startX:P.x,alleyX:P.x+CHASE_LEN,
-      turnX:P.x+CHASE_LEN*0.42, turned:false, turnSub:null, yaw:0,   // one cross-street corner partway down
+    ()=>{ const want=P.x+CHASE_LEN*0.45; let tx=want, bd=1e9;   // turn at a REAL generated intersection near the midpoint
+      for(const x of XSTREETS){ if(x>P.x+1800 && Math.abs(x-want)<bd){ bd=Math.abs(x-want); tx=x; } }
+      chase={ph:'jump',t:0,t2:0,hits:0,boss:b,startX:P.x,alleyX:P.x+CHASE_LEN,
+      turnX:tx, turned:false, turnSub:null, yaw:0,
       obs:[],nextOb:P.x+700,ball:null}; });
 }
 
@@ -1573,23 +1587,32 @@ function chaseTick(){
       if(c.hits>=3) P.hp=0;                                   // flattened — the death flow takes it from here
       else ball.x=Math.min(ball.x,P.x-300);                   // it rolls past and you scramble back ahead
     }
-    if(!c.turned && P.x>=c.turnX){ c.ph='turn'; c.turnSub='in'; c.t2=0; return; }   // reach the cross-street → turn the corner
+    if(!c.turned && P.x>=c.turnX-40){ c.ph='turn'; c.turnSub='in'; c.t2=0; c.obs.length=0; return; }   // reach the cross-street → turn the corner
     if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX; }   // pull up centred on the gap
     return;
   }
-  // the corner turn: Bam runs up into the intersection, the camera whips 90° down the cross-street,
-  // and he comes out running down the next block of the same neighbourhood (the ball reset behind).
+  // THE CORNER TURN — a cinematic, not a whip. Bam reaches the cross-street and FREEZES at the
+  // mouth (dead centre); the camera holds a beat, then slowly ORBITS ~90° around him to look
+  // straight down the side street — the real 3D perspective skews and pinches the facades toward
+  // the vanishing point on its own. At the far end of the swing it's a fresh side-on view of the
+  // next block (a warp to more of the same generated street) and he takes off running again.
   if(c.ph==='turn'){
-    const ball=c.ball; ball.x=Math.min(ball.x, P.x-240); ball.rot+=0.05;   // ball held back during the cinematic
-    if(c.turnSub==='in'){ c.t2++; P.face=1; P.state='walk'; P.z+=((FLOOR_N+12)-P.z)*0.16;
-      if(c.t2>=22){ c.turnSub='swing'; c.t2=0; blip(300,.08); rumble(360,1,.7,true); }
+    const ball=c.ball; ball.x=Math.min(ball.x, P.x-300); ball.rot+=0.02;   // ball parked off-screen for the cinematic
+    if(c.turnSub==='in'){ c.t2++; P.face=1; P.state='walk';
+      const dx=c.turnX-P.x;
+      if(Math.abs(dx)>3){ P.x+=clamp(dx,-3.2,3.2); }                       // jog the last few px to the mouth
+      else { P.x=c.turnX; c.turnSub='hold'; c.t2=0; c.freezeCamX=Math.max(0,P.x-W/2); P.state='idle'; blip(320,.06); }
       return; }
-    if(c.turnSub==='swing'){ c.t2++;
-      c.yaw=Math.min(1.55, c.t2*0.085);              // whip the camera ~90° down the cross-street
-      if(c.t2>=20){                                  // snap back to side-on, hidden by a flash — now on the new street
-        c.yaw=0; camFlash=Math.max(camFlash,0.55); shake=Math.max(shake,7);
+    if(c.turnSub==='hold'){ c.t2++; camX=c.freezeCamX; P.state='idle'; P.face=1; P.sprinting=false;
+      if(c.t2>=20){ c.turnSub='swing'; c.t2=0; rumble(380,1,.7,true); blip(260,.07); }   // a breath, then the camera goes
+      return; }
+    if(c.turnSub==='swing'){ c.t2++; camX=c.freezeCamX; P.state='idle'; P.sprinting=false;
+      const SW=84, p=Math.min(1,c.t2/SW);
+      c.yaw = (p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2) * 1.48;             // ease-in-out orbit to ~85°
+      if(c.t2>=SW){                                  // landed looking down the new street — warp to side-on and run
+        c.yaw=0; camFlash=Math.max(camFlash,0.6); shake=Math.max(shake,7); rumble(520,1,.8,true);
         P.z=252; P.state='walk'; P.sprinting=true; P.sprintDir=1;
-        ball.x=P.x-430; ball.vx=3.0; c.turned=true;
+        ball.x=P.x-460; ball.vx=3.0; c.turned=true;
         c.ph='run'; c.t2=0; }
       return; }
     return;
@@ -2176,7 +2199,9 @@ function update(){
       for(const g of GATES.concat(S1G)) if(g.done==='fight' || g.x<P.x-40) g.done=true;   // retire this fight + anything already behind you, so nothing yanks you back
       if(wasBoss) stageCleared(); else { wavesThisStage++; say(P.x,P.z-40,'GO →','#c9d13a'); }
       if(gauntlet>0){ gauntlet--; if(gauntlet>0) forceBoss(); else say(P.x,P.z-58,'GAUNTLET CLEARED','#c9d13a'); } }
-  } else { camX+=((P.x-W*0.42)-camX)*0.09; camX=Math.max(0,camX); }
+  } else if(!(chase && chase.ph==='turn' && (chase.turnSub==='hold'||chase.turnSub==='swing'))){
+    camX+=((P.x-W*0.42)-camX)*0.09; camX=Math.max(0,camX);   // frozen while the camera orbits the corner
+  }
 
   //---- enemies
   if(coopGuest()){ coopMirrorEnts(); coopGuestCombat(); }   // guest: mirror the host's enemies + take their hits
@@ -3876,15 +3901,13 @@ function render(){
   // angle (same 4th arg above), and this rotates the sprite layer about the same screen centre,
   // so feet stay planted on the rolled 3D ground.
   const tl = chaseTilt>0.01 ? chaseTilt : 0;
-  // during the corner-turn swing the 3D camera yaws 90° — the flat sprite layer can't follow, so we
-  // hide it and let motion-streaks cover the whip. On the far side we're on the continued street.
-  const swinging = chase && chase.ph==='turn' && chase.turnSub==='swing';
+  // during the corner orbit the camera swings around Bam, who is FROZEN at screen centre (the pivot):
+  // draw only him and let the 3D scene do the perspective turn around him. Everything else (the ball,
+  // obstacles) is a flat 2D layer that can't orbit, so it's held off until we're side-on again.
+  const orbiting = chase && chase.ph==='turn' && (chase.turnSub==='hold'||chase.turnSub==='swing');
   if(tl){ ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(tl); ctx.translate(-W/2,-H/2); }
-  if(!swinging) for(const o of list) o.f();
-  else { ctx.save(); ctx.globalAlpha=0.5; ctx.strokeStyle='#e8e2d4'; ctx.lineWidth=2;   // horizontal speed-streaks
-    for(let i=0;i<26;i++){ const yy=(i*15+ (t*11)%15); const len=60+((i*53)%120);
-      ctx.beginPath(); ctx.moveTo((t*40+i*90)%(W+200)-100, yy); ctx.lineTo((t*40+i*90)%(W+200)-100+len, yy); ctx.stroke(); }
-    ctx.restore(); }
+  if(!orbiting) for(const o of list) o.f();
+  else drawPlayer();   // just Bam, planted at the corner, as the street turns around him
 
   for(const p of parts){ ctx.globalAlpha=clamp(p.life/20,0,1); ctx.fillStyle=p.col;
     ctx.fillRect(p.x-camX,p.z-p.y,2,2); } ctx.globalAlpha=1;

@@ -411,7 +411,9 @@ if(!err){
     const hp0=g.P.hp; g.chase.ball.x=g.P.x-4; __tick(1);
     if(g.P.hp!==hp0-1) throw new Error('a ball catch should cost a whole heart, hp '+hp0+'->'+g.P.hp);
     if(g.chase.hits!==1) throw new Error('catch count should be 1, got '+g.chase.hits);
-    // fast-forward to the alley at the end of the run — the placeholder card waits for any button
+    // fast-forward to the alley at the end of the run — the placeholder card waits for any button.
+    // (the mid-run corner turn has its own scene; mark it done here so the teleport isn't hijacked)
+    g.chase.turned=true;
     g.P.state='idle'; g.P.downT=0; g.P.y=0; g.P.iframes=0; g.P.x=g.chase.alleyX+2;
     ticks=0; while(g.chase && g.chase.ph!=='done' && ticks++<400){ __tick(1); }
     if(!g.chase || g.chase.ph!=='done') throw new Error('the chase never reached the stage-cleared card, ph='+(g.chase&&g.chase.ph));
