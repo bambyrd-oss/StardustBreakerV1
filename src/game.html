@@ -401,7 +401,7 @@ function storeItems(){
 // resolve one ware to its display: name, blurb, price, whether you can buy it, and rank pips.
 function storeInfo(k){
   if(k==='burger'){ const full=P.hp>=P.maxhp;
-    return {n:'HOT PLATE', d:full?'You look fine — already topped off.':'A full plate from the back. All your stars back.',
+    return {n:'HOT PLATE', d:full?'You look fine — already topped off.':'A full plate from the back. Every heart back.',
       pr:burgerCost, can:P.bucks>=burgerCost&&!full, icon:'burger'}; }
   if(k==='life')  return {n:'ONE MORE RUN', d:'Another shot at the block. You have '+lives+'.',
       pr:750, can:P.bucks>=750, icon:'life'};
@@ -931,7 +931,7 @@ const UPG={
   hands:{n:'HAYMAKER', max:3, cost:[40,90,180],  d:'+15% damage on everything, each rank.'},
   shot: {n:'BIG SHOTS', max:3, cost:[60,130,260], d:'Finger-gun shots fly bigger and hit harder, each rank.'},
   rapid:{n:'RAPID FIRE',max:2, cost:[80,180],  d:'Finger guns fire faster — less cooldown between shots.'},
-  body: {n:'BACKBONE',  max:3, cost:[50,110,220], d:'+half a star of max health, each rank.'},
+  body: {n:'BACKBONE',  max:3, cost:[50,110,220], d:'+half a heart of max health, each rank.'},
   chin: {n:'STAND TALL',  max:2, cost:[70,150],     d:'Takes a lot more to knock you down.'},
   hustle:{n:'BAG UP',max:3, cost:[50,120,240],d:'+15% Bammy Bucks from every drop, each rank.'},
   flow: {n:'RHYTHM',  max:2, cost:[80,170],     d:'Faster combo recovery — chain your string sooner.'},
@@ -2463,25 +2463,31 @@ function drawProp(pr){ const sx=pr.x-camX, z=pr.z;
 }
 
 // health rides above the head, where you're already looking
+// enemy health, reimagined for THIS game (the old flat strip was FATBACK's): a chunky
+// ink-outlined comic slash — skewed like the cel outlines, hot-pink fill in the game's accent,
+// a pale "ghost" sliver that eases down after each hit so damage visibly bites, quarter ticks,
+// and a gold star badge instead of the old ◆ elite trim.
 function ebar(e,w,y,elite,long){
   if(e.dead) return;
-  const sx=e.x-camX, h=long?5:elite?3:2;
-  ctx.fillStyle='rgba(6,4,10,.8)'; ctx.fillRect(sx-w/2-1,y-1,w+2,h+2);
-  ctx.fillStyle='#3a1220'; ctx.fillRect(sx-w/2,y,w,h);
-  const f=clamp(e.hp/e.maxhp,0,1);
-  ctx.fillStyle= elite ? (f>.5?'#ffb545':f>.25?'#ff8c3a':'#ff2e88')
-                       : (f>.5?'#c9d13a':f>.25?'#ffb545':'#ff2e88');
-  ctx.fillRect(sx-w/2,y,w*f,h);
-  if(e.flash>0){ ctx.fillStyle='#fff'; ctx.globalAlpha=e.flash/14;
-    ctx.fillRect(sx-w/2,y,w,h); ctx.globalAlpha=1; }
-  if(elite){ ctx.strokeStyle='#ffb545'; ctx.lineWidth=1; ctx.strokeRect(sx-w/2-1.5,y-1.5,w+3,h+3);
-    ctx.fillStyle='#ffb545'; ctx.font='6px "JetBrains Mono",monospace'; ctx.textAlign='center';
-    ctx.fillText('◆',sx-w/2-6,y+h); ctx.fillText('◆',sx+w/2+6,y+h); }
-  if(long){ ctx.strokeStyle='#ff5a2e'; ctx.lineWidth=1; ctx.strokeRect(sx-w/2-2,y-2,w+4,h+4);
-    ctx.fillStyle='#ff5a2e'; ctx.font='6px "JetBrains Mono",monospace'; ctx.textAlign='center';
-    ctx.fillText(e.fire?'FIRE RAT':'RAT',sx,y-5);
-    ctx.fillStyle='rgba(11,10,16,.5)';
-    for(let i=1;i<7;i++) ctx.fillRect(sx-w/2+w/7*i,y,1,h); }
+  const sx=e.x-camX, h=long?6:elite?5:4;
+  if(e.hpShown===undefined) e.hpShown=e.hp;
+  e.hpShown+=(e.hp-e.hpShown)*0.14;                       // the ghost chases the real value
+  const f=clamp(e.hp/e.maxhp,0,1), g=clamp(e.hpShown/e.maxhp,0,1);
+  ctx.save();
+  ctx.translate(sx,y); ctx.transform(1,0,-0.30,1,0,0);    // comic skew, leaning into the action
+  ctx.fillStyle=INK; ctx.fillRect(-w/2-2,-2,w+4,h+4);     // ink shell
+  ctx.fillStyle='#241428'; ctx.fillRect(-w/2,0,w,h);
+  if(g>f+0.01){ ctx.fillStyle='#ffe6ee'; ctx.fillRect(-w/2,0,w*g,h); }   // recent-damage ghost
+  ctx.fillStyle= elite?'#ffb545':'#ff2e88';
+  ctx.fillRect(-w/2,0,w*f,h);
+  ctx.fillStyle='rgba(255,255,255,.30)'; ctx.fillRect(-w/2,0,w*f,1.5);   // gloss
+  ctx.fillStyle='rgba(11,10,16,.55)';
+  for(let i=1;i<4;i++) ctx.fillRect(-w/2+w*i/4-0.5,0,1,h);               // quarter ticks
+  if(e.flash>0){ ctx.globalAlpha=e.flash/14; ctx.fillStyle='#fff'; ctx.fillRect(-w/2,0,w,h); ctx.globalAlpha=1; }
+  ctx.restore();
+  if(elite){ starShape(sx-w/2-5,y+h/2,5.2,INK); starShape(sx-w/2-5,y+h/2,4,'#ffb545'); }   // built-different badge
+  if(long){ ctx.fillStyle='#ff5a2e'; ctx.font='6px "JetBrains Mono",monospace'; ctx.textAlign='center';
+    ctx.fillText(e.fire?'FIRE RAT':'RAT',sx,y-5); ctx.textAlign='left'; }
 }
 
 function drawRat(e){
@@ -3088,18 +3094,17 @@ function hud(){
     ctx.restore(); ctx.textAlign='left'; }
 
   ctx.font='7px "JetBrains Mono",monospace';
-  // health — STARDUST: a row of stars, each worth 2 half-star units. a light hit costs half a
-  // star (no knockdown), a heavy hit costs a full star (knockdown) — see heavyHitAt().
-  // (the heart row was FATBACK's; this game's life is made of stardust)
-  const nStars=Math.min(12,Math.ceil(P.maxhp/2));
-  for(let i=0;i<nStars;i++){
-    const hx=LX+5.5+i*13, hy=BY+2, fill=clamp(P.hp-i*2,0,2);   // 0=empty, 1=half, 2=full
-    starShape(hx,hy,5.6,'#241d30');                            // empty socket
-    if(fill>0){ ctx.save(); ctx.beginPath(); ctx.rect(hx-6,hy-7,fill>=2?12:6,14); ctx.clip();
-      starShape(hx,hy,5.6, P.hitFlash>0?'#ffffff':'#ffd54a');  // stardust gold, white on the hit
-      ctx.restore(); }
+  // health — 4 hearts, each worth 2 half-heart units. a light hit costs half a heart
+  // (no knockdown), a heavy hit costs a full heart (knockdown) — see heavyHitAt().
+  const nHearts=Math.min(12,Math.ceil(P.maxhp/2));
+  for(let i=0;i<nHearts;i++){
+    const hx=LX+i*13, fill=clamp(P.hp-i*2,0,2);   // 0=empty, 1=half, 2=full
+    ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillStyle='#3a2030'; ctx.fillText('♥',hx,BY+9);
+    if(fill>0){ ctx.save(); ctx.beginPath(); ctx.rect(hx,BY-8,fill>=2?9:4.5,17); ctx.clip();
+      ctx.fillStyle= P.hitFlash>0?'#ff5a5a':'#ff2e88'; ctx.fillText('♥',hx,BY+9); ctx.restore(); }
   }
-  ctx.font='7px "JetBrains Mono",monospace'; ctx.textAlign='left';
+  ctx.font='7px "JetBrains Mono",monospace';
 
   // FREEDOM — Imagination meter
   const DY=BY+14;
@@ -3179,7 +3184,7 @@ function hud(){
 // A warm little corner-store interior: shelves on the back wall, a lit aisle of pedestals you
 // browse left/right, BamBam standing at whichever ware is selected. Everything reads off live
 // state each frame (bucks, ranks, affordability) — there's no cached DOM to keep in sync.
-const ICON_COL={burger:'#ffb545',life:'#ffd54a',body:'#ffd54a',second:'#ffb545',hands:'#e8e2d4',
+const ICON_COL={burger:'#ffb545',life:'#ff3a5e',body:'#ff7a9e',second:'#ff5a7e',hands:'#e8e2d4',
   shot:'#3ad1ff',rapid:'#7ad1ff',spirit:'#ffd54a',pockets:'#c98aff',chin:'#8fa4b0',hustle:'#c9d13a',
   flow:'#5aa8e8',insight:'#8fd6ff',boots:'#c98a5a',reach:'#d6a86a',knuck:'#d9c15a',hide:'#7fd06a',exit:'#c9d13a'};
 function starShape(cx,cy,r,c){ ctx.fillStyle=c; ctx.beginPath();
@@ -3192,13 +3197,14 @@ function shieldShape(cx,cy,s,c){ ctx.fillStyle=c; ctx.beginPath();
   ctx.quadraticCurveTo(cx-s*0.6,cy+s*0.72, cx-s*0.6,cy+s*0.1); ctx.closePath(); ctx.fill(); }
 function storeIcon(k,cx,cy,s,acc){
   const R=(ax,ay,aw,ah,c)=>{ ctx.fillStyle=c; ctx.fillRect(Math.round(cx+ax*s),Math.round(cy+ay*s),Math.max(1,Math.round(aw*s)),Math.max(1,Math.round(ah*s))); };
-  // health is STARDUST here — the health-adjacent icons are stars, not FATBACK hearts
+  const heart=(hs,c)=>{ ctx.fillStyle=c; ctx.beginPath();
+    ctx.arc(cx-hs*0.4,cy-hs*0.16,hs*0.44,0,7); ctx.arc(cx+hs*0.4,cy-hs*0.16,hs*0.44,0,7);
+    ctx.moveTo(cx-hs*0.82,cy+hs*0.02); ctx.lineTo(cx,cy+hs*0.9); ctx.lineTo(cx+hs*0.82,cy+hs*0.02); ctx.closePath(); ctx.fill(); };
   switch(k){
     case 'burger': R(-.7,-.5,1.4,.34,'#ffcf70'); R(-.7,-.16,1.4,.24,'#8a4a22'); R(-.7,.06,1.4,.14,'#7fd06a'); R(-.7,.18,1.4,.34,'#ffb545'); break;
-    case 'life': starShape(cx,cy,s,'#ffd54a'); ctx.fillStyle='#1a1220'; ctx.font='700 '+Math.round(s*0.9)+'px '+BEBAS;
-      ctx.textAlign='center'; ctx.fillText('+1', cx, cy+s*0.32); break;
-    case 'body': starShape(cx,cy,s,'#ffd54a'); ctx.fillStyle='#fff'; R(-.12,-.32,.24,.64,'#fff'); R(-.34,-.1,.68,.22,'#fff'); break;
-    case 'second': starShape(cx,cy,s,'#ffb545'); ctx.strokeStyle='#fff'; ctx.lineWidth=1.4; ctx.beginPath();
+    case 'life': heart(s,'#ff3a5e'); break;
+    case 'body': heart(s,'#ff3a5e'); ctx.fillStyle='#fff'; R(-.12,-.32,.24,.64,'#fff'); R(-.34,-.1,.68,.22,'#fff'); break;
+    case 'second': heart(s,'#ff5a7e'); ctx.strokeStyle='#fff'; ctx.lineWidth=1.4; ctx.beginPath();
       ctx.moveTo(cx-s*.68,cy); ctx.lineTo(cx-s*.28,cy); ctx.lineTo(cx-s*.08,cy-s*.4); ctx.lineTo(cx+s*.12,cy+s*.4); ctx.lineTo(cx+s*.32,cy); ctx.lineTo(cx+s*.68,cy); ctx.stroke(); break;
     case 'hands': R(-.5,-.46,.72,.34,'#ffe0b8'); R(-.5,-.16,.72,.66,'#e8c9a0'); R(.22,-.04,.32,.5,'#e8c9a0'); break;
     case 'shot': ctx.globalAlpha=.35; ctx.fillStyle=acc; ctx.beginPath(); ctx.arc(cx,cy,s*1.0,0,7); ctx.fill(); ctx.globalAlpha=1;
