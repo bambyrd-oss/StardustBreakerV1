@@ -1552,7 +1552,7 @@ function chaseTick(){
       if(c.hits>=3) P.hp=0;                                   // flattened — the death flow takes it from here
       else ball.x=Math.min(ball.x,P.x-300);                   // it rolls past and you scramble back ahead
     }
-    if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX+26; }
+    if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX; }   // pull up centred on the gap
     return;
   }
   // 'end': he pulls up at the alley mouth; 'done': the stage-cleared prompt waits for any button.
@@ -1564,7 +1564,7 @@ function chaseTick(){
       if(ball.vx<0.3){ ball.gone=true;                        // it finally keels over in a blizzard of paper
         for(let i=0;i<40;i++) puff(ball.x+rnd(-40,40),252,rnd(0,80),1,'#efe9d8'); shake=9; } }
     if(c.ph==='end' && P.state!=='scripted'){ c.ph='done'; c.t2=0; P.face=1; P.state='idle'; }
-    if(c.ph==='done'){ P.x=c.alleyX+26; P.z+=(252-P.z)*0.2; if(P.state==='walk')P.state='idle'; }   // pinned at the alley mouth while the card is up
+    if(c.ph==='done'){ P.x=c.alleyX; P.z+=((FLOOR_N+8)-P.z)*0.15; P.face=1; if(P.state==='walk')P.state='idle'; }   // drift up to the alley mouth, framed in the gap, while the card is up
     if(c.ph==='done' && c.t2<=8){ anyAdv(pollPad()); return; } // a short beat first — drain the run's stale button edges so mashing can't skip the card unseen
     if(c.ph==='done' && anyAdv(pollPad())){                    // any button / screen tap proceeds
       gainFreedom(20); gainXp(40); night.bosses++;
@@ -3455,7 +3455,7 @@ function hud(){
     ctx.font='9px "JetBrains Mono",monospace';
     if(t%40<26){ ctx.fillStyle='#3ad1ff'; ctx.fillText('PROCEED TO STAGE 2 →', W/2, py+52); }
     ctx.fillStyle='#5c5670'; ctx.font='7px "JetBrains Mono",monospace';
-    ctx.fillText('ALLEY UNDER CONSTRUCTION', W/2, py+70);
+    ctx.fillText('STAGE 2 UNDER CONSTRUCTION', W/2, py+70);
     ctx.textAlign='left';
   }
 
@@ -3727,13 +3727,17 @@ function drawOb(o){
   if(!o.dead){ ctx.fillStyle=INK; ctx.fillRect(sx-5,o.z-2.6,3,2.6); ctx.fillRect(sx+2,o.z-2.6,3,2.6); }   // stub feet
 }
 function drawAlleyGap(){
-  if(!chase || (chase.ph!=='run'&&chase.ph!=='end')) return;
-  const sx=chase.alleyX+40-camX; if(sx<-80||sx>W+80) return;
-  ctx.fillStyle=INK; ctx.fillRect(sx-24,96,48,132);                 // a slot of dark between the buildings
-  ctx.fillStyle='#0b0a10'; ctx.fillRect(sx-19,100,38,128);
-  ctx.fillStyle='#2a2338'; ctx.fillRect(sx-19,100,38,10);
+  if(!chase || (chase.ph!=='run'&&chase.ph!=='end'&&chase.ph!=='done')) return;
+  const sx=chase.alleyX-camX; if(sx<-80||sx>W+80) return;
+  // when the 3D scene is up the alley is a REAL recessed gap in the building row (bg3d); only the
+  // fallback 2D background needs a painted slot. The "duck in" chevron shows on both paths.
+  if(!globalThis.__bg3d){
+    ctx.fillStyle=INK; ctx.fillRect(sx-24,96,48,132);
+    ctx.fillStyle='#0b0a10'; ctx.fillRect(sx-19,100,38,128);
+    ctx.fillStyle='#2a2338'; ctx.fillRect(sx-19,100,38,10);
+  }
   if(t%40<26){ ctx.fillStyle='#3ad1ff'; ctx.font='bold 10px "JetBrains Mono",monospace';
-    ctx.textAlign='center'; ctx.fillText('▼',sx,92); ctx.textAlign='left'; }
+    ctx.textAlign='center'; ctx.fillText('▼',sx,86); ctx.textAlign='left'; }
 }
 
 function render(){
@@ -3755,7 +3759,9 @@ function render(){
     // NOTE the -320: the 3D camera's x=0 sits at screen CENTRE (px 320), while game coords are
     // left-edge-referenced — without recentering, everything placed by game position renders
     // exactly 320px right of where the gameplay actually happens.
-    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt);
+    // the chase alley is a REAL gap carved into the 3D front row at its x (same -320 centring)
+    const alley3d = (chase && (chase.ph==='run'||chase.ph==='end'||chase.ph==='done')) ? (chase.alleyX-320)*0.0805 : null;
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt, alley3d);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();

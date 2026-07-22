@@ -672,6 +672,45 @@ function layoutStore(s, c, bw){
     u.win.position.set(side*(2.0+ww/2+0.2), 2.5, 0.06); }
 }
 const storePool=[]; for(let i=0;i<3;i++){ const s=buildStoreMesh(); s.visible=false; scene.add(s); storePool.push(s); }
+
+// ---- a real back-alley: a recessed corridor dropped into the front row where the chase ends ----
+// Same trick as the store — hide the ONE front building at the alley's x and fill its slot — but
+// instead of a shopfront it's a gap you see DOWN: two grimy side walls receding back to a dark far
+// wall, a single dim light, a dumpster. Reads as an actual break between buildings, not a decal.
+const ALLEY_H=12, ALLEY_D=8.5;
+function buildAlleyMesh(){
+  const g=new THREE.Group();
+  const brick=brickTexture(); brick.repeat.set(2,4);
+  const wallMat=toonMat({ map:brick, color:'#7a6450', roughness:1 });   // grimier + darker than the lit storefronts
+  const backMat=toonMat({ color:'#241c2e', roughness:1 });
+  const mk=(mat)=>{ const m=new THREE.Mesh(boxGeo, mat); g.add(m);
+    const o=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(o); return {m,o}; };
+  const L=mk(wallMat), R=mk(wallMat), B=mk(backMat);
+  const F=new THREE.Mesh(boxGeo, toonMat({ color:'#161320', roughness:1 })); g.add(F);   // wet-dark asphalt floor
+  // one dim sodium light on the back wall so the recess isn't a flat black hole
+  const glow=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.7), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.92 }));
+  g.add(glow);
+  const bin=new THREE.Mesh(boxGeo, toonMat({ color:'#2f5a3a', roughness:1 }));         // a dumpster down the far end
+  const binOl=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(bin); g.add(binOl);
+  g.position.z=-8.5;   // face on the 1:1 front-row plane, same as the store (children recede in -z)
+  g.userData={L,R,B,F,glow,bin,binOl};
+  g.visible=false;
+  return g;
+}
+function layoutAlley(a, bw){
+  const u=a.userData, H=ALLEY_H, D=ALLEY_D, hw=bw/2, wt=0.6;
+  u.L.m.scale.set(wt,H,D);       u.L.m.position.set(-hw+wt/2, H/2, -D/2);
+  u.L.o.scale.set(wt+0.3,H+0.3,D+0.3); u.L.o.position.copy(u.L.m.position);
+  u.R.m.scale.set(wt,H,D);       u.R.m.position.set(hw-wt/2, H/2, -D/2);
+  u.R.o.scale.set(wt+0.3,H+0.3,D+0.3); u.R.o.position.copy(u.R.m.position);
+  u.B.m.scale.set(bw,H,wt);      u.B.m.position.set(0,H/2,-D);
+  u.B.o.scale.set(bw+0.3,H+0.3,wt+0.3); u.B.o.position.copy(u.B.m.position);
+  u.F.scale.set(bw,0.3,D);       u.F.position.set(0,0.15,-D/2);
+  u.glow.position.set(hw*0.3, 5.2, -D+0.3);
+  u.bin.scale.set(2.2,2.0,1.5);  u.bin.position.set(-hw*0.35,1.0,-D+1.3);
+  u.binOl.scale.set(2.6,2.4,1.9); u.binOl.position.copy(u.bin.position);
+}
+const alleyRig=buildAlleyMesh(); scene.add(alleyRig);
 let bgTick=0;
 
 // ---- Landlord D. Evict, in the flesh: a cel-shaded 3D boss rig ----
@@ -739,7 +778,7 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState, roll){
+  function stepBg(sc, storeXs, bossState, roll, alleyX){
     scroll=sc; bgTick++;
     // roll the camera about its view axis (the chase's downhill tilt). Rolling about the view
     // axis rotates the projected image around the canvas centre — the same pivot the 2D sprite
@@ -772,6 +811,15 @@ function syncBoss(bs){
       const lim=Math.max(0,bw/2-2.6); c=Math.max(-lim,Math.min(lim,c));   // keep the door inside the wall
       layoutStore(s, c, bw);
     }
+    // the chase alley: hide the nearest front building at alleyX and drop the recessed corridor in
+    if(alleyX!=null && Math.abs(alleyX-scroll)<SPAN/2){
+      const gx=alleyX-scroll; alleyRig.visible=true; alleyRig.position.x=gx;
+      let best=null,bd=1e9;
+      for(const b of fronts){ const d=Math.abs(b.mesh.position.x-gx); if(d<bd){bd=d;best=b;} }
+      let bw=7;
+      if(best && bd<16){ best.mesh.visible=false; for(const e of best.extras) e.visible=false; bw=best.mesh.scale.x+0.4; }
+      layoutAlley(alleyRig, Math.max(4.5, Math.min(bw, 9)));
+    } else alleyRig.visible=false;
     for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN; p.g.position.x=p.baseX-scroll; }
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
       pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
