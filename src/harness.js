@@ -449,7 +449,16 @@ if(!err){
     }
     g.stream();   // a cull pass must not touch them either
     if(g.ents.filter(e=>e.k==='vamp').length!==foes.length) throw new Error('stream() culled freshly spawned wave enemies');
-    console.log('        '+foes.length+' wave enemies, all inside the locked view at spawn, none culled');
+    // the invariant HOLDS, not just at spawn: shove enemies violently off both edges — one tick
+    // later every live one must be back inside the locked view, however it got out
+    foes[0].x = g.camLock - 400; foes[0].vx = -6;
+    if(foes.length>1){ foes[1].x = g.camLock + 640 + 500; foes[1].vx = 8; }
+    __tick(1);
+    for(const e of foes){ if(e.dead) continue;
+      if(e.x < g.camLock || e.x > g.camLock+640)
+        throw new Error('live wave enemy allowed OFF-SCREEN mid-lock (x='+Math.round(e.x)+', view ['+g.camLock+','+(g.camLock+640)+'])');
+    }
+    console.log('        '+foes.length+' wave enemies on-screen at spawn AND re-snapped inside after being launched out');
   });
   scene('boss hurtbox reaches ≥25px past its side (easier to hit)', ()=>{
     const g=__G(); g.clearEnts();

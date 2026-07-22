@@ -2114,6 +2114,14 @@ function update(){
     spawnWave(tier()); g.done='fight'; }
   if(camLock!==null && !OPT.freecam){
     camX+=(camLock-camX)*0.1;
+    // HARD INVARIANT, enforced EVERY tick: while a wave has you locked, every live enemy IS on
+    // the screen. It doesn't matter what put one outside — launch knockback, an AI walk, a spawn
+    // path from any past or future code — it gets snapped to the nearest screen edge right now.
+    // The LEFT counter can never disagree with what the player is looking at.
+    if(!boss) for(const e of ents){ if(e.dead) continue;
+      if(e.x < camLock+8){ e.x=camLock+8; if(e.vx<0) e.vx=0; }
+      else if(e.x > camLock+W-8){ e.x=camLock+W-8; if(e.vx>0) e.vx=0; }
+    }
     if(t%20===0 && pendingSpawns===0 && !ents.some(e=>!e.dead)){ const wasBoss=!!boss; camLock=null; boss=null;
       for(const g of GATES.concat(S1G)) if(g.done==='fight' || g.x<P.x-40) g.done=true;   // retire this fight + anything already behind you, so nothing yanks you back
       if(wasBoss) stageCleared(); else { wavesThisStage++; say(P.x,P.z-40,'GO →','#c9d13a'); }
