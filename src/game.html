@@ -2927,7 +2927,7 @@ function drawVamp(e){ const sx=e.x-camX;
     let key='pol.idle.0';
     if(e.state==='walk'||e.state==='enter') key='pol.walk.'+(Math.floor(e.anim*1.2)%4);
     else if(e.state==='atk') key= e.st<17?'pol.atk.0' : e.st<30?(e.kickAlt&&IDX['pol.atk.2']?'pol.atk.2':'pol.atk.1') : 'pol.idle.0';   // fist-up windup -> one of the two kicks through the active window -> recover
-    spr(key, sx+rx, e.z-e.y-hover, e.face, et, ea, e.sc||1);
+    spr(key, sx+rx, e.z-e.y-hover, f, et, ea, e.sc||1);   // f (= -e.face): the skull art is drawn facing the same way the placeholder expected, so it must flip like the placeholder — using e.face made it moonwalk
   }
   else drawFoePlaceholder(sx+rx, e.z-e.y-hover, f, e.sc||1, body, skin, e.anim, e.state==='atk', et, ea, dark?null:e.type);
   if(rlean) ctx.restore();
