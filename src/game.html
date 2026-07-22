@@ -1888,7 +1888,9 @@ function update(){
   //---- each stage is two waves, then that stage's named boss
   if(wavesThisStage>=2 && bossDone<stageNum && camLock===null && !MP){ bossDone=stageNum; camLock=Math.max(0,P.x-170); spawnBoss(stageNum); }   // no bosses in co-op
   for(const g of GATES) if(!g.done && P.x>g.x && P.x-g.x<140 && camLock===null && !coopGuest() && wavesThisStage<2){   // host (or solo) triggers the wave; the guest mirrors the enemies
-    camLock=Math.max(0,g.x-170); spawnWave(tier()); g.done='fight'; }
+    // lock EXACTLY where the camera already is — never pull it left. The arena is whatever you
+    // were looking at when the fight started, and every wave spawn comes from off its RIGHT edge.
+    camLock=Math.max(0,camX); spawnWave(tier()); g.done='fight'; }
   if(camLock!==null && !OPT.freecam){
     camX+=(camLock-camX)*0.1;
     if(t%20===0 && pendingSpawns===0 && !ents.some(e=>!e.dead)){ const wasBoss=!!boss; camLock=null; boss=null;
@@ -2061,8 +2063,10 @@ function update(){
     // no invitation needed. get within a block and they're already coming. HOST-only in co-op:
     // these timers are local randoms, so a guest running them would aggro a different set.
     if(!coopGuest()){
-      if(!cw.joinT && !boss && nearestPlayerDX(cw.x)<170 && live<11) cw.joinT=Math.floor(rnd(16,120));   // the street stays back during a boss fight
-      if(cw.joinT>0){ cw.joinT--; if(cw.joinT===0){ aggro(cw,false); continue; } }
+      // the street stays back during a boss fight AND during a locked wave — a bystander
+      // converting mid-lock becomes an invisible off-screen enemy holding the arena hostage
+      if(!cw.joinT && !boss && camLock===null && nearestPlayerDX(cw.x)<170 && live<11) cw.joinT=Math.floor(rnd(16,120));
+      if(cw.joinT>0){ cw.joinT--; if(cw.joinT===0){ if(camLock!==null){ cw.joinT=0; continue; } aggro(cw,false); continue; } }
     }
     if(!cw.flinch && ents.some(e=>!e.dead&&Math.abs(e.x-cw.x)<60)) cw.flinch=18;
     if(cw.flinch>0) cw.flinch--; }
