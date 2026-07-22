@@ -487,6 +487,34 @@ if(!err){
     if(e.state==='launch') throw new Error('a healed enemy should re-enter the fight (walk), not stay stuck airborne');
     console.log('        NaN enemy snapped back to solid ground inside the arena');
   });
+  scene('a SHOT kill drops Bam Bucks — same payout as a melee kill', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=260; g.P.face=1;
+    g.setCamLock(Math.max(0,g.P.x-170));
+    const cash0=g.drops.filter(d=>d.kind==='cash').length;
+    const e=g.vamp(g.P.x+30, 260, false, false, 'guard'); e.state='walk'; e.hp=1; e.maxhp=38; g.spawn(e);
+    // a finger-gun dot on top of the enemy
+    g.fires.push({x:e.x, z:e.z, y:0, vx:6, vz:0, vy:0, r:5, life:40, max:40, foe:false, dot:true, dmg:11});
+    for(let i=0;i<6 && !e.dead;i++) __tick(1);
+    if(!e.dead) throw new Error('the shot never killed the enemy');
+    if(g.drops.filter(d=>d.kind==='cash').length<=cash0) throw new Error('a shot kill dropped NO Bam Bucks (the whole point)');
+    console.log('        shot kill dropped a Bam Buck, just like a punch');
+  });
+  scene('some skulls are shooters and fire a telegraphed bolt back', ()=>{
+    const g=__G(); g.releaseArena();
+    g.P.x=1200; g.P.z=260;
+    g.setCamLock(Math.max(0,g.P.x-170));
+    // force a shooter and stand at range so it opens fire
+    const e=g.vamp(g.P.x+180, 260, false, false, 'guard'); e.state='walk'; e.hp=e.maxhp=999; e.shooter=true; e.shootCd=0; g.spawn(e);
+    let fired=false;
+    for(let i=0;i<200 && !fired;i++){ __tick(1); if(g.fires.some(f=>f.skull && f.foe)) fired=true; }
+    if(!fired) throw new Error('a shooter skull at range never fired a bolt');
+    // and the bolt can hurt the player
+    const hp0=g.P.hp; g.P.iframes=0;
+    const bolt=g.fires.find(f=>f.skull); bolt.x=g.P.x; bolt.z=g.P.z; __tick(1);
+    if(!(g.P.hp<hp0)) throw new Error('a shooter bolt on the player did no damage');
+    console.log('        shooter skull telegraphed + fired a bolt that hits back');
+  });
   scene('boss hurtbox reaches ≥25px past its side (easier to hit)', ()=>{
     const g=__G(); g.clearEnts();
     g.spawnBoss(1,'landlord'); const b=g.boss;

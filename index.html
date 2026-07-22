@@ -150,7 +150,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #5</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #7</small></h1>
         <div id="pcols">
           <div class="col">
             <h2>DISPLAY</h2>
@@ -1901,6 +1901,9 @@ function vamp(x,z,fromDoor,forceElite,type){
   dmg:Math.round((E?18:9)*(big?1.3:1)), spd:E?0.58:0.64, sc:(E?1.16:1)*bigM,
   flash:0,face:-1,w:Math.round((E?30:26)*bigM),d:Math.round((E?12:10)*bigM),h:74*bigM,
   state:fromDoor?'enter':'walk',st:0,anim:0,tok:false,hitstun:0,dead:0,cd:rnd(40,120),
+  // some skulls shoot back — a telegraphed ranged bolt. Not the big ones, not the robocop drones
+  // (those already lob plasma when elite); ~1 in 4 of the rest.
+  shooter: !big && !(type==='robocop'&&E) && Math.random()<0.24, shootCd:rnd(90,190),
   enterZ:z+rnd(26,60)}; }
 function robocop(x,z,fromDoor,forceElite){ return vamp(x,z,fromDoor,forceElite,'robocop'); }
 
@@ -1948,6 +1951,19 @@ function emitFire(e){
 
 function drop(x,z,kind,wtype){ drops.push({x,z,y:26,vy:rnd(1.4,2.6),vx:rnd(-.8,.8),kind,wtype,life:kind==='bottle'?280:900,land:0}); }
 function tooth(x,z){ drops.push({x,z,y:44,vy:rnd(2.8,4.2),vx:rnd(-2.2,2.2),vz:rnd(-.6,.6),kind:'tooth',life:900,land:0}); }
+function dropBuck(x,z){ drops.push({x,z,y:30,vy:rnd(1.8,3.2),vx:rnd(-1.1,1.1),kind:'cash',life:900,land:0}); }   // a chunky Bam Buck
+// every enemy death, however it happened (melee OR a finger-gun shot) — one shared reward so shot
+// kills pay out the same as punches. Each skull drops a big Bam Buck; elites and the big ones drop more.
+function enemyDied(e){
+  e.dead=1;
+  gainFreedom(e.big?9:e.elite?6:2.5); gainXp(e.big?18:e.elite?12:5);
+  puff(e.x,e.z,e.h*0.5,7,'#ff8c3a');
+  dropBuck(e.x,e.z);
+  if(e.elite){ dropBuck(e.x+rnd(-12,12),e.z); tooth(e.x,e.z); rumble(300,1,1,true); }
+  if(e.big){ shake=10; rumble(600,1,1,true); say(e.x,e.z-40,'DROPPED IT','#ff5a2e');
+    dropBuck(e.x+rnd(-20,20),e.z); tooth(e.x,e.z); tooth(e.x,e.z); }
+  if(Math.random()<0.06) drop(e.x+rnd(-14,14),e.z,'burger');
+}
 
 // ---- co-op world sync ----------------------------------------------------
 // Cans and their drops are SHARED; women are NOT (both players may work the same door).
@@ -2606,13 +2622,7 @@ function connect(e,s){
     if(e.k!=='rat'){ tooth(e.x,e.z); shake=8; hitstop=Math.max(hitstop,10);
       rumble(380,1,1,true); }
   }
-  if(e.hp<=0 && !e.dead){ e.dead=1;
-    gainFreedom(e.big?9:e.elite?6:2.5); gainXp(e.big?18:e.elite?12:5);
-    if(e.big){ shake=10; rumble(600,1,1,true); say(e.x,e.z-40,'DROPPED IT','#ff5a2e');
-      for(let i=0;i<4;i++) drop(e.x+rnd(-20,20),e.z,'cash'); tooth(e.x,e.z); tooth(e.x,e.z); }
-    if(e.k==='vamp'){ drop(e.x,e.z,'cash');
-      if(e.elite){ drop(e.x+rnd(-10,10),e.z,'cash'); tooth(e.x,e.z); rumble(300,1,1,true); } }
-    if(e.k!=='rat' && Math.random()<0.06) drop(e.x+rnd(-14,14),e.z,'burger'); } // rare — a burger's worth buying
+  if(e.hp<=0 && !e.dead) enemyDied(e);
   return crit;
 }
 
@@ -3040,6 +3050,15 @@ function update(){
       if(e.st>(e.k==='rat'?(e.big?40:26):44)){ e.state='walk'; e.tok=false; e.cd=rnd(50,150); }
       continue;
     }
+    if(e.state==='aim'){ e.st++;                          // a shooter skull winding up a ranged bolt
+      e.face=dx>0?1:-1;
+      if(e.st===1) blip(150,.05);
+      if(e.st<20){ if(e.st%3===0) puff(e.x+e.face*8,e.z-22,5,3,'#ff2e88'); continue; }   // telegraph — you can see it coming and move
+      const dd=Math.max(1,d);
+      fires.push({x:e.x+e.face*10, z:e.z, y:26, vx:(dx/dd)*3.7, vz:(dz/dd)*1.7, vy:0, r:5, life:130, max:130, foe:true, skull:true});
+      blip(210,.08); puff(e.x+e.face*12,e.z-20,10,6,'#ff2e88'); rumble(120,.6,.4,true);
+      e.state='walk'; e.tok=false; e.cd=rnd(40,90); continue;
+    }
     // a fire rat wants the distance, not your throat. it holds inside its breathe band.
     const want = e.fire ? (e.big?104:66) : 16;
     // never let a locked fight go ghost: anyone outside the locked view (fresh spawns walking in,
@@ -3059,6 +3078,11 @@ function update(){
     else if(d<(e.k==='rat'?(e.big?40:26):44) && e.cd<=0 && (e.tok||toks<2)){
       if(!e.tok){e.tok=true;toks++;} e.state='atk'; e.st=0; e.hitDone=false; e.kickAlt=!e.kickAlt;   // politicians alternate their two kick frames
     }
+    // shooter skulls open fire from range — telegraphed, on their own cooldown, capped so a wave
+    // never turns into a firing squad (at most 2 winding up at once, same token pool as melee)
+    if(e.shooter){ if(e.shootCd>0) e.shootCd--;
+      else if(d>60 && d<320 && e.state==='walk' && (e.tok||toks<2)){
+        if(!e.tok){e.tok=true;toks++;} e.state='aim'; e.st=0; e.shootCd=rnd(150,260); } }
   }
   ents=ents.filter(e=>e.dead<28);
   if(MP && coopHost() && t%3===0) coopBroadcastEnts();       // host: publish the enemy snapshot, 20Hz (reliable channel — don't flood it)
@@ -3077,7 +3101,7 @@ function update(){
       if(d.y<=0){ d.y=0; if(d.kind==='tooth'&&Math.abs(d.vy)>1.4){d.vy*=-0.42;d.vx*=0.6;} else {d.land=1;d.vy=0;} } }
     if(--d.life<0) d.gone=true;
     if(Math.abs(d.x-P.x)<20&&Math.abs(d.z-P.z)<14&&P.y<20 && !(d.kind==='weapon'&&P.weapon)){ d.gone=true; let got=0;   // already holding one → leave it on the ground
-      if(d.kind==='cash'){ got=Math.round(Math.floor(rnd(5,18))*(1+U.pockets*0.15)); P.bucks+=got; night.cash+=got; say(d.x,d.z,'+$'+got,'#c9d13a'); }   // POCKETS: you pocket more
+      if(d.kind==='cash'){ got=Math.round(Math.floor(rnd(20,42))*(1+U.pockets*0.15)); P.bucks+=got; night.cash+=got; say(d.x,d.z,'+'+got+' BB','#3fae5a'); }   // a big Bam Buck; POCKETS pockets more
       if(d.kind==='tooth'){ got=5+U.pockets; P.bucks+=got; night.cash+=got; say(d.x,d.z,'+$'+got,'#e8e2d4'); }
       if(d.kind==='burger'){ const heal=Math.round(P.maxhp*0.35); P.hp=Math.min(P.maxhp,P.hp+heal); say(d.x,d.z,'+'+heal+' HP','#ffb545'); blip(600,.05); }
       if(d.kind==='weapon'){ const w=WEAPONS[d.wtype]; P.weapon={type:d.wtype,dur:w.dur}; say(d.x,d.z-8,'PICKED UP '+w.name,'#ffb545'); blip(300,.06);
@@ -3128,13 +3152,13 @@ function update(){
             else if(e.k!=='boss') e.hitstun=Math.max(e.hitstun,16); }
           if(e.k==='boss'){ e.dmgTaken=(e.dmgTaken||0)+fd; if(e.hp<=0&&!e.dead) killBoss(e); }
           else { e.hitstun=Math.max(e.hitstun,f.weapon?e.hitstun:8);
-            if(e.hp<=0&&!e.dead){ e.dead=1; gainFreedom(1.5); gainXp(3); puff(e.x,e.z,e.h*0.5,6,f.weapon?WEAPONS[f.weapon].col:'#ff8c3a'); } }
+            if(e.hp<=0&&!e.dead) enemyDied(e); }   // a shot kill pays out the same Bam Bucks as a punch
           f.gone=true; break;
         } }
       continue;
     }
     if(Math.abs(f.x-P.x)<f.r*0.8+9 && Math.abs(f.z-P.z)<f.r*0.4+9 && P.y<26)
-      hurtPlayer(f.plasma?11:(f.clap?8:(f.r>7?9:6)), f.x);
+      hurtPlayer(f.plasma?11:(f.skull?7:(f.clap?8:(f.r>7?9:6))), f.x);
   }
   fires=fires.filter(f=>!f.gone);
 
@@ -3798,6 +3822,17 @@ function drawFires(){
     ctx.globalAlpha=0.35; ctx.fillStyle='#ff2eea';
     ctx.beginPath(); ctx.ellipse(bx-f.vx*1.4,by-f.vz*1.4,4,4,0,0,7); ctx.fill();   // short trailing ember
     ctx.restore(); }
+  // shooter-skull bolt — a hot-pink energy shard with an inky core, trailing sparks
+  for(const f of fires){ if(!f.skull) continue; const bx=f.x-camX, by=f.z-f.y;
+    const pulse=0.75+0.25*Math.sin(t*0.7+f.x*0.4);
+    ctx.save();
+    ctx.globalAlpha=0.4; ctx.fillStyle='#ff2e88';
+    ctx.beginPath(); ctx.ellipse(bx-f.vx,by-f.vz,4.5,4.5,0,0,7); ctx.fill();          // trailing spark
+    ctx.globalAlpha=1; ctx.translate(bx,by); ctx.rotate(Math.atan2(f.vz,f.vx));
+    ctx.fillStyle=INK; ctx.beginPath(); ctx.ellipse(0,0,6*pulse,3.4,0,0,7); ctx.fill();
+    ctx.fillStyle='#ff2e88'; ctx.beginPath(); ctx.ellipse(0,0,4.4*pulse,2.2,0,0,7); ctx.fill();
+    ctx.fillStyle='#ffd7ec'; ctx.beginPath(); ctx.ellipse(0,0,1.8,1.2,0,0,7); ctx.fill();
+    ctx.restore(); }
   // pills/syringes (B.I.G. Farma) — a spinning capsule
   for(const f of fires){ if(!f.clap) continue; const bx=f.x-camX, by=f.z-f.y;
     ctx.save(); ctx.translate(bx,by); ctx.rotate(Math.sin(t*0.4)*0.5);
@@ -4130,7 +4165,17 @@ function drawRemotePlayer(o, pos, idx){
 
 function drawDrop(d){ const sx=d.x-camX, y=d.z-d.y; shadow(d.x,d.z,5);
   if(d.kind==='tooth'){ ctx.fillStyle='#f4efe2'; ctx.fillRect(sx-2,y-3,4,5); ctx.fillStyle='#c9c2ae'; ctx.fillRect(sx-2,y+1,4,1); }
-  if(d.kind==='cash'){ ctx.fillStyle='#c9d13a'; ctx.fillRect(sx-5,y-4,10,6); ctx.fillStyle='#8b9426'; ctx.fillRect(sx-2,y-2,4,2); }
+  if(d.kind==='cash'){                                 // a big Bam Buck — a chunky green bill stamped BB
+    const bob=Math.sin((t+d.x)*0.12)*0.6;
+    ctx.save(); ctx.translate(sx,y-2+bob);
+    ctx.fillStyle=INK; ctx.fillRect(-8,-6,16,11);
+    ctx.fillStyle='#3fae5a'; ctx.fillRect(-7,-5,14,9);
+    ctx.fillStyle='#2e8043'; ctx.fillRect(-7,-5,14,2);
+    ctx.fillStyle='#eafff0'; ctx.font='bold 7px "JetBrains Mono",monospace'; ctx.textAlign='center';
+    ctx.fillText('BB', 0, 3);
+    ctx.fillStyle='rgba(255,255,255,.45)'; ctx.fillRect(-7,-5,2,9);   // glint
+    ctx.restore(); ctx.textAlign='left';
+  }
   if(d.kind==='burger'){ ctx.fillStyle='#e0a54a'; ctx.fillRect(sx-6,y-6,12,4);   // top bun
     ctx.fillStyle='#7a3d12'; ctx.fillRect(sx-7,y-2,14,3);                          // patty
     ctx.fillStyle='#6fbf3f'; ctx.fillRect(sx-7,y+1,14,1);                          // lettuce
