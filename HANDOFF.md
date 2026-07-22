@@ -1,4 +1,4 @@
-# Handoff — 2026-07-20
+# Handoff — 2026-07-21
 
 **Repo note:** this project now lives in `bambyrd-oss/StardustBreakerV1` (imported with full
 history from the old `samayiat/bambam`; the game was mid-rename to "Stardust Breaker"). Active
@@ -13,7 +13,70 @@ the PWA installs ("Add to Home Screen") and mobile touch controls work there.
 **Build locally:** `python3 src/build.py` (packs `art/` into the atlas, inlines everything into
 `index.html`, then runs `node src/harness.js` — the build fails if any scenario fails).
 
-## Latest session — real hero art + kick/uppercut, co-op deprecated
+## Latest session — 3D background in the build + merge with main's parallel line
+
+**The Three.js street background is now part of the real build.** `src/bg3d.js` (the
+cel-shaded 2.5D sunset city — solved camera, road kit, props, pedestrians) + vendored
+`src/three.min.js` are spliced by `build.py` into game.html's single script via marker
+comments. render() composites the 3D layer instead of the procedural bg() whenever real
+WebGL exists; bg3d.js self-disables otherwise (that's what the node harness sees, so the
+procedural path stays tested). Procedural crowd/props still simulate but only draw on the
+fallback path — the 3D scene supplies pedestrians/street furniture.
+
+**Merged origin/main's parallel line** (11 commits: D-pad touch controls, iOS zoom fix,
+sprint, faster punches, punch-hand alternation, cap-width sprite normalization, jump-art
+fixes, Overdrive doc). Collisions resolved by per-mechanic recency of the user's own
+directions:
+- SHOOT stays this branch's FIGHT/SHOOT toggle + hold-to-fire + plasma-beam Imagination
+  (newer than main's spend-Freedom-on-L shoot, which is dropped; its `shoot`/`kickland`
+  states removed).
+- Drop kick fires BOTH ways: jump+kick (this branch) and sprint+attack (main), with
+  main's tighter hitbox/stats. Standing kick (I, grounded) kept. landHold(12) supersedes
+  main's kickland.
+- Touch layer is main's: fixed 8-way D-pad, JUMP/PUNCH swapped positions, touch-action
+  fixes — with the bF FIGHT/SHOOT toggle button restored on top.
+- Kept from main: sprint (double-tap, 1.8x, dust), faster jab timing + as-fast-as-you-press
+  chaining, punchHand alternation fallback (+BamBamPunch2 sheet), cap-normalized jump/kick
+  packing (+BamBamKick/frame2_5), main's jump frame2 crop, harness assertion fix.
+- Grab stays removed (this branch's newer decision).
+New harness scene: sprint double-tap -> sprint+punch drop kick. Full suite green.
+
+## Earlier session — real `git merge` with `samayiat/bambam`
+
+Unlike the earlier content-only port below (no shared git history at the time), this repo and
+`samayiat/bambam` share the same history through the original import commit, so this was a real
+`git merge samayiat/bambam/main` on `claude/merge-samayiat-bambam-7zsgts`, not a manual port.
+bambam had continued independently for 13 commits since the shared point; this branch had 7 of
+its own. Brought in from bambam:
+
+- **Jab combo art** (`hero.jab`/`hero.jabL`, right/left hand alternation) and **finger-gun SHOOT
+  art** (`hero.shoot`) — punches now use dedicated sheets instead of falling back to the generic
+  punch/fist art.
+- **Standing kick** (`hero.kickstand`, `P.state==='kick'`) — feet-on-the-ground front kick,
+  distinct from the airborne drop kick.
+- **Plasma gun beam** — the Imagination special is a forward beam, not a radius nova (see below,
+  under "What's done").
+- **Physics-driven jump animation** and **landing-hold "super armor"** (`P.landHold`) — frame
+  selection off real `P.y`/`P.vy` instead of elapsed ticks, and a freeze on the landing pose so it
+  actually reads before cutting to idle.
+- **Building/skyline juice pass** — denser edge-to-edge silhouettes, closer skyline, jittered
+  cloud shadows, fewer windowed buildings, street-spawned boxes.
+
+Kept from this branch, merged alongside the above:
+
+- **FIGHT/SHOOT toggle** (`P.gunMode`, `KeyU`/LT/touch) — both sides had since built on the same
+  toggle; kept this side's control-scheme placement (row right after Kick in the README table).
+- **App icon / HUD portrait fix**, "Stardust Breaker" title rename.
+
+**Conflict resolution notes** (for anyone re-deriving this merge): `index.html`, `src/atlas.png`,
+and `src/atlas.json` are all build output (see `src/build.py`) — instead of hand-merging their
+diffs, conflicts there were resolved by taking either side as a placeholder and then running
+`python3 src/build.py` to regenerate all three from the resolved `src/pack.py` + `art/` +
+`src/game.html`. `art/BamBamJump/frame2-3.png` took bambam's art since its "jump art scale fix"
+commit postdates this branch's only edit to those frames. Harness is green post-merge, including
+new scenarios for the standing kick and drop kick.
+
+## Earlier session — real hero art + kick/uppercut, co-op deprecated
 
 - **Real hero sprites are in.** Replaced the single static placeholder pose with six real
   drawn animation sets, cropped/keyed from reference sheets into
@@ -93,21 +156,76 @@ drop kick) — awaiting direction on whether to add a grounded kick.
   canvas, still infinite chunk-streamed, still bright daytime — only the rendering technique
   changed, not the architecture or the color story.
 
+- **Merged in real hero animation art, kick, and uppercut from `bambyrd-oss/StardustBreakerV1`**
+  — a sibling fork of this exact project (its own `HANDOFF.md` says it was "imported with full
+  history from the old `samayiat/bambam`" mid-rename, then developed independently). No git
+  history was available (the user provided a zip snapshot), so this was a deliberate content
+  merge, not a mechanical `git merge` — every change was individually verified against bambam's
+  current code before porting. Brought in:
+  - **Real hero animation** — six drawn sets (`art/BamBam{Run,Punch,Jump,Uppercut,Kick,Swag}/`,
+    4 frames each) replacing the single static placeholder pose, packed via new `pack_frames()`/
+    `pack_one()`/`reframe_fixed()`/`reframe_centered()` helpers in `src/pack.py`. New hero
+    portrait + PWA icons to match.
+  - **Kick** (`KeyI` / gamepad LB / touch KICK) — an alt-input on the existing dive-attack `air`
+    state (`P.airPunch` flag branches dive-punch vs. drop-kick).
+  - **Uppercut** (`W`+`J`, hold up + punch on the ground) — a new `upper` state, a grounded
+    launcher. Uses a dedicated un-mirrored west-facing BAM frame (`hero.uppercutL.2`) so the
+    lettering doesn't read backwards when flipped.
+  - **FIGHT/SHOOT toggle** (`KeyU` / gamepad LT / touch SHOOT) — bambam's finger-guns were
+    unconditional before this; now `P.gunMode` (default `true`, matching prior behavior) gates
+    them, togglable mid-run.
+  - **Retired the last FATBACK-era props** — `hydrant`/`mailbox`/`sign`/`dumpster` sprites all
+    dated to the repo's very first commit ("Seed bambam from the FATBACK engine", confirmed via
+    `git log --diff-filter=A`), same vintage as the already-retired enemy art. `dumpster` falls
+    back to its (already inked-pixel-art-styled) procedural draw; `hydrant`/`mailbox`/`sign` had
+    no procedural equivalent, so — matching the sibling's own approach rather than inventing new
+    art — they're dropped from `genChunk()`'s street-furniture spawn table entirely (swapped for
+    duplicate tree/bench/newsbox/bikerack entries, same array length and `R()` draw count, so
+    gate/wave positions are unaffected).
+  - **Explicitly not ported**: the sibling's co-op "deprecation" (bambam's co-op is already
+    unreachable from the title UI the same way — a no-op either way) and its title-screen
+    SOLO/CO-OP-choice removal (bambam already did this independently, same end state).
+
+- **Landing-hold "super armor"** — the jump/drop-kick/uppercut states used to snap straight to
+  `idle` the instant BamBam touched down. Now `P.landHold` freezes him in the landing pose for
+  ~1s (with damage still applying via `hurtPlayer`, but no stagger/knockback/knockdown while
+  frozen — see the `armored` branch there) so the landing frame actually reads before it's cut
+  short. `src/harness.js`'s `scene()` cleanup resets `landHold`/`jump`/`air`/`upper`/`y`/`vy`
+  between scenarios to avoid cross-scene leakage.
+- **Jump animation is physics-driven**, not elapsed-time-driven — frame selection in
+  `drawPlayer()` now checks real `P.y`/`P.vy` instead of `P.airT`, so he no longer crouches into
+  the landing frame mid-arc, well before he's actually near the ground.
+- **Standing kick** — `I`/LB/KICK with feet on the ground now throws a front kick (`P.state==='kick'`,
+  new `art/BamBamKickStand/` sheet, 4 frames: ready stance, knee-raise windup, mid-extend, peak
+  extend). It's a solid non-launching hit, distinct from the airborne drop kick (`jump` then
+  `kick`, which still uses `art/BamBamKick/` and launches). New harness scene: "standing kick: I
+  with feet on the ground connects without launching".
+- **Imagination special is now a plasma gun beam**, not a radius nova — same trigger (`L`/DRINK/B,
+  Freedom Meter full), same `P.state==='imagine'`, but the hit-check (`src/game.html`, `P.st===1`)
+  is now a long forward rectangle (`hits()` box, ~460px + reach, `P.beamFace` locks the direction
+  at the moment it fires so a hit reaction mid-blast can't swing it) instead of a short
+  omnidirectional radius — it only hits what's in front of him now, but at way more range. New
+  `drawPlasmaBeam()` renders it: layered additive-blend glow (outer soft glow → mid saturated
+  cyan → white-hot core, same technique as the robocop dark form's plasma lob in `drawFires()`,
+  just stretched into a beam and tinted electric-blue instead of magenta so the two read as
+  clearly different) plus a burst of `puff()` sparks along its length. Fully procedural, no new
+  art. The title screen's idle demo loop already triggers `imagine` periodically, so the beam
+  shows up there too, for free.
+
 Everything above is committed to `main` and green under `node src/harness.js`.
 
 ## Known gaps vs. the game spec (not started)
 
-1. **Real art** — BamBam and all enemies are still placeholders (one static hero pose, flat-color
-   enemy shapes). The four named enemy types now read apart from each other by silhouette/color/
-   accessory (see above), but none of them are real generated sprites yet. `.mcp.json` has a
-   PixelLab MCP server already configured for generating this — see the README's "Art pipeline"
-   section for the direction-count rules before generating more (don't generate 8 directions for
-   a 3-direction need).
+1. **Enemy art** — the four named enemy types (Security Guards, Corrupt Politicians, Corporate
+   Mascots, Robotic Police) read apart from each other by silhouette/color/accessory (see above)
+   but are still flat-color placeholders, not real generated sprites. The three bosses (Landlord
+   D. Evict, B.I.G. Farma, The President) are also still placeholders. `.mcp.json` has a PixelLab
+   MCP server already configured for generating this — see the README's "Art pipeline" section
+   for the direction-count rules before generating more (don't generate 8 directions for a
+   3-direction need). BamBam's own hero art is done (see above).
 2. **Music** — no soundtrack system at all, only WebAudio SFX blips (`blip()` in `src/game.html`).
    The spec calls for a jazz/hip-hop soundtrack that evolves per stage.
-3. **Kick** — the combo string is punch-only (jab, jab 2, cross, launcher — see `COMBO` in
-   `src/game.html`). The spec lists punch *and* kick.
-4. **XP-unlocked movement abilities** — XP currently only unlocks combo steps and stats
+3. **XP-unlocked movement abilities** — XP currently only unlocks combo steps and stats
    (`xpToLevel()`/`maxComboStep()`), no dash/double-jump/etc.
 
 That's the natural next-priority list.
