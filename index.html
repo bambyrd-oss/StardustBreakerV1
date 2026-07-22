@@ -63,6 +63,9 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
   border-color:#5a2340;background:rgba(60,14,34,.55)}
 #bF{right:25%;bottom:5%;width:12vmin;height:12vmin;max-width:74px;max-height:74px;font-size:2.6vmin;
   border-color:#2c5c3a;background:rgba(14,44,26,.6);touch-action:none}   /* SHOOT: hold to spray finger guns — sits where TALK used to */
+#pauseBtn{position:absolute;left:1.4%;top:11.5%;opacity:0;pointer-events:none;transition:opacity .2s;width:34px;height:22px;border-radius:4px;
+  border:1px solid #2f2b3d;background:rgba(15,13,22,.6);display:flex;align-items:center;justify-content:center;
+  color:var(--dim);font-size:11px;letter-spacing:.1em;touch-action:none}
 /* title mode gate — press start, straight into solo play (no mode choice anymore) */
 #startMenu{position:absolute;left:0;right:0;top:53%;display:none;flex-direction:column;
   align-items:center;gap:1.8vmin;z-index:15;pointer-events:none}
@@ -145,6 +148,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
         <div class="btn" id="bE">KICK</div>
         <div class="btn" id="bF">SHOOT</div>
       </div>
+      <div id="pauseBtn">| |</div>
       <div id="pause">
         <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE</small></h1>
         <div id="pcols">
@@ -1370,6 +1374,7 @@ function showRecap(reason){
 function anotherRound(){ $('recap').classList.remove('on'); reset(); setPause(false); }
 $('recapAgain').onclick=anotherRound;
 $('resume').onclick=()=>setPause(false);
+$('pauseBtn').onclick=()=>setPause(!paused);
 $('btnStart').onclick=()=>chooseMode(false);
 $('d_freedom').onclick=()=>P.freedom=P.maxFreedom;
 $('d_xp').onclick=()=>gainXp(50);
@@ -2513,6 +2518,15 @@ function update(){
   }
   if(P.sprinting && (sdir===0 || sdir!==P.sprintDir)) P.sprinting=false;   // released / reversed → stop
   P.lastDir=sdir;
+
+  //---- OPENING BEAT: BamBam strolls in from off the left edge, then the box says its line.
+  //---- Scripted — inputs are ignored until the walk lands.
+  if(P.state==='introWalk'){
+    P.st++; P.face=1; P.x+=2.2;
+    if(P.x>=110 || P.st>200){ P.x=Math.min(P.x,110); P.state='idle';
+      startDialog([{who:'BAMBAM', col:'#3ad1ff', text:'Damn, here we go again.'}]); }
+    return;
+  }
 
   //---- GOING INSIDE: he physically jogs to the store's open door and steps up into it, then the
   //---- interior takes over. Scripted — inputs are ignored for the half-second it takes.
@@ -3774,6 +3788,7 @@ function drawPlayer(){
   let drawFace=P.face;   // normally P.face; overridden to +1 for the dedicated left-facing (un-mirrored) uppercut frame
   if(P.state==='walk') key='hero.walk.'+(Math.floor(t*(P.sprinting?.30:.16))%4);   // sprint = faster run cycle
   if(P.state==='enterShop') key='hero.walk.'+(Math.floor(t*.30)%4);                // jogging into the store
+  if(P.state==='introWalk') key='hero.walk.'+(Math.floor(t*.16)%4);                // strolling in off the left
   if(P.state==='idle') key='hero.rot.east';
   // jump frames tied to actual height/velocity (not a fixed timer): 0 push-off, 1 rising,
   // 2 apex + most of the fall (the tuck holds), 3 landing — only once he's low to the ground.
@@ -4490,9 +4505,11 @@ function startGame(){
   $('startMenu').classList.remove('on');
   try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); AC.resume&&AC.resume(); }catch(e){}
   reset();
+  P.x=-46; P.state='introWalk'; P.st=0;   // he walks onto the block from off-screen
   blip(560,.06); rumble(260,.6,.7,true);
   goLandscape();
   $('touch').classList.toggle('on',OPT.touch);
+  const pb=$('pauseBtn'); pb.style.opacity='1'; pb.style.pointerEvents='auto';
 }
 
 //====================== loop ======================
