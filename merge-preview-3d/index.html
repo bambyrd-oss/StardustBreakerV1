@@ -210,7 +210,29 @@ const BANDS = [
 ];
 const SPAN = 260;                        // world-x wrap width
 const boxGeo = new THREE.BoxGeometry(1,1,1);
+const cylGeo = new THREE.CylinderGeometry(1,1,1,12);
+const coneGeo = new THREE.ConeGeometry(1,1,12);
+const sphGeo = new THREE.SphereGeometry(1,10,8);
+const MAT = {
+  metal:  new THREE.MeshStandardMaterial({ color:'#3b3f46', roughness:.65, metalness:.45 }),
+  dark:   new THREE.MeshStandardMaterial({ color:'#2a2d33', roughness:.6, metalness:.5 }),
+  wood:   new THREE.MeshStandardMaterial({ color:'#6e4a30', roughness:.95 }),
+  vent:   new THREE.MeshStandardMaterial({ color:'#9a9da2', roughness:.8, metalness:.3 }),
+  glass:  new THREE.MeshStandardMaterial({ color:'#bfe0ee', roughness:.12, metalness:.25, emissive:'#20343f', emissiveIntensity:.35 }),
+  trim:   new THREE.MeshStandardMaterial({ color:'#ece6d4', roughness:.9 }),
+  leaf:   new THREE.MeshStandardMaterial({ color:'#4f9a52', roughness:1 }),
+  red:    new THREE.MeshStandardMaterial({ color:'#c94436', roughness:.7 }),
+  blue:   new THREE.MeshStandardMaterial({ color:'#2f5f9e', roughness:.7 }),
+  lamp:   new THREE.MeshStandardMaterial({ color:'#fff2c8', roughness:.4, emissive:'#ffdf88', emissiveIntensity:.7 }),
+};
+const SIGN_COLS = ['#e0503f','#2f8f5a','#e0b24a','#c9758f','#3a8fae','#e07a3f','#7a5fae'];
 const world = [];                        // {mesh, baseX, band, extras[]}
+// helper: spawn a detail mesh that rides with its building (local x-offset preserved on recycle)
+function detail(extras, geo, mat, baseX, sx,sy,sz, px,py,pz, rot){
+  const m=new THREE.Mesh(geo,mat); m.scale.set(sx,sy,sz); m.position.set(px,py,pz);
+  if(rot) m.rotation.x=rot; m.userData.ox=px-baseX; m.castShadow=true; m.receiveShadow=true;
+  scene.add(m); extras.push(m); return m;
+}
 
 function buildColumn(band, baseX, seed){
   const w = (5 + hash(seed)*6) * band.wMul;
@@ -226,17 +248,45 @@ function buildColumn(band, baseX, seed){
   m.castShadow = !band.skyline; m.receiveShadow = true;
   scene.add(m);
   const extras=[];
-  // parapet cap
-  const cap = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color:'#00000022', transparent:true, roughness:1 }));
-  cap.scale.set(w*1.02, 1.1, band.depth*1.04); cap.position.set(baseX, h+0.3, band.z); scene.add(cap); extras.push(cap);
-  // storefront + awning on the near band
+  const front = band.z + band.depth/2;                       // z of the camera-facing face
+  // parapet cap / cornice (some buildings get a stepped cornice)
+  detail(extras, boxGeo, new THREE.MeshStandardMaterial({ color:'#00000026', transparent:true, roughness:1 }), baseX, w*1.03,1.1,band.depth*1.05, baseX,h+0.3,band.z);
+  if(!band.skyline && hash(seed*17)>0.5) detail(extras, boxGeo, MAT.trim, baseX, w*1.06,0.5,band.depth*1.08, baseX,h-0.3,band.z);
+  if(!band.skyline){
+    // rooftop water tower (iconic) on ~40%
+    if(hash(seed*5+9)>0.6){
+      const tr=1.1+hash(seed*5+6)*0.5, tx=baseX+(hash(seed*5+3)-0.5)*w*0.4, tz=band.z+(hash(seed*5+4)-0.5)*band.depth*0.3;
+      detail(extras, cylGeo, MAT.wood, baseX, tr,2.4,tr, tx,h+2.0,tz);
+      detail(extras, coneGeo, MAT.wood, baseX, tr*1.2,1.1,tr*1.2, tx,h+3.65,tz);
+      for(let L=0;L<4;L++){ const a=L*Math.PI/2+0.78, lx=tx+Math.cos(a)*tr*0.7, lz=tz+Math.sin(a)*tr*0.7;
+        detail(extras, boxGeo, MAT.dark, baseX, 0.16,1.7,0.16, lx,h+0.85,lz); }
+    }
+    // rooftop vents / AC boxes
+    const vn=hash(seed*8)>0.5?2:1;
+    for(let v=0;v<vn;v++){ const vx=baseX+(hash(seed*8+v*3)-0.5)*w*0.7;
+      detail(extras, boxGeo, MAT.vent, baseX, 0.8+hash(seed*8+v)*0.9,0.7,0.9, vx,h+0.5,band.z+(hash(seed*8+v+2)-0.5)*band.depth*0.4); }
+    // fire escape on ~35% of the near/mid facades
+    if(band.z>-40 && hash(seed*6+1)>0.62){
+      const fw=Math.min(w*0.5,3.0), fx=baseX+(hash(seed*6+2)-0.5)*w*0.3, levels=Math.min(4,Math.max(2,Math.floor(h/4)));
+      for(let L=1;L<=levels;L++){ const py=L*3.0;
+        detail(extras, boxGeo, MAT.metal, baseX, fw,0.16,1.0, fx,py,front+0.15);            // platform
+        detail(extras, boxGeo, MAT.metal, baseX, fw,0.85,0.05, fx,py+0.45,front+0.62);      // rail
+      }
+      detail(extras, boxGeo, MAT.metal, baseX, 0.09,levels*3.0,0.09, fx-fw/2,levels*1.5,front+0.6);  // stringers
+      detail(extras, boxGeo, MAT.metal, baseX, 0.09,levels*3.0,0.09, fx+fw/2,levels*1.5,front+0.6);
+    }
+  }
+  // storefront: glass front + frame + door + mullions + sign + awning
   if(band.store){
-    const store = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color:'#20242e', roughness:.5, metalness:.1 }));
-    store.scale.set(w*0.86, 4.4, 0.4); store.position.set(baseX, 2.4, band.z + band.depth/2 + 0.25); scene.add(store); extras.push(store);
-    const aw = awnings[Math.floor(hash(seed*11+5)*awnings.length)].clone(); aw.needsUpdate=true; aw.repeat.set(Math.max(2,Math.round(w/2)),1);
-    const awn = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ map:aw, roughness:.85 }));
-    awn.scale.set(w*0.9, 0.5, 2.4); awn.position.set(baseX, 4.9, band.z + band.depth/2 + 1.1);
-    awn.rotation.x = -0.32; awn.castShadow=true; scene.add(awn); extras.push(awn);
+    detail(extras, boxGeo, MAT.glass, baseX, w*0.86,4.2,0.3, baseX,2.3,front+0.22);
+    detail(extras, boxGeo, MAT.metal, baseX, w*0.9,0.5,0.5, baseX,0.35,front+0.25);
+    detail(extras, boxGeo, MAT.dark,  baseX, 1.2,3.0,0.34, baseX+w*0.25,1.7,front+0.27);           // door
+    for(let mi=-1;mi<=1;mi++) detail(extras, boxGeo, MAT.metal, baseX, 0.12,4.2,0.33, baseX+mi*w*0.22,2.3,front+0.24);
+    const sc=SIGN_COLS[Math.floor(hash(seed*13)*SIGN_COLS.length)];
+    detail(extras, boxGeo, new THREE.MeshStandardMaterial({ color:sc, roughness:.7, emissive:sc, emissiveIntensity:.14 }), baseX, w*0.8,1.5,0.35, baseX,6.5,front+0.2);
+    detail(extras, boxGeo, MAT.trim, baseX, w*0.8,0.28,0.4, baseX,5.75,front+0.22);
+    const aw=awnings[Math.floor(hash(seed*11+5)*awnings.length)].clone(); aw.needsUpdate=true; aw.repeat.set(Math.max(2,Math.round(w/2)),1);
+    detail(extras, boxGeo, new THREE.MeshStandardMaterial({ map:aw, roughness:.85 }), baseX, w*0.9,0.5,2.4, baseX,4.9,front+0.9, -0.32);
   }
   return { mesh:m, baseX, band, extras };
 }
@@ -247,6 +297,48 @@ for(const band of BANDS){
     world.push(buildColumn(band, x + (hash(colSeed)-0.5)*2, colSeed));
     colSeed++;
   }
+}
+
+// ---- street props on the sidewalk (recycled) ----
+const props=[];   // {g, baseX}
+function makeProp(type, seed){
+  const g=new THREE.Group();
+  const add=(geo,mat,sx,sy,sz,px,py,pz)=>{ const m=new THREE.Mesh(geo,mat); m.scale.set(sx,sy,sz); m.position.set(px,py,pz); m.castShadow=true; g.add(m); return m; };
+  if(type==='lamp'){ add(cylGeo,MAT.dark,0.14,6.5,0.14,0,3.25,0); add(boxGeo,MAT.dark,1.6,0.14,0.14,0.7,6.4,0); add(boxGeo,MAT.lamp,0.5,0.4,0.5,1.4,6.2,0); }
+  else if(type==='tree'){ add(cylGeo,MAT.wood,0.28,3.0,0.28,0,1.5,0); add(sphGeo,MAT.leaf,2.0,1.9,2.0,0,3.7,0); add(sphGeo,MAT.leaf,1.4,1.4,1.4,0.8,3.1,0.3);
+    add(boxGeo,new THREE.MeshStandardMaterial({color:'#7a7266',roughness:1}),1.5,0.6,1.5,0,0.3,0); }   // planter
+  else if(type==='hydrant'){ add(cylGeo,MAT.red,0.35,1.1,0.35,0,0.55,0); add(sphGeo,MAT.red,0.4,0.35,0.4,0,1.15,0); add(boxGeo,MAT.red,1.0,0.16,0.22,0,0.75,0); }
+  else if(type==='trash'){ add(cylGeo,new THREE.MeshStandardMaterial({color:'#33553f',roughness:.9}),0.55,1.3,0.55,0,0.65,0); add(cylGeo,MAT.dark,0.6,0.16,0.6,0,1.35,0); }
+  else if(type==='mailbox'){ add(cylGeo,MAT.blue,0.55,0.5,0.55,0,1.2,0); add(boxGeo,MAT.blue,1.1,1.0,1.1,0,0.85,0); add(cylGeo,MAT.dark,0.12,1.0,0.12,0,0.5,0); }
+  else if(type==='bench'){ add(boxGeo,MAT.wood,2.6,0.2,0.9,0,0.9,0); add(boxGeo,MAT.wood,2.6,0.9,0.15,0,1.4,-0.35); add(boxGeo,MAT.dark,0.15,0.9,0.8,-1.1,0.45,0); add(boxGeo,MAT.dark,0.15,0.9,0.8,1.1,0.45,0); }
+  return g;
+}
+{ const kinds=['lamp','tree','hydrant','trash','mailbox','bench','tree','lamp'];
+  const N=11;
+  for(let k=0;k<N;k++){ const type=kinds[Math.floor(hash(k*31)*kinds.length)];
+    const g=makeProp(type,k); const bx=-SPAN/2 + k*(SPAN/N) + (hash(k*7)-0.5)*3;
+    g.position.set(bx, 0.6, -1.4 - hash(k*5)*1.4);       // on the sidewalk, near the curb
+    scene.add(g); props.push({ g, baseX:bx }); }
+}
+
+// ---- pedestrians: small billboard walkers on the sidewalk (recycled) ----
+function pedTexture(shirt){
+  const c=document.createElement('canvas'); c.width=32;c.height=64; const x=c.getContext('2d');
+  x.clearRect(0,0,32,64);
+  x.fillStyle='#2a2029'; x.beginPath(); x.arc(16,10,5,0,7); x.fill();   // head
+  x.fillStyle=shirt; x.fillRect(10,15,12,20);                            // torso
+  x.fillStyle='#2a2833'; x.fillRect(11,34,4,22); x.fillRect(17,34,4,22); // legs
+  x.fillStyle=shirt; x.fillRect(8,16,3,16); x.fillRect(21,16,3,16);      // arms
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const pedTex=['#c0503f','#3a7fae','#e0b24a','#4f9a52','#c9758f','#d8d2c4'].map(pedTexture);
+const peds=[];
+for(let k=0;k<9;k++){
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({ map:pedTex[k%pedTex.length], transparent:true }));
+  const s=2.4+hash(k*13)*0.5, z=-2.5-hash(k*9)*3.5, y=1.6;
+  spr.scale.set(s,s*1.9,1); const bx=-SPAN/2+k*(SPAN/9)+(hash(k*3)-0.5)*4;
+  spr.position.set(bx, y, z); scene.add(spr);
+  peds.push({ spr, baseX:bx, y, sx:s, vx:(hash(k*5)<0.5?-1:1)*(0.03+hash(k*11)*0.03) });
 }
 
 // ---- drifting clouds (billboard planes, recycled) ----
@@ -306,7 +398,16 @@ function frame(){
     else if(sx > SPAN/2) b.baseX -= SPAN;
     const nx = b.baseX - scroll;
     b.mesh.position.x = nx;
-    for(const e of b.extras) e.position.x = nx;     // storefront/awning/cap ride with the slab
+    for(const e of b.extras) e.position.x = nx + (e.userData.ox||0);   // details ride with the slab, keeping their offset
+  }
+  // street props + pedestrians
+  for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN; p.g.position.x=p.baseX-scroll; }
+  for(const pe of peds){
+    pe.baseX += pe.vx;                              // pedestrians also walk on their own
+    let sx=pe.baseX-scroll; if(sx<-SPAN/2){pe.baseX+=SPAN;} else if(sx>SPAN/2){pe.baseX-=SPAN;}
+    pe.spr.position.x=pe.baseX-scroll;
+    pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18;   // little walk bob
+    pe.spr.scale.x = (pe.vx<0? -Math.abs(pe.sx): Math.abs(pe.sx));  // face travel direction
   }
 
   // road surface scrolls with the world (texture offset) + recycle crosswalks/decals
