@@ -34,6 +34,13 @@ def main():
     if '__ATLAS__' not in tpl or '__INDEX__' not in tpl:
         sys.exit('src/game.html is missing the __ATLAS__ / __INDEX__ placeholders')
 
+    # splice the vendored Three.js + the 3D background module into the single game
+    # script (see the marker comments in game.html — one <script> tag, harness-safe)
+    for marker, fname in (('//__THREE_JS__', 'three.min.js'), ('//__BG3D_JS__', 'bg3d.js')):
+        if marker not in tpl:
+            sys.exit(f'src/game.html is missing the {marker} marker')
+        tpl = tpl.replace(marker, open(os.path.join(SRC, fname)).read(), 1)
+
     if inline:
         raw = open(os.path.join(SRC, 'atlas.png'), 'rb').read()
         atlas = base64.b64encode(raw).decode()

@@ -276,6 +276,11 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
   </div>
 </div>
 <script>
+// build.py splices the vendored Three.js + the 3D street background module in here.
+// One <script> tag total — the harness extracts the whole block with a single regex,
+// and bg3d.js self-disables under node (no WebGL), leaving the procedural bg() live.
+//__THREE_JS__
+//__BG3D_JS__
 const ATLAS_B64="__ATLAS__";
 const IDX=__INDEX__;
 const S=92, W=640, H=360;
@@ -3172,11 +3177,17 @@ function render(){
   ctx.save();
   const sh=shake*OPT.shake;
   if(sh>1) ctx.translate(rnd(-sh,sh),rnd(-sh,sh));
-  bg();
+  // 3D street background when WebGL is up (bg3d.js), procedural bg() otherwise.
+  // 0.0805 = 3D units per game px at the sidewalk plane (solved with the bg3d camera),
+  // so the scene scrolls 1:1 with the player's stride where he walks.
+  if(globalThis.__bg3d){ globalThis.__bg3d.render(camX*0.0805); ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H); }
+  else bg();
   const list=[];
-  for(const cw of crowd) list.push({z:cw.z,f:()=>drawCrowd(cw)});
+  // the 3D scene supplies its own pedestrians + street furniture; the procedural
+  // crowd/props still SIMULATE (aggro etc.) but only draw on the fallback path
+  if(!globalThis.__bg3d) for(const cw of crowd) list.push({z:cw.z,f:()=>drawCrowd(cw)});
   for(const c of cans) if(!c.dead) list.push({z:c.z,f:()=>drawCan(c)});
-  for(const pr of props) list.push({z:pr.z,f:()=>drawProp(pr)});
+  if(!globalThis.__bg3d) for(const pr of props) list.push({z:pr.z,f:()=>drawProp(pr)});
   for(const d of drops) list.push({z:d.z,f:()=>drawDrop(d)});
   for(const e of ents) list.push({z:e.z,f:()=>e.k==='boss'?drawBoss(e):e.k==='rat'?drawRat(e):e.k==='sammich'?drawSammich(e):drawVamp(e)});
   list.push({z:P.z,f:drawPlayer});
