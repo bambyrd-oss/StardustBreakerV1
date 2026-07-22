@@ -58,8 +58,8 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
 #bD{right:25%;bottom:5%;width:12vmin;height:12vmin;max-width:74px;max-height:74px;font-size:2.6vmin}
 #bE{right:21%;bottom:37%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
   border-color:#5a2340;background:rgba(60,14,34,.55)}
-#bF{right:5%;bottom:50%;width:13vmin;height:13vmin;max-width:80px;max-height:80px;font-size:2.8vmin;
-  border-color:#2c5c3a;background:rgba(14,44,26,.6)}   /* dedicated SHOOT action, top of the right-hand action column */
+#bF{right:4%;top:18%;width:12vmin;height:12vmin;max-width:70px;max-height:70px;font-size:2.4vmin;
+  border-color:#2c5c3a;background:rgba(14,44,26,.6)}   /* FIGHT/SHOOT mode toggle, up top out of the action cluster */
 #pauseBtn{position:absolute;left:50%;top:2.5%;opacity:0;pointer-events:none;transition:opacity .2s;transform:translateX(-50%);width:34px;height:22px;border-radius:4px;
   border:1px solid #2f2b3d;background:rgba(15,13,22,.6);display:flex;align-items:center;justify-content:center;
   color:var(--dim);font-size:11px;pointer-events:auto;letter-spacing:.1em}
@@ -207,7 +207,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Punch <i style="color:#5c5670">(mash = combo)</i></span><b><kbd>J</kbd></b></div>
             <div class="row"><span>Kick</span><b><kbd>I</kbd></b></div>
             <div class="row"><span>Jump</span><b><kbd>K</kbd></b></div>
-            <div class="row"><span>Shoot <i style="color:#5c5670">(finger gun)</i></span><b><kbd>U</kbd></b></div>
+            <div class="row"><span>Fight / Shoot <i style="color:#5c5670">(toggle)</i></span><b><kbd>U</kbd></b></div>
             <div class="row"><span>Drink</span><b><kbd>L</kbd></b></div>
             <div class="row"><span>Talk</span><b><kbd>E</kbd></b></div>
             <div class="row"><span>Pause</span><b><kbd>ESC</kbd></b></div>
@@ -216,7 +216,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><span>Move</span><b>Stick / D-pad</b></div>
             <div class="row"><span>Punch</span><b style="color:#3a7fd5">X</b> <span style="color:#5c5670">/ RB / RT</span></div>
             <div class="row"><span>Kick</span><b>LB</b></div>
-            <div class="row"><span>Shoot</span><b>LT</b></div>
+            <div class="row"><span>Fight / Shoot</span><b>LT</b></div>
             <div class="row"><span>Jump</span><b style="color:#5aa84a">A</b></div>
             <div class="row"><span>Drink</span><b style="color:#d54a44">B</b></div>
             <div class="row"><span>Talk</span><b style="color:#d5b23a">Y</b></div>
@@ -492,7 +492,7 @@ function buyContinue(){ const cost=continueCost(); if(P.bucks<cost) return;
 function callItNight(){ continueOn=false; $('continue').classList.remove('on'); showRecap('bust'); }
 $('contPay').onclick=buyContinue;
 $('contQuit').onclick=callItNight;
-function runScore(){ return Math.round(P.x/16) + night.bosses*300 + night.slams*150 + night.cash + P.level*100; }
+function runScore(){ return Math.round(P.x/16) + night.bosses*300 + night.cash + P.level*100; }
 function showRecap(reason){
   dawnShown=true;
   const sc=runScore(), isBest=sc>bestScore;
@@ -500,7 +500,7 @@ function showRecap(reason){
   $('recapHead').textContent = reason==='dawn' ? "THE CITY IS FREE" : "THEY GOT YOU THIS TIME";
   $('recapStats').innerHTML =
     'DISTANCE <b>'+Math.round(P.x/16)+'m</b>  ·  BOSSES <b>'+night.bosses+'</b>  ·  LEVEL <b>'+P.level+'</b><br>'+
-    'SLAMS <b>'+night.slams+'</b>  ·  BAMMY BUCKS <b>'+night.cash+'</b>  ·  DEATHS <b>'+P.deaths+'</b>  ·  CONTINUES <b>'+continues+'</b>';
+    'BAMMY BUCKS <b>'+night.cash+'</b>  ·  DEATHS <b>'+P.deaths+'</b>  ·  CONTINUES <b>'+continues+'</b>';
   $('recapScore').innerHTML = 'SCORE <b>'+sc+'</b>'+(isBest?'  <span style="color:#c9d13a">NEW BEST!</span>':'  ·  BEST '+bestScore);
   $('recap').classList.add('on');
 }
@@ -809,7 +809,7 @@ let armedTip=false;                        // one-shot "hold punch to throw" tip
 let stageNum=1, wavesThisStage=0;           // which stage (1-3) and how many waves cleared in it so far
 const DAWN_X=1e15;                          // distance safety backstop only — stages end on the 3rd boss, not distance
 let lives=3, continues=0;                   // 3 lives, then pay to continue
-let night={bosses:0,cash:0,reach:0,slams:0}; // recap tally + furthest reached THIS run (drives the stage-end clock)
+let night={bosses:0,cash:0,reach:0}; // recap tally + furthest reached THIS run (drives the stage-end clock)
 let dawnShown=false, continueOn=false;   // freeze flags: recap / continue prompt
 const CONTINUE_COSTS=[50,100,250];          // then $500 every time after
 const continueCost=()=> CONTINUE_COSTS[continues]!==undefined?CONTINUE_COSTS[continues]:500;
@@ -819,14 +819,14 @@ const P={};
 function reset(){
   Object.assign(P,{x:120,z:245,y:0,vy:0,face:1,hp:8,maxhp:8,freedom:0,maxFreedom:100,xp:0,level:1,bucks:500,
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
-    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,airPunch:false,landHold:0,beamFace:1,
-    stepV:0,downT:0,knockV:0,weapon:null,grabE:null,grabbedBy:null,downed:false});
+    dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:false,shootCd:0,shootT:0,airPunch:false,landHold:0,beamFace:1,
+    stepV:0,downT:0,knockV:0,weapon:null,downed:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
   ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0;
   boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0;
   busMob=null; busMobAt = t + (Math.random()<0.75 ? Math.floor(rnd(1800,5400)) : Infinity);   // ~once a run, not guaranteed
-  lives=3; continues=0; night={bosses:0,cash:0,reach:0,slams:0}; dawnShown=false;   // fresh stage run
+  lives=3; continues=0; night={bosses:0,cash:0,reach:0}; dawnShown=false;   // fresh stage run
   cans=[]; crowd=[]; litter=[]; steam=[]; props=[];
   BUILDINGS=[]; CLUBS=[]; GRATES=[]; GATES=[]; MADE.clear();
   _credited.clear();
@@ -1610,41 +1610,6 @@ function connect(e,s){
   return crit;
 }
 
-// ---- THE GRAB GAME. it cuts both ways. ----
-//  YOU: hold ↓+punch near a mark to grab them; you both lock; a wind-up fills; then you HURL and SLAM them down.
-//       you're defenseless the whole time — take a hit and the grab breaks. release early to bail.
-//  THEM: up close, an enemy can grab YOU. mash punch to break free, or they slam you to the ground.
-const GRAB_WIND=48;          // frames you hold before the toss launches (~0.8s — snappy, still a commitment)
-const EGRAB_LEN=82;          // frames an enemy holds you before slamming you down
-const EGRAB_ESCAPE=7;        // punch-mashes needed to break their grip
-function grabbable(){                                       // the single closest live enemy within arm's reach
-  let best=null,bd=1e9;
-  for(const e of ents){ if(e.dead||e.k==='boss') continue;
-    if(e.state==='thrown'||e.state==='held'||e.state==='grabbing') continue;
-    if(Math.abs(e.x-P.x)<38 && Math.abs(e.z-P.z)<24){ const dd=Math.hypot(e.x-P.x,(e.z-P.z)*1.6); if(dd<bd){ bd=dd; best=e; } } }   // true nearest, not just horizontal
-  return best;
-}
-function tryGrab(){                                         // begin a grab (↓+punch, held). returns true if it started
-  if(P.state==='grab') return false;
-  const e=grabbable(); if(!e) return false;
-  P.face = e.x>=P.x?1:-1;
-  P.state='grab'; P.grabE=e; P.grabT=0; P.step=0; P.buf=0;
-  P.iframes=Math.max(P.iframes,9);                          // a couple i-frames as you commit to the grab
-  e.state='held'; e.tok=false; e.hitstun=999; e.vx=0; e.vy=0;
-  blip(120,.05); rumble(160,.5,.5,true);
-  return true;
-}
-function dropGrab(stun){                                    // let go without tossing
-  const e=P.grabE; if(e){ e.state='stun'; e.hitstun=stun||18; e.y=0; }
-  P.grabE=null; if(P.state==='grab') P.state='idle';
-}
-function launchGrabbed(){                                   // the wind-up completed — HURL them, they slam down on landing
-  const e=P.grabE; if(!e){ P.state='idle'; return; }
-  e.state='thrown'; e.hitstun=0; e.tok=false; e.hitDone=true;
-  e.vx=P.face*rnd(1.6,2.4); e.vy=4.8; e.y=Math.max(e.y,4);
-  shake=Math.max(shake,6); blip(180,.07); rumble(260,.8,.6,true);
-  P.grabE=null; P.state='idle'; P.step=0; P.buf=0; P.iframes=Math.max(P.iframes,10);   // brief grace on the release/recovery
-}
 function throwWeapon(){                                     // hurl the held weapon as a projectile
   if(!P.weapon) return; const w=WEAPONS[P.weapon.type];
   fires.push({x:P.x+P.face*20, z:P.z, y:22, vx:P.face*6, vz:0, vy:0.02, r:8, life:64, max:64,
@@ -1658,28 +1623,8 @@ function loseHeart(raw){
   P.hp=Math.max(0,P.hp-(full?1:0.5));
   return full;
 }
-// an enemy hurls YOU to the ground: heavy, but survivable
-function tossPlayerDown(fromX){
-  P.state='down'; P.downT=70; P.iframes=100;
-  loseHeart(heavyHitAt()+14);
-  P.vy=4.0; P.y=Math.max(P.y,4); P.knockV=(P.x<fromX?-1:1)*2.2;
-  P.grabbedBy=null; P.struggle=0; P.grabImmune=150;
-  shake=12; hitstop=8; rumble(460,1,.8,true);
-}
-function slamDown(e){                                       // a thrown enemy lands hard — the payoff of the grab-toss
-  e.dead=1; e.splat=1; e.vx*=0.4; e.vy=0; e.y=0;
-  blip(300,.06); shake=13; hitstop=Math.max(hitstop,11); rumble(520,1,1,true);
-  for(let i=0;i<22;i++) puff(e.x+rnd(-18,18), e.z-rnd(0,10), rnd(0,18), 1, i%3?'#ff8c3a':'#e8e2d4');
-  const loot=e.big?4:e.elite?3:2;
-  for(let i=0;i<loot;i++) drop(e.x+rnd(-22,22), e.z, 'cash');
-  tooth(e.x, e.z);
-  gainFreedom(e.big?12:e.elite?9:6); gainXp(e.big?24:e.elite?18:12);
-  night.slams=(night.slams||0)+1;
-}
-
 function hurtPlayer(dmg,fromX){
-  if(P.iframes>0||OPT.inv||P.state==='caged'||P.state==='grabbed') return;   // caged/grabbed handle their own damage
-  if(P.state==='grab' && P.grabE){ dropGrab(24); say(P.x,P.z-30,'BROKEN!','#ff2e88'); }   // hit mid-windup → the grab breaks, you eat it
+  if(P.iframes>0||OPT.inv||P.state==='caged') return;   // caged handles its own damage
   const armored = P.landHold>0;                  // super armor while frozen in a landing pose — eats the hit, doesn't flinch
   const full=loseHeart(dmg);                     // HIDE thickens your skin; a heavy hit costs a full heart, a light one costs half
   P.hitFlash=16; shake=4; hitstop=4; rumble(200,.95,.5,true);
@@ -1750,15 +1695,15 @@ function update(){
   let iz=(key.KeyS||key.ArrowDown?1:0)-(key.KeyW||key.ArrowUp?1:0);
   if(Math.abs(T.ax)>0.01||Math.abs(T.az)>0.01){ ix=T.ax; iz=T.az; }
   if(pad && (Math.abs(PAD.ax)>0||Math.abs(PAD.az)>0)){ ix=PAD.ax; iz=PAD.az; }
-  const wantStreet = iz>0.35;          // holding DOWN, toward the road — the grab modifier
   const wantUp     = iz<-0.35;         // holding UP — the uppercut modifier (UP + PUNCH)
-  const heldPunch = key.KeyJ || T.A || (PAD.prev&&PAD.prev.PUNCH);   // raw held state, for winding up a grab
+  const heldPunch = key.KeyJ || T.A || (PAD.prev&&PAD.prev.PUNCH);   // raw held state — held-fire in SHOOT mode, wind-up for weapons
   const jPunch=tap('KeyJ')||tapT('A')||(pad&&pad.PUNCH),
         jJump =tap('KeyK')||tap('Space')||tapT('B')||(pad&&pad.JUMP),
         jDrink=tap('KeyL')||tapT('C')||(pad&&pad.DRINK),
         jTalk =tap('KeyE')||tapT('D')||(pad&&pad.TALK),
         jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK),
-        jGun  =tap('KeyU')||tapT('F')||(pad&&pad.GUN);   // dedicated SHOOT action (no longer a FIGHT/SHOOT mode toggle)
+        jGun  =tap('KeyU')||tapT('F')||(pad&&pad.GUN);
+  if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); }   // toggle FIGHT ⇄ SHOOT (current mode shown in the HUD)
   if(pad&&pad.PAUSE) setPause(true);
 
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
@@ -1840,15 +1785,6 @@ function update(){
       P.hitDone=true; shake=Math.max(shake,4); }
     if(P.st>=20) P.state='idle';
   }
-  else if(P.state==='shoot'){                   // DEDICATED SHOOT — finger-gun dot; he backpedals (recoil) instead of stepping in
-    P.st++;
-    if(P.st===1) P.stepV=-P.face*2.4;           // kick off a backward glide, away from the shot
-    if(P.stepV){ P.x+=P.stepV; P.stepV*=0.82; if(Math.abs(P.stepV)<0.12) P.stepV=0; }
-    if(P.st===5 && !P.hitDone){                 // muzzle frame — spit the dot straight ahead
-      fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
-      blip(520,.02); P.hitDone=true; }
-    if(P.st>=18) P.state='idle';
-  }
   else if(P.state==='air'){                    // JUMP then PUNCH = dive punch, JUMP then KICK = drop kick
     P.st++;
     P.x += P.face*(P.airPunch?2.1:2.9);         // punch dives a bit shorter than the flying kick
@@ -1875,30 +1811,12 @@ function update(){
       }
     }
   }
-  else if(P.state==='grab'){                    // you've got a mark by the collar — HOLD to wind up, then hurl
-    const e=P.grabE;
-    if(!e || e.dead){ P.grabE=null; P.state='idle'; }
-    else {
-      e.x=P.x+P.face*24; e.z=P.z; e.y=16; e.face=-P.face; e.hitstun=999;   // hoisted in front of you, locked
-      P.grabT++;
-      if(!heldPunch){ dropGrab(16); say(P.x,P.z-30,'let go','#5c5670'); }   // released early → bail
-      else if(P.grabT>=GRAB_WIND) launchGrabbed();                          // wound up → INTO TRAFFIC
-      else if(P.grabT%6===0) blip(80+P.grabT,.02);
-    }
-  }
-  else if(P.state==='grabbed'){                 // an enemy has YOU — MASH PUNCH to break their grip
-    P.y=0; P.vy=0;
-    if(jPunch){ P.struggle=(P.struggle||0)+1; blip(260,.02);
-      if(P.struggle>=EGRAB_ESCAPE){ const g=P.grabbedBy;                    // shook loose
-        if(g){ g.state='stun'; g.hitstun=30; g.cd=rnd(40,80); }
-        P.grabbedBy=null; P.struggle=0; P.state='idle'; P.iframes=26; P.grabImmune=90; say(P.x,P.z-30,'SHOOK LOOSE','#c9d13a'); } }
-    if(!P.grabbedBy || P.grabbedBy.dead){ P.grabbedBy=null; P.struggle=0; P.state='idle'; P.iframes=20; }
-  }
   else {
+    const shooting = P.gunMode && P.shootT>0;   // mid-shot in SHOOT mode → he walks it, doesn't run
     if(ix||iz){ const l=Math.max(1,Math.hypot(ix,iz)); ix/=l; iz/=l;
-      const spd=2.15+U.boots*0.5;   // BOOTS: quicker on your feet
+      const spd = shooting ? 1.15 : (2.15+U.boots*0.5);   // BOOTS: quicker on your feet — full run unless you're firing
       P.x+=ix*spd; P.z+=iz*spd*0.62;
-      if(Math.abs(ix)>0.25) P.face=ix>0?1:-1;
+      if(Math.abs(ix)>0.25 && !shooting) P.face=ix>0?1:-1;   // while firing, hold your aim instead of snapping to movement
     }
 
     if(P.y===0) P.state=(ix||iz)?'walk':'idle';
@@ -1914,21 +1832,24 @@ function update(){
       if(best) P.face = best.x>P.x?1:-1;
       P.state='kick'; P.st=0; P.hitDone=false; blip(360,.03);
     }
-    if(jGun && P.y===0 && !P.weapon){                       // dedicated SHOOT button → finger-gun shot (backpedals)
-      let best=null,bd=260;                                 // aims further than melee — it's a ranged dot
-      for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
-        if(d<bd){bd=d;best=e;} }
-      if(best) P.face = best.x>P.x?1:-1;
-      P.state='shoot'; P.st=0; P.hitDone=false; blip(520,.03);
+    if(P.gunMode && P.y===0 && !P.weapon){                     // SHOOT mode: HOLD punch to spray finger-gun dots
+      // stationary by default, spammable (short cooldown); you can still walk (slower) while firing.
+      if(heldPunch && P.shootCd<=0){
+        if(!(ix||iz)){ let best=null,bd=260;                    // standing still → auto-aim the nearest mark; walking → point where you move
+          for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2); if(d<bd){bd=d;best=e;} }
+          if(best) P.face = best.x>P.x?1:-1; }
+        fires.push({x:P.x+P.face*18, z:P.z, y:24, vx:P.face*6.6, vz:0, vy:0, r:3, life:32, max:32, foe:false, dot:true, dmg:5});
+        P.shootCd=7; P.shootT=10; blip(520,.02);               // 7-tick cadence ≈ fast finger-gun spam
+      }
     }
-    if(jPunch && P.y===0 && wantUp && !P.weapon){          // UP + PUNCH → rising uppercut launcher
+    else if(jPunch && P.y===0 && wantUp && !P.weapon){        // FIGHT mode — UP + PUNCH → rising uppercut launcher
       let best=null,bd=80;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
       if(best) P.face = best.x>P.x?1:-1;
       P.state='upper'; P.st=0; P.vy=5.0; P.airT=0; P.hitDone=false; blip(300,.04);
     }
-    else if(jPunch && P.y===0 && !(wantStreet && tryGrab())){   // DOWN + hold punch at the curb = grab → wind up → toss; a plain punch still combos
+    else if(jPunch && P.y===0){                                 // FIGHT mode — ground punch → melee combo (or hurl an equipped weapon)
       let best=null,bd=70;
       for(const e of ents){ if(e.dead)continue; const d=Math.hypot(e.x-P.x,(e.z-P.z)*2);
         if(d<bd){bd=d;best=e;} }
@@ -1959,7 +1880,8 @@ function update(){
   //---- meters
   if(camFlash>0) camFlash-=0.10;                 // the photo whiteout fades
   if(P.iframes>0)P.iframes--;
-  if(P.grabImmune>0)P.grabImmune--;              // brief window where you can't be re-grabbed (no chain-grab lock)
+  if(P.shootCd>0)P.shootCd--;                    // finger-gun fire-rate gate
+  if(P.shootT>0)P.shootT--;                       // finger-gun pose/anim hold (also gates walk-speed while firing)
   if(P.hitFlash>0)P.hitFlash--;
   for(const e of ents){ if(e.flash>0) e.flash--; if(e.recoilT>0) e.recoilT--; if(e.hitAnimT>0) e.hitAnimT--; }
   if(P.dmgT>0){ P.dmgT--; if(!P.dmgT)P.dmgMul=1; }
@@ -1993,23 +1915,6 @@ function update(){
       e.x+=e.vx; e.vx*=0.9; e.y+=e.vy; e.vy-=0.34;
       if(e.y<=0){ e.y=0; e.vy=0; e.vx*=0.4; if(Math.abs(e.vx)<0.4){ e.vx=0; e.state='stun'; } }
       e.hitstun--; if(e.hitstun<=0 && e.y===0){ e.state='walk'; e.cd=rnd(30,80); }
-      continue;
-    }
-    if(e.state==='held'){                      // in YOUR grip — the player's grab state drives it
-      if(P.grabE!==e || P.state!=='grab'){ e.state='stun'; e.hitstun=16; e.y=0; }
-      continue;
-    }
-    if(e.state==='grabbing'){                   // it's got YOU — hold, then slam you down unless you mash out
-      e.grabT=(e.grabT||0)+1; e.anim+=0.04;
-      if(P.state==='grabbed' && P.grabbedBy===e){
-        P.x=e.x+e.face*22; P.z=e.z; P.face=-e.face;
-        if(e.grabT>=EGRAB_LEN){ tossPlayerDown(e.x); e.state='stun'; e.hitstun=26; e.cd=rnd(70,130); }
-      } else { e.state='stun'; e.hitstun=20; e.cd=rnd(40,80); }   // you broke loose
-      continue;
-    }
-    if(e.state==='thrown'){                     // hurled by the grab-toss — arcs through the air, slams down on landing
-      e.x+=e.vx; e.vx*=0.99; e.y+=e.vy; e.vy-=0.3; e.anim+=0.2;
-      if(e.y<=0){ e.y=0; slamDown(e); }
       continue;
     }
     if(e.state==='enter'){                     // walking out of the door into the street
@@ -2061,14 +1966,6 @@ function update(){
     e.cd--;
     if(e.fire && d<(e.big?150:105) && d>(e.big?40:26) && e.cd<=0 && (e.tok||toks<2)){
       if(!e.tok){e.tok=true;toks++;} e.state='breathe'; e.st=0;
-    }
-    // at the curb they'll GRAB you and try to throw you into the road — mash out or you're the one splatted
-    else if(_T.host && e.k==='vamp' && !e.fire && P.z>FLOOR_S-30 && d<38 && e.cd<=0 && (e.tok||toks<2)
-            && P.iframes<=0 && (P.grabImmune||0)<=0 && !OPT.inv && (P.state==='idle'||P.state==='walk') && Math.random()<0.4){
-      if(!e.tok){e.tok=true;toks++;}
-      e.state='grabbing'; e.grabT=0; e.face=dx>0?1:-1;
-      P.state='grabbed'; P.grabbedBy=e; P.struggle=0; P.step=0; P.buf=0;
-      blip(140,.06); rumble(200,.6,.5,true); say(e.x,e.z-40,'GOTCHA','#ff2e88');
     }
     else if(d<(e.k==='rat'?(e.big?40:26):44) && e.cd<=0 && (e.tok||toks<2)){
       if(!e.tok){e.tok=true;toks++;} e.state='atk'; e.st=0; e.hitDone=false;
@@ -2179,7 +2076,6 @@ function respawn(){
   P.downed=false;                                  // respawn puts you on your feet — never leave the down flag set (continue path relies on this)
   P.step=0; P.buf=0; P.downT=0; P.iframes=110;
   P.cageB=null; P.struggle=0; if(boss) boss.caged=false;   // spring the briefcase if you died inside it
-  P.grabE=null; P.grabbedBy=null;                          // clear any grab in progress
   P.weapon=null;                                           // you dropped whatever you were holding when you went down
   fires=[];
   for(const e of ents){ if(e.dead) continue;
@@ -3015,14 +2911,16 @@ function drawPlayer(){
     else if(P.y>14) key='hero.jump.2';         // falling, still well off the ground
     else key='hero.jump.3';                    // about to touch down — crouch only now
   }
-  if(P.state==='imagine') key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*.4)%4) : 'hero.rot.east';
+  if(P.state==='imagine') key= IDX['hero.shoot.0'] ? 'hero.shoot.'+clamp(Math.floor(P.st/8),0,3) : 'hero.rot.east';   // the plasma beam pours out of the finger gun — hold the point through the blast
   if(P.state==='air') key= P.airPunch ? 'hero.punch.'+clamp(2+Math.floor(P.st/3),2,5)           // dive punch (reuses the punch set's extend frames)
                           : (IDX['hero.kick.0'] ? 'hero.kick.'+clamp(Math.floor(P.st/3),0,3)    // drop kick
                                                 : 'hero.jump.3');
   if(P.state==='kick') key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+clamp(Math.floor(P.st/5),0,3)   // standing kick — feet stay on the ground
                                                      : 'hero.kick.2';
-  if(P.state==='shoot') key= IDX['hero.shoot.0'] ? 'hero.shoot.'+clamp(Math.floor(P.st/4),0,3)   // dedicated finger-gun point
-                                                  : 'hero.punch.2';
+  // SHOOT mode: while a shot is fresh (shootT>0) and he's on his feet (idle/walk), overlay the
+  // finger-gun point — no dedicated state, so movement stays free and the pose rides on top.
+  if(P.gunMode && P.shootT>0 && (P.state==='idle'||P.state==='walk') && IDX['hero.shoot.0'])
+    key='hero.shoot.'+clamp(3-Math.floor(P.shootT/3),0,3);
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
       const uf = P.landHold>0 ? 3 : (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land (landHold forces the true landing frame — vy=0 while frozen would otherwise land on the BAM index)
@@ -3072,17 +2970,7 @@ function drawPlayer(){
   if(P.state==='punch'&&P.step>0){ ctx.font='bold 9px "JetBrains Mono",monospace'; ctx.textAlign='center';
     ctx.fillStyle= P.step===3?'#ffb545':'#c9d13a'; ctx.fillText((P.step+1)+' HIT',P.x-camX,P.z-92); }
   // grab wind-up: you're hoisting a mark — the meter fills, then you hurl. you're wide open until it does.
-  if(P.state==='grab'){ const sx=P.x-camX, prog=clamp(P.grabT/GRAB_WIND,0,1);
-    ctx.fillStyle='#2a2436'; ctx.fillRect(sx-14,P.z-96,28,4);
-    ctx.fillStyle= prog>.85?'#ff2e88':'#ffb545'; ctx.fillRect(sx-14,P.z-96,28*prog,4);
-    ctx.fillStyle='#ffb545'; ctx.font='bold 8px "JetBrains Mono",monospace'; ctx.textAlign='center';
-    if(t%16<11) ctx.fillText(prog>=1?'HURL!':'HOLD…', sx, P.z-100); }
-  // an enemy has you — MASH prompt + escape meter
-  if(P.state==='grabbed'){ const sx=P.x-camX, got=clamp((P.struggle||0)/EGRAB_ESCAPE,0,1);
-    ctx.fillStyle='#2a2436'; ctx.fillRect(sx-14,P.z-96,28,4);
-    ctx.fillStyle='#c9d13a'; ctx.fillRect(sx-14,P.z-96,28*got,4);
-    ctx.fillStyle='#ff2e88'; ctx.font='bold 9px "JetBrains Mono",monospace'; ctx.textAlign='center';
-    if(t%12<8) ctx.fillText('MASH!', sx, P.z-100); } }
+}
 
 // co-op identity: a stable colour + "NP" tag per player, identical on every client.
 // 1P red · 2P blue · 3P yellow · 4P green. The index is a sort of the player ids, so all
@@ -3108,9 +2996,8 @@ function drawRemotePlayer(o, pos, idx){
     case 'jump':  key='hero.jump.'+clamp(3-Math.floor(pos.y/16),0,3); break;   // low near the ground (crouch), high mid-air (rising/tucked) — no vy synced, so push-off/landing share a frame
     case 'air':   key= IDX['hero.kick.0'] ? 'hero.kick.'+(pos.y>20?1:2) : 'hero.jump.3'; break;   // drop kick
     case 'kick':  key= IDX['hero.kickstand.0'] ? 'hero.kickstand.'+(Math.floor(t*0.3)%4) : 'hero.kick.2'; break;   // standing kick — no y/st synced, just cycle locally like the punch case below
-    case 'shoot': key= IDX['hero.shoot.0'] ? 'hero.shoot.'+(Math.floor(t*0.3)%4) : 'hero.punch.2'; break;   // dedicated finger-gun shot
     case 'upper': key= IDX['hero.uppercut.0'] ? 'hero.uppercut.'+(pos.y>24?1:pos.y>8?2:3) : 'hero.jump.2'; break;   // uppercut
-    case 'imagine': key= IDX['hero.swag.0'] ? 'hero.swag.'+(Math.floor(t*0.4)%4) : 'hero.rot.east'; break;
+    case 'imagine': key= IDX['hero.shoot.0'] ? 'hero.shoot.'+(Math.floor(t*0.3)%4) : 'hero.rot.east'; break;   // plasma beam from the finger gun
     case 'down':  key='hero.jump.3'; break;
     case 'punch': key='hero.punch.'+(Math.floor(t*0.3)%6); break;
   }
@@ -3224,6 +3111,11 @@ function hud(){
     ctx.beginPath(); ctx.arc(LX+30+i*9, VY+2, 3, 0, 7); ctx.fill(); }
   if(lives>8){ ctx.fillStyle='#ff2e88'; ctx.fillText('+'+(lives-8), LX+30+8*9, VY+5); }
 
+  // attack mode — FIGHT (melee) or SHOOT (finger guns)
+  ctx.textAlign='left'; ctx.font='bold 7px "JetBrains Mono",monospace';
+  ctx.fillStyle= P.gunMode?'#ffb545':'#3ad17a';
+  ctx.fillText(P.gunMode?'▶ SHOOT':'▶ FIGHT', LX, VY+16);
+
   ctx.textAlign='right'; ctx.font='9px "JetBrains Mono",monospace'; ctx.fillStyle='#c9d13a';
   ctx.fillText(P.bucks+' BB',W-12,20);
   // ranks you've bought, in the order they matter
@@ -3314,14 +3206,6 @@ function render(){
   drawStrikeWarning();
   drawLitter();
   drawBusMob();
-
-  // grab prompt: a staggered mark within reach can be grabbed and slammed
-  if(!boss && P.state!=='grab'){ const g=grabbable();
-    if(g){
-      ctx.textAlign='center'; ctx.font='bold 9px "JetBrains Mono",monospace';
-      ctx.fillStyle='#ffb545'; if(t%20<15) ctx.fillText('HOLD ↓ GRAB', g.x-camX, g.z-58);
-      ctx.strokeStyle=ctx.fillStyle; ctx.lineWidth=1; ctx.globalAlpha=.5+.3*Math.sin(t*.3);
-      ctx.strokeRect(g.x-camX-g.w, g.z-g.d, g.w*2, g.d*2); ctx.globalAlpha=1; } }
 
   if(OPT.hb){ ctx.strokeStyle='#3ad1ff'; ctx.lineWidth=1;
     for(const e of ents){ if(e.dead)continue; ctx.strokeRect(e.x-camX-e.w,e.z-e.d,e.w*2,e.d*2); }
