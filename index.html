@@ -309,6 +309,7 @@ scene.fog = new THREE.Fog(HORIZON, 58, 195);
 const camera = new THREE.PerspectiveCamera(24, 640/360, 0.1, 500);
 camera.position.set(0, 21.91, 62);
 camera.lookAt(0, 0.66, -26);
+const camBaseQ = camera.quaternion.clone();   // the solved pose — roll (the eviction chase) is applied on top per frame
 
 // ---- golden-hour light: low warm sun + cool sky fill = saturated, contrasty colour ----
 scene.add(new THREE.HemisphereLight(0xffc98a, 0x59406a, 1.15));   // warm sky, cool violet ground bounce
@@ -991,8 +992,13 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState){
+  function stepBg(sc, storeXs, bossState, roll){
     scroll=sc; bgTick++;
+    // roll the camera about its view axis (the chase's downhill tilt). Rolling about the view
+    // axis rotates the projected image around the canvas centre — the same pivot the 2D sprite
+    // layer rotates around — so the two layers stay glued.
+    camera.quaternion.copy(camBaseQ);
+    if(roll) camera.rotateZ(roll);
     syncBoss(bossState);
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
     const lit=(bgTick%150)<126;
@@ -1290,8 +1296,8 @@ $('o_topac').value=OPT.topac*100; applyTouchOpacity();
 // on a full page turns it. HOLD JUMP / K (touch B) to type faster. The sim freezes while it's up
 // (loop() gates on dlg, same as the shop).
 let dlg=null;   // {pages:[{who,col,text}], i, chars, t}
-function startDialog(pages){
-  dlg={ pages:pages.map(p=>typeof p==='string'?{text:p}:p), i:0, chars:0, t:0 };
+function startDialog(pages,onClose){
+  dlg={ pages:pages.map(p=>typeof p==='string'?{text:p}:p), i:0, chars:0, t:0, onClose };
 }
 function dialogTick(){
   if(!dlg) return;
@@ -1306,7 +1312,7 @@ function dialogTick(){
   if(adv){
     if(dlg.chars<full){ dlg.chars=full; blip(520,.02); }               // reveal the rest of the page
     else { dlg.i++; dlg.chars=0; blip(500,.02);                        // turn the page
-      if(dlg.i>=dlg.pages.length){ dlg=null; return; } }
+      if(dlg.i>=dlg.pages.length){ const cb=dlg.onClose; dlg=null; cb&&cb(); return; } }
   }
 }
 function drawDialog(){
@@ -1670,6 +1676,13 @@ let bossDeaths=0, bossNagged=false;        // deaths in the current boss fight, 
 let armedTip=false;                        // one-shot "hold punch to throw" tip on first weapon pickup
 // THE RUN: three stages, each two waves then a named boss, then the between-stage shop.
 let stageNum=1, wavesThisStage=0;           // which stage (1-3) and how many waves cleared in it so far
+const waveGoal=()=>stageNum===1?3:2;        // stage 1 runs three waves across ~three screens before the Landlord
+// ---- the eviction chase (stage 1's back half): beat the Landlord, he shrugs it off and sends a
+// ---- giant ball of crumpled notices rolling after you — a downhill run to an alley.
+let chase=null, chaseTilt=0;                // active chase state + the world's current downhill tilt (rad)
+const CHASE_TILT=0.436;                     // ~25° — the street reads as a downhill sprint
+const CHASE_LEN=21000;                      // px from the fight to the alley (~2 minutes at a sprint)
+const BALL_R=34;
 const DAWN_X=1e15;                          // distance safety backstop only — stages end on the 3rd boss, not distance
 let lives=3, continues=0;                   // 3 lives, then pay to continue
 let night={bosses:0,cash:0,reach:0}; // recap tally + furthest reached THIS run (drives the stage-end clock)
@@ -1687,7 +1700,7 @@ function reset(){
     stepV:0,downT:0,knockV:0,weapon:null,downed:false,wasAtShop:false});
   U={spirit:0,hands:0,shot:0,rapid:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
-  ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0; dlg=null;
+  ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0; dlg=null; chase=null; chaseTilt=0;
   boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0; pendingSpawns=0;
   lives=3; continues=0; night={bosses:0,cash:0,reach:0}; dawnShown=false;   // fresh stage run
   cans=[]; crowd=[]; litter=[]; steam=[]; props=[];
@@ -2117,6 +2130,7 @@ const BOSS_PAL={
   president:{body:'#1a2a4a',dark:'#0e1830',glow:'#ff2e88'}, // navy suit, near-black, power-red glow
 };
 const bossInv=b=>{                                 // i-frames: can't be traded through
+  if(b.beaten) return true;                        // the fight is over — the chase handoff owns him
   if(b.state==='intro') return true;
   if(b.arch==='landlord'){
     if(b.phase==='guard') return true;             // his guards shield him — clear them first
@@ -2166,6 +2180,8 @@ function spawnBoss(bn,forceArch){
   for(const e of ents) if(!e.dead){ e.dead=1; e.vx=(e.x<b.x?-1:1)*3; }   // the street clears — scatter any stragglers
   for(const cw of crowd) cw.joinT=0;                          // and nobody new joins in
   boss=b; ents.push(b); bossDeaths=0; bossNagged=false;   // fresh encounter, fresh death count
+  if(b.arch==='landlord') startDialog([{who:'LANDLORD D. EVICT', col:'#c9d13a',
+    text:"Bam, I've been looking for you. You've officially been evicted. This is your eviction notice."}]);
   for(const g of GATES) if(g.x<P.x && !g.done) g.done=true;   // no gate wave stacks onto/after the boss
   if(b.arch==='landlord'){                   // he sends security out first — beat them to reach him
     b.phase='guard';
@@ -2209,6 +2225,8 @@ function devBoss(arch){
 })();
 
 function killBoss(b){
+  // stage 1's Landlord doesn't go down — he gets up, says so, and sends the ball (the eviction chase)
+  if(b.arch==='landlord' && !b.beaten && !gauntlet && !MP){ beatLandlord(b); return; }
   b.dead=1; b.state='dead'; b.tok=false;
   night.bosses++;                           // one for the run's tally
   fires=fires.filter(f=>!f.foe);            // his last shots die with him
@@ -2218,6 +2236,101 @@ function killBoss(b){
   say(b.x,b.z-80,'DROPPED','#ff5a2e');
   for(let i=0;i<10;i++) drop(b.x+rnd(-70,70),b.z,'cash');
   for(let i=0;i<24;i++) puff(b.x+rnd(-60,60),b.z,rnd(0,50),1,b.pal.glow);
+}
+
+// the Landlord "loses" the fight — his line, then the jump-away + paper-ball handoff
+function beatLandlord(b){
+  b.beaten=true; b.hp=1; b.state='beaten'; b.st=0; b.move=null; b.weakOpen=0; b.tok=false; b.enraged=false;
+  fires=fires.filter(f=>!f.foe);
+  for(const e of ents) if(!e.dead && e!==b){ e.dead=1; e.vx=(e.x<b.x?-1:1)*3; }   // any stragglers scatter — the street is the ball's now
+  shake=12; rumble(700,1,.8,true);
+  for(let i=0;i<18;i++) puff(b.x+rnd(-40,40),b.z,rnd(0,60),1,b.pal.glow);
+  startDialog([{who:'LANDLORD D. EVICT', col:'#c9d13a',
+    text:"I don't give a fuck about none of that. You're still getting evicted."}],
+    ()=>{ chase={ph:'jump',t:0,t2:0,hits:0,boss:b,startX:P.x,alleyX:P.x+CHASE_LEN,obs:[],nextOb:P.x+700,ball:null}; });
+}
+
+// the eviction chase, phase by phase: he jumps to the left edge -> Bam is waved to the right ->
+// the Landlord steps out of frame -> the ball rolls in and it's a downhill run to the alley.
+function chaseTick(){
+  const c=chase, b=c.boss;
+  c.t++; c.t2++;
+  if(c.ph==='jump'){
+    if(c.t2===1){ b.vy=6.8; b.jvx=(((camLock??camX))+46-b.x)/42; b.face=1; shake=6; blip(180,.06); }
+    b.y+=b.vy; b.vy-=0.34; b.x+=b.jvx;
+    if(b.y<=0 && c.t2>8){ b.y=0; b.vy=0; shake=10; rumble(500,1,.7,true);
+      for(let i=0;i<10;i++) puff(b.x+rnd(-30,30),b.z,4,1,'#c9c2ae');
+      P.state='scripted'; P.scriptTx=((camLock??camX))+W-120;   // Bam clears to the right side
+      c.ph='move'; c.t2=0; }
+    return;
+  }
+  if(c.ph==='move'){
+    if(P.state!=='scripted'){ c.ph='aside'; c.t2=0; }
+    return;
+  }
+  if(c.ph==='aside'){                          // he steps back out of the way — the ball takes the stage
+    b.z-=1.1; b.x-=0.7; b.face=1;
+    if(c.t2>=34){
+      for(let i=0;i<14;i++) puff(b.x+rnd(-20,20),b.z-20,rnd(0,60),1,'#efe9d8');
+      ents=ents.filter(e=>e!==b); boss=null;
+      c.ball={x:((camLock??camX))-140, vx:2.4, rot:0};
+      camLock=null;
+      c.ph='run'; c.t2=0; blip(90,.1); rumble(900,1,.9,true); shake=8;
+    }
+    return;
+  }
+  if(c.ph==='run'){
+    P.z+=(252-P.z)*0.25;                       // one lane — this is a runner now
+    if(P.state==='walk'&&P.face===1){ P.sprinting=true; P.sprintDir=1; }   // no double-tap needed to flee
+    const ball=c.ball;
+    // rubber-band: always coming, faster the further it falls behind — never off the table
+    ball.vx = clamp(2.55 + (P.x-170-ball.x)*0.004, 2.0, 4.6);
+    ball.x += ball.vx; ball.rot += ball.vx/BALL_R;
+    if(t%5===0) puff(ball.x+rnd(-24,24), 252, rnd(4,BALL_R*1.8), 1, '#efe9d8');   // shedding scraps
+    // hurdles stream in ahead of him
+    while(c.nextOb < P.x+900){
+      c.nextOb += rnd(280,520);
+      if(c.nextOb < c.alleyX-260) c.obs.push({x:c.nextOb, z:252, kind:hsh(c.nextOb*1.7)<0.5?'crate':'trash', hit:false});
+    }
+    for(const o of c.obs){
+      if(!o.hit && Math.abs(o.x-P.x)<15 && P.y<18 && P.state!=='down'){
+        o.hit=true; o.vx=3.5; o.vy=3.2; o.rot=0;             // he plows through it — and it costs him ground
+        P.state='down'; P.downT=24; P.knockV=-1.6; P.vy=1.4; P.iframes=Math.max(P.iframes,10);
+        P.sprinting=false;
+        shake=6; rumble(260,.8,.5,true); blip(120,.06);
+      }
+      if(o.hit){ o.x+=o.vx; o.y=(o.y||0)+o.vy; o.vy-=0.3; o.rot+=0.2; }
+    }
+    c.obs=c.obs.filter(o=>o.x>camX-220 && (o.y||0)>-60);
+    // the ball catches him: a whole heart, immediately — the third catch flattens him
+    if(ball.x+BALL_R > P.x-8 && P.iframes<=0){
+      c.hits++;
+      P.hp=Math.max(0,P.hp-1);
+      P.iframes=70; P.state='down'; P.downT=30; P.vy=2.6; P.knockV=4.5; P.sprinting=false;
+      shake=13; hitstop=6; rumble(640,1,.9,true); blip(70,.12);
+      for(let i=0;i<16;i++) puff(P.x+rnd(-30,30),252,rnd(0,60),1,'#efe9d8');
+      if(c.hits>=3) P.hp=0;                                   // flattened — the death flow takes it from here
+      else ball.x=Math.min(ball.x,P.x-300);                   // it rolls past and you scramble back ahead
+    }
+    if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX+26; }
+    return;
+  }
+  if(c.ph==='end'){
+    if(P.state!=='scripted' && P.state!=='enterAlley'){ P.state='enterAlley'; P.st=0; }
+    const ball=c.ball;
+    if(ball && !ball.gone){ ball.vx*=0.94; ball.x+=ball.vx; ball.rot+=ball.vx/BALL_R;
+      if(ball.vx<0.3){ ball.gone=true;                        // it finally keels over in a blizzard of paper
+        for(let i=0;i<40;i++) puff(ball.x+rnd(-40,40),252,rnd(0,80),1,'#efe9d8'); shake=9; } }
+    if(P.state==='enterAlley' && P.z<=FLOOR_N-8){             // he's in — wrap the stage
+      gainFreedom(20); gainXp(40); night.bosses++;
+      P.hp=Math.min(P.maxhp,P.hp+Math.round(P.maxhp*0.6));
+      for(let i=0;i<10;i++) drop(P.x+rnd(-70,-10),FLOOR_N+24,'cash');
+      P.z=FLOOR_N+16; P.state='idle';
+      chase=null;
+      stageCleared();
+    }
+    return;
+  }
 }
 
 // SOBER tiers: legacy parameter name, now vestigial since hurtPlayer() ignores its 3rd arg.
@@ -2230,6 +2343,7 @@ function updateBoss(b){
   if(b.state==='intro'){ b.st++; b.rise=Math.max(0,1-b.st/40);
     if(b.st===1){ shake=10; } if(b.st>=46){ b.state='idle'; b.cd=36; } return; }
   if(b.state==='dead'){ b.st++; return; }
+  if(b.beaten){ b.st++; return; }                                 // chaseTick() drives him from here
   if(b.arch==='landlord'){ updateLandlord(b,dx,dz,d); return; }   // guards -> notices -> exhausted and dizzy
   if(b.arch==='farma'){ updateFarma(b,dx,dz,d); return; }         // pills/syringes -> self-inject buff -> crashes
   if(b.arch==='president'){ updatePresident(b,dx,dz,d); return; } // runs, calls in strikes and backup, then one punch ends it
@@ -2492,6 +2606,12 @@ function update(){
   for(const g of GRATES) if(g.open>0)g.open--;
   if(hitstop>0){ hitstop--; return; }
 
+  //---- the eviction chase (stage 1) runs BEFORE the player machine — the scripted player
+  //---- states (scripted/enterAlley/introWalk) early-return out of update(), and the chase
+  //---- must keep driving its phases (and the ball) right through them
+  if(chase) chaseTick();
+  chaseTilt += (((chase&&chase.ph==='run')?CHASE_TILT:0)-chaseTilt)*0.04;
+
   //---- input
   const pad=pollPad();
   let ix=(key.KeyD||key.ArrowRight?1:0)-(key.KeyA||key.ArrowLeft?1:0);
@@ -2518,6 +2638,15 @@ function update(){
   }
   if(P.sprinting && (sdir===0 || sdir!==P.sprintDir)) P.sprinting=false;   // released / reversed → stop
   P.lastDir=sdir;
+
+  //---- SCRIPTED WALKS: a plain walk-to-x (the chase handoff), and the alley duck at its end.
+  if(P.state==='scripted'){
+    P.st++; const ddx=P.scriptTx-P.x;
+    P.face=ddx>0?1:-1;
+    if(Math.abs(ddx)>3) P.x+=clamp(ddx,-2.8,2.8); else P.state='idle';
+    return;
+  }
+  if(P.state==='enterAlley'){ P.st++; P.z-=2.2; P.face=1; return; }
 
   //---- OPENING BEAT: BamBam strolls in from off the left edge, then the box says its line.
   //---- Scripted — inputs are ignored until the walk lands.
@@ -2737,8 +2866,8 @@ function update(){
   if(U.second && t%600===0 && P.hp<P.maxhp && P.iframes<=0) P.hp=Math.min(P.maxhp,P.hp+U.second*0.5);  // SECOND WIND regen
 
   //---- each stage is two waves, then that stage's named boss
-  if(wavesThisStage>=2 && bossDone<stageNum && camLock===null && !MP){ bossDone=stageNum; camLock=Math.max(0,P.x-170); spawnBoss(stageNum); }   // no bosses in co-op
-  for(const g of GATES) if(!g.done && P.x>g.x && P.x-g.x<140 && camLock===null && !coopGuest() && wavesThisStage<2){   // host (or solo) triggers the wave; the guest mirrors the enemies
+  if(wavesThisStage>=waveGoal() && bossDone<stageNum && camLock===null && !chase && !MP){ bossDone=stageNum; camLock=Math.max(0,P.x-170); spawnBoss(stageNum); }   // no bosses in co-op
+  for(const g of GATES) if(!g.done && P.x>g.x && P.x-g.x<140 && camLock===null && !chase && !coopGuest() && wavesThisStage<waveGoal()){   // host (or solo) triggers the wave; the guest mirrors the enemies
     // lock EXACTLY where the camera already is — never pull it left. The arena is whatever you
     // were looking at when the fight started, and every wave spawn comes from off its RIGHT edge.
     camLock=Math.max(0,camX); spawnWave(tier()); g.done='fight'; }
@@ -2867,7 +2996,7 @@ function update(){
   // blocked ONLY while you're locked in a wave, or an enemy is literally on you. The old gate
   // (any live enemy within 384px) refused the door for stragglers and off-screen spawns the
   // player couldn't even see — "the entrance doesn't work".
-  const doorBlocked = camLock!==null || ents.some(e=>!e.dead && Math.abs(e.x-P.x)<70 && Math.abs(e.z-P.z)<40);
+  const doorBlocked = camLock!==null || !!chase || ents.some(e=>!e.dead && Math.abs(e.x-P.x)<70 && Math.abs(e.z-P.z)<40);   // no shopping mid-chase
   if(P.atShop && (jTalk||doorEdge||wantIn) && P.y===0 && P.state!=='down' && P.state!=='enterShop' && !shopOpen){
     if(!doorBlocked){
       P.state='enterShop'; P.st=0; P.enterB=P.atShop; P.sprinting=false; blip(340,.04);
@@ -2916,7 +3045,7 @@ function update(){
     if(!coopGuest()){
       // the street stays back during a boss fight AND during a locked wave — a bystander
       // converting mid-lock becomes an invisible off-screen enemy holding the arena hostage
-      if(!cw.joinT && !boss && camLock===null && nearestPlayerDX(cw.x)<170 && live<11) cw.joinT=Math.floor(rnd(16,120));
+      if(!cw.joinT && !boss && !chase && camLock===null && nearestPlayerDX(cw.x)<170 && live<11) cw.joinT=Math.floor(rnd(16,120));
       if(cw.joinT>0){ cw.joinT--; if(cw.joinT===0){ if(camLock!==null){ cw.joinT=0; continue; } aggro(cw,false); continue; } }
     }
     if(!cw.flinch && ents.some(e=>!e.dead&&Math.abs(e.x-cw.x)<60)) cw.flinch=18;
@@ -2943,6 +3072,7 @@ function update(){
 // put the player back on their feet in place — no money loss; lives are the cost now.
 function respawn(){
   P.hp=P.maxhp; P.x=Math.max(20,camX+40); P.z=245; P.y=0; P.vy=0; P.state='idle';
+  if(chase&&chase.ball){ chase.hits=0; chase.ball.x=P.x-430; chase.ball.vx=2.2; }   // a life buys you room
   P.downed=false;                                  // respawn puts you on your feet — never leave the down flag set (continue path relies on this)
   P.step=0; P.buf=0; P.downT=0; P.iframes=110;
   P.cageB=null; P.struggle=0; if(boss) boss.caged=false;   // spring the briefcase if you died inside it
@@ -3789,6 +3919,7 @@ function drawPlayer(){
   if(P.state==='walk') key='hero.walk.'+(Math.floor(t*(P.sprinting?.30:.16))%4);   // sprint = faster run cycle
   if(P.state==='enterShop') key='hero.walk.'+(Math.floor(t*.30)%4);                // jogging into the store
   if(P.state==='introWalk') key='hero.walk.'+(Math.floor(t*.16)%4);                // strolling in off the left
+  if(P.state==='scripted'||P.state==='enterAlley') key='hero.walk.'+(Math.floor(t*.24)%4);   // chase-handoff walks
   if(P.state==='idle') key='hero.rot.east';
   // jump frames tied to actual height/velocity (not a fixed timer): 0 push-off, 1 rising,
   // 2 apex + most of the fall (the tuck holds), 3 landing — only once he's low to the ground.
@@ -4014,17 +4145,28 @@ function hud(){
     ux-=w2+3;
   }
 
-  // stage progress: two waves, then that stage's boss
-  if(boss && !boss.dead){ drawBossBar(); }               // a boss owns the top of the screen
+  // stage progress: the stage's waves, then its boss
+  if(boss && !boss.dead && !boss.beaten){ drawBossBar(); }   // a boss owns the top of the screen
+  else if(chase){                                            // the run to the alley owns it instead
+    ctx.textAlign='center';
+    const pr=clamp((P.x-chase.startX)/(chase.alleyX-chase.startX),0,1);
+    ctx.fillStyle='#231f30'; ctx.fillRect(W/2-70,6,140,3);
+    ctx.fillStyle='#efe9d8'; ctx.fillRect(W/2-70,6,140*pr,3);
+    if(chase.ph==='run' && t%30<20){ ctx.font='bold 11px "JetBrains Mono",monospace';
+      ctx.fillStyle='#ff2e88'; ctx.fillText('RUN →', W/2, 22); }
+    for(let i=0;i<3;i++){ ctx.fillStyle= i<3-chase.hits?'#efe9d8':'#3a2030';   // catches you can still survive
+      ctx.beginPath(); ctx.arc(W/2-14+i*14,30,3.4,0,7); ctx.fill(); }
+    ctx.textAlign='left';
+  }
   else {
   ctx.textAlign='center';
-  const np=clamp(wavesThisStage/2,0,1);
+  const np=clamp(wavesThisStage/waveGoal(),0,1);
   ctx.fillStyle='#231f30'; ctx.fillRect(W/2-52,3,104,2);
   ctx.fillStyle='#ffb545'; ctx.fillRect(W/2-52,3,104*np,2);
   ctx.font='bold 11px "JetBrains Mono",monospace'; ctx.fillStyle='#e8e2d4';
   ctx.fillText('STAGE '+stageNum, W/2, 18);
   ctx.font='7px "JetBrains Mono",monospace'; ctx.fillStyle='#5c5670';
-  ctx.fillText('WAVE '+Math.min(wavesThisStage+1,2)+'/2'+(best>P.x?'   BEST '+Math.floor(best/16)+'m':'')
+  ctx.fillText('WAVE '+Math.min(wavesThisStage+1,waveGoal())+'/'+waveGoal()+(best>P.x?'   BEST '+Math.floor(best/16)+'m':'')
     +(P.deaths?'   ✕'+P.deaths:''), W/2, 27);
   // next gate on the horizon
   const ng=GATES.filter(g=>!g.done&&g.x>P.x).sort((a,b)=>a.x-b.x)[0];
@@ -4270,6 +4412,42 @@ function drawStoreFacade(){
   ctx.textAlign='left';
 }
 
+// ---- the eviction ball, its hurdles, and the alley that ends the run ----
+function drawBall(bl){
+  const sx=bl.x-camX, cy=252-BALL_R*0.72;
+  shadow(bl.x,254,BALL_R*0.9);
+  ctx.save(); ctx.translate(sx,cy); ctx.rotate(bl.rot);
+  ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(0,0,BALL_R+2.5,0,7); ctx.fill();
+  ctx.fillStyle='#efe9d8'; ctx.beginPath(); ctx.arc(0,0,BALL_R,0,7); ctx.fill();
+  ctx.strokeStyle='#b3aa98'; ctx.lineWidth=1.6;                     // crumple creases
+  for(let i=0;i<7;i++){ const a=i*0.9; ctx.beginPath();
+    ctx.arc(Math.cos(a)*BALL_R*0.45, Math.sin(a)*BALL_R*0.45, BALL_R*0.32, a, a+2.1); ctx.stroke(); }
+  ctx.globalAlpha=.5; ctx.fillStyle='#ff2e88';                      // served-notice stamps caught in the wad
+  ctx.fillRect(-BALL_R*0.55,-6,14,9); ctx.fillRect(BALL_R*0.18,BALL_R*0.3,12,8);
+  ctx.globalAlpha=1;
+  ctx.fillStyle='rgba(255,255,255,.5)'; ctx.beginPath(); ctx.arc(-BALL_R*0.35,-BALL_R*0.4,BALL_R*0.28,0,7); ctx.fill();
+  ctx.restore();
+}
+function drawOb(o){
+  const sx=o.x-camX, sy=o.z-(o.y||0);
+  if(sx<-40||sx>W+40) return;
+  if(!o.hit) shadow(o.x,o.z,12);
+  ctx.save(); ctx.translate(sx,sy-10); if(o.rot) ctx.rotate(o.rot);
+  if(o.kind==='crate'){ ctx.fillStyle=INK; ctx.fillRect(-12,-12,24,24); ctx.fillStyle='#8a6b3a'; ctx.fillRect(-10,-10,20,20);
+    ctx.strokeStyle='#5c4626'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-10,-10); ctx.lineTo(10,10); ctx.moveTo(10,-10); ctx.lineTo(-10,10); ctx.stroke(); }
+  else { ctx.fillStyle=INK; ctx.fillRect(-9,-16,18,28); ctx.fillStyle='#4a5560'; ctx.fillRect(-7,-14,14,24); ctx.fillStyle='#5f6b77'; ctx.fillRect(-8,-16,16,4); }
+  ctx.restore();
+}
+function drawAlleyGap(){
+  if(!chase || (chase.ph!=='run'&&chase.ph!=='end')) return;
+  const sx=chase.alleyX+40-camX; if(sx<-80||sx>W+80) return;
+  ctx.fillStyle=INK; ctx.fillRect(sx-24,96,48,132);                 // a slot of dark between the buildings
+  ctx.fillStyle='#0b0a10'; ctx.fillRect(sx-19,100,38,128);
+  ctx.fillStyle='#2a2338'; ctx.fillRect(sx-19,100,38,10);
+  if(t%40<26){ ctx.fillStyle='#3ad1ff'; ctx.font='bold 10px "JetBrains Mono",monospace';
+    ctx.textAlign='center'; ctx.fillText('▼',sx,92); ctx.textAlign='left'; }
+}
+
 function render(){
   if(shopOpen){ drawStore(); composite(); return; }   // in-world store interior fully replaces the street view
   ctx.save();
@@ -4289,7 +4467,7 @@ function render(){
     // NOTE the -320: the 3D camera's x=0 sits at screen CENTRE (px 320), while game coords are
     // left-edge-referenced — without recentering, everything placed by game position renders
     // exactly 320px right of where the gameplay actually happens.
-    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3);
+    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();
@@ -4303,6 +4481,9 @@ function render(){
   for(const d of drops) list.push({z:d.z,f:()=>drawDrop(d)});
   for(const e of ents) list.push({z:e.z,f:()=>e.k==='boss'?drawBoss(e):e.k==='rat'?drawRat(e):e.k==='sammich'?drawSammich(e):drawVamp(e)});
   list.push({z:P.z,f:drawPlayer});
+  if(chase){ list.push({z:1,f:drawAlleyGap});
+    for(const o of chase.obs) list.push({z:o.z-1,f:()=>drawOb(o)});
+    if(chase.ball&&!chase.ball.gone) list.push({z:253,f:()=>drawBall(chase.ball)}); }
 
   // multiplayer: publish our state, then queue every teammate for drawing.
   // The whole block is wrapped so a networking hiccup can never throw out of render()
@@ -4325,6 +4506,11 @@ function render(){
   }
 
   list.sort((a,b)=>a.z-b.z);
+  // the eviction chase tilts the whole world ~25° downhill — the 3D camera rolls the exact same
+  // angle (same 4th arg above), and this rotates the sprite layer about the same screen centre,
+  // so feet stay planted on the rolled 3D ground.
+  const tl = chaseTilt>0.01 ? chaseTilt : 0;
+  if(tl){ ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(tl); ctx.translate(-W/2,-H/2); }
   for(const o of list) o.f();
 
   for(const p of parts){ ctx.globalAlpha=clamp(p.life/20,0,1); ctx.fillStyle=p.col;
@@ -4333,6 +4519,7 @@ function render(){
   drawPlasmaBeam();
   drawStrikeWarning();
   drawLitter();
+  if(tl) ctx.restore();
   // locked-fight edge tells: a pulsing chevron at the screen edge for every live enemy still
   // outside the view (walking in, or knocked out of it) — the wave counter never points at a ghost
   if(camLock!==null){

@@ -56,6 +56,7 @@ scene.fog = new THREE.Fog(HORIZON, 58, 195);
 const camera = new THREE.PerspectiveCamera(24, 640/360, 0.1, 500);
 camera.position.set(0, 21.91, 62);
 camera.lookAt(0, 0.66, -26);
+const camBaseQ = camera.quaternion.clone();   // the solved pose — roll (the eviction chase) is applied on top per frame
 
 // ---- golden-hour light: low warm sun + cool sky fill = saturated, contrasty colour ----
 scene.add(new THREE.HemisphereLight(0xffc98a, 0x59406a, 1.15));   // warm sky, cool violet ground bounce
@@ -738,8 +739,13 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState){
+  function stepBg(sc, storeXs, bossState, roll){
     scroll=sc; bgTick++;
+    // roll the camera about its view axis (the chase's downhill tilt). Rolling about the view
+    // axis rotates the projected image around the canvas centre — the same pivot the 2D sprite
+    // layer rotates around — so the two layers stay glued.
+    camera.quaternion.copy(camBaseQ);
+    if(roll) camera.rotateZ(roll);
     syncBoss(bossState);
     const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
     const lit=(bgTick%150)<126;

@@ -91,13 +91,16 @@ const driver = `
    spawn:(e)=>ents.push(e), clearEnts:()=>{ ents.length=0; },
    setCamLock:(v)=>{ camLock=v; camX=v; }, setBest:(v)=>{ best=v; }, setLives:(v)=>{ lives=v; },
    setWaves:(n)=>{ wavesThisStage=n; }, setStage:(n)=>{ stageNum=n; }, setBossDone:(n)=>{ bossDone=n; },
-   releaseArena:()=>{ ents.length=0; camLock=null; boss=null; bossDone=0; hitstop=0; fires.length=0; },
+   releaseArena:()=>{ ents.length=0; camLock=null; boss=null; bossDone=0; hitstop=0; fires.length=0; chase=null; chaseTilt=0; },
+   get chase(){return chase}, get chaseTilt(){return chaseTilt},
    rat,vamp,connect,hurtPlayer,setShop,buy,spawnWave,tier,stream,update,render,aggro,coopApply,coopBroadcastEnts,coopMirrorEnts,
    throwWeapon,drop, get WEAPONS(){return WEAPONS},
    genBoss,spawnBoss,updateBoss,killBoss,hits,atkBox,stageCleared,
    buyContinue,callItNight,continueCost,
    gainFreedom,gainXp,loseHeart,heavyHitAt,maxComboStep,xpToLevel,
-   startDialog,dialogTick, get dlg(){return dlg}, closeDialog:()=>{ dlg=null; },
+   startDialog,dialogTick, get dlg(){return dlg},
+   // closeDialog(true) also fires the box's onClose (a story beat may hang off it); default discards
+   closeDialog:(fire)=>{ const cb=dlg&&dlg.onClose; dlg=null; if(fire&&cb)cb(); },
    });
 ;globalThis.__key=(k,v)=>{ if(v&&!key[k]) pressed[k]=true; key[k]=v; };
 ;globalThis.__tick=(n)=>{ for(let i=0;i<n;i++){ update(); } };
@@ -383,16 +386,36 @@ if(!err){
     if(!g.dawnShown) throw new Error('calling it should show the recap');
     console.log('        lives/continue curve + call-it recap all ok');
   });
-  scene('stage flow: two waves then a boss; clearing the boss opens the shop and advances the stage', ()=>{
-    const g=__G(); g.releaseArena(); g.setStage(1); g.setWaves(0); g.setBossDone(0);
+  scene('stage 1 flow: 3 waves -> Landlord -> beaten -> eviction chase -> alley -> shop; stage 3 wins the run', ()=>{
+    const g=__G(); g.releaseArena(); g.setStage(1); g.setWaves(0); g.setBossDone(0); g.closeDialog();
     g.P.hp=g.P.maxhp; g.P.x=200; g.P.z=300; g.P.y=0; g.P.state='idle';
-    g.setWaves(2);                                     // two waves already cleared
+    g.setWaves(3);                                     // stage 1's three waves already cleared
     let ticks=0; while(!g.boss && ticks++<200){ __tick(1); }
-    if(!g.boss) throw new Error('the stage boss never spawned after 2 waves');
+    if(!g.boss) throw new Error('the stage boss never spawned after 3 waves');
     if(g.boss.arch!=='landlord') throw new Error('stage 1 should spawn Landlord D. Evict, got '+g.boss.arch);
-    g.killBoss(g.boss); for(const e of g.ents) e.dead=1;   // clear him + any of his guards still standing
-    ticks=0; while(g.boss && ticks++<60){ __tick(1); }
-    if(g.shopOpen!==true) throw new Error('clearing the stage boss should open the between-stage shop');
+    if(!g.dlg) throw new Error('the Landlord should serve his line when the bar comes up');
+    g.closeDialog();
+    const b=g.boss;
+    g.killBoss(b);                                     // "kill" him — stage 1 he gets back up instead
+    if(b.dead) throw new Error('stage 1 Landlord should not die — he starts the chase');
+    if(!b.beaten) throw new Error('killBoss should mark the Landlord beaten');
+    if(!g.dlg) throw new Error('the beaten Landlord should talk before the chase');
+    g.closeDialog(true);                               // dismiss his line -> the chase handoff starts
+    if(!g.chase) throw new Error('closing the outro line should start the chase');
+    ticks=0; while(g.chase && g.chase.ph!=='run' && ticks++<800){ __tick(1); }
+    if(!g.chase || g.chase.ph!=='run') throw new Error('chase never reached the run phase, ph='+(g.chase&&g.chase.ph));
+    if(g.boss) throw new Error('the Landlord should be off-stage during the run');
+    if(!g.chase.ball) throw new Error('no ball, no chase');
+    // the ball catches him -> a whole heart gone, immediately
+    g.P.hp=g.P.maxhp; g.P.iframes=0; g.P.state='idle'; g.P.y=0; g.P.downT=0;
+    const hp0=g.P.hp; g.chase.ball.x=g.P.x-4; __tick(1);
+    if(g.P.hp!==hp0-1) throw new Error('a ball catch should cost a whole heart, hp '+hp0+'->'+g.P.hp);
+    if(g.chase.hits!==1) throw new Error('catch count should be 1, got '+g.chase.hits);
+    // fast-forward to the alley at the end of the run
+    g.P.state='idle'; g.P.downT=0; g.P.y=0; g.P.iframes=0; g.P.x=g.chase.alleyX+2;
+    ticks=0; while(g.chase && ticks++<400){ __tick(1); }
+    if(g.chase) throw new Error('the chase never ended at the alley');
+    if(g.shopOpen!==true) throw new Error('ducking into the alley should open the between-stage shop');
     g.setShop(false);
     if(g.stageNum!==2) throw new Error('closing the shop should advance to stage 2, got '+g.stageNum);
     if(g.wavesThisStage!==0) throw new Error('the new stage should start with 0 waves cleared');
@@ -403,7 +426,7 @@ if(!err){
     g.killBoss(g.boss); for(const e of g.ents) e.dead=1;
     ticks=0; while(g.boss && ticks++<60){ __tick(1); }
     if(!g.dawnShown) throw new Error('clearing stage 3 should end the run on the win recap');
-    console.log('        2 waves -> named boss -> shop -> next stage; stage 3 wins the run');
+    console.log('        3 waves -> Landlord -> beaten -> chase -> alley -> shop; stage 3 wins the run');
   });
   scene('wave enemies enter from off-screen AHEAD and are not culled', ()=>{
     // regression: waves used to spawn at arbitrary club doors — behind the lock line or clean
@@ -462,10 +485,14 @@ if(!err){
     g.setCamLock(Math.max(0,g.P.x-170));
     const mk=()=>{ const e=g.vamp(g.P.x+30,260,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e); return e; };
     const swing=()=>{ __key('KeyJ',true); __tick(1); __key('KeyJ',false); for(let i=0;i<22;i++) __tick(1); };
+    // pin the RNG for the damage compare — crits and the rare smash insta-kill roll otherwise
+    // flip this test whenever an upstream scene shifts the deterministic stream
+    const MR=Math.random; Math.random=()=>0.99;
     let e=mk(); g.P.weapon=null; let hp0=e.hp; swing(); const unarmed=hp0-e.hp;
-    if(!(unarmed>0)) throw new Error('unarmed jab did not connect ('+unarmed+')');
     g.ents.length=0; e=mk(); g.P.weapon={type:'pipe',dur:g.WEAPONS.pipe.dur}; hp0=e.hp; const dur0=g.P.weapon.dur; swing();
     const armed=hp0-e.hp;
+    Math.random=MR;
+    if(!(unarmed>0)) throw new Error('unarmed jab did not connect ('+unarmed+')');
     if(!(armed>unarmed)) throw new Error('armed swing should hit harder: '+armed+' vs '+unarmed);
     if(!(g.P.weapon && g.P.weapon.dur===dur0-1)) throw new Error('a connecting swing should spend one durability');
     let guard=0; while(g.P.weapon && guard++<40){ g.ents.length=0; mk(); swing(); }
