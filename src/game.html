@@ -497,6 +497,62 @@ function applyTouchOpacity(){ $('touch').style.setProperty?.('--touch-op',OPT.to
 $('o_topac').oninput=e=>{ OPT.topac=e.target.value/100; applyTouchOpacity(); };
 $('o_topac').value=OPT.topac*100; applyTouchOpacity();
 
+//====================== dialogue ======================
+// Pokémon-style typewriter box, drawn ON CANVAS in the game's comic language (no DOM overlay).
+// Press PUNCH / J / E (touch A) to advance — a press mid-type reveals the page instantly, a press
+// on a full page turns it. HOLD JUMP / K (touch B) to type faster. The sim freezes while it's up
+// (loop() gates on dlg, same as the shop).
+let dlg=null;   // {pages:[{who,col,text}], i, chars, t}
+function startDialog(pages){
+  dlg={ pages:pages.map(p=>typeof p==='string'?{text:p}:p), i:0, chars:0, t:0 };
+}
+function dialogTick(){
+  if(!dlg) return;
+  dlg.t++;
+  const pad=pollPad();
+  const page=dlg.pages[dlg.i], full=page.text.length;
+  const fast = key.KeyK||key.Space||T.B||(PAD.now&&PAD.now.JUMP);       // hold B/JUMP → fast type
+  const before=Math.floor(dlg.chars);
+  dlg.chars=Math.min(full, dlg.chars + (fast?3:0.55));
+  if(Math.floor(dlg.chars)>before && dlg.chars<full && dlg.t%4===0) blip(700,.006);   // typewriter tick
+  const adv = tap('KeyJ')||tap('KeyE')||tap('KeyU')||tapT('A')||tapT('D')||tapT('F')||(pad&&(pad.PUNCH||pad.TALK||pad.GUN));
+  if(adv){
+    if(dlg.chars<full){ dlg.chars=full; blip(520,.02); }               // reveal the rest of the page
+    else { dlg.i++; dlg.chars=0; blip(500,.02);                        // turn the page
+      if(dlg.i>=dlg.pages.length){ dlg=null; return; } }
+  }
+}
+function drawDialog(){
+  if(!dlg) return;
+  const page=dlg.pages[dlg.i];
+  const bx=26, bw=W-52, bh=62, by=H-bh-16, pd=10;
+  ctx.textAlign='left';
+  ctx.fillStyle=INK; ctx.fillRect(bx-3,by-3,bw+6,bh+6);                // ink shell
+  ctx.fillStyle='#141020'; ctx.fillRect(bx,by,bw,bh);
+  ctx.fillStyle='rgba(255,255,255,.06)'; ctx.fillRect(bx,by,bw,3);
+  if(page.who){                                                        // speaker chip riding the top edge
+    ctx.font='700 12px '+BEBAS;
+    const nw=ctx.measureText(page.who).width+14;
+    ctx.fillStyle=INK; ctx.fillRect(bx+8,by-12,nw+4,17);
+    ctx.fillStyle='#241d30'; ctx.fillRect(bx+10,by-10,nw,13);
+    ctx.fillStyle=page.col||'#ffd98a'; ctx.fillText(page.who, bx+17, by+1);
+  }
+  ctx.font='9px "JetBrains Mono",monospace'; ctx.fillStyle='#e8e2d4';
+  const shown=page.text.slice(0,Math.floor(dlg.chars));
+  let line='', ly=by+pd+8;                                             // word-wrap the revealed text
+  for(const wd of shown.split(' ')){
+    const test=line?line+' '+wd:wd;
+    if(ctx.measureText(test).width>bw-pd*2 && line){ ctx.fillText(line,bx+pd,ly); ly+=12; line=wd; }
+    else line=test;
+  }
+  ctx.fillText(line,bx+pd,ly);
+  if(dlg.chars>=page.text.length && dlg.t%40<26){                      // blinking advance arrow
+    ctx.fillStyle='#ffd98a'; ctx.beginPath();
+    ctx.moveTo(bx+bw-18,by+bh-11); ctx.lineTo(bx+bw-8,by+bh-11); ctx.lineTo(bx+bw-13,by+bh-4);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
 let paused=false;
 function setPause(v){ paused=v; $('pause').classList.toggle('on',v); }
 // a one-shot, must-dismiss message (e.g. the death-tip). freezes the sim until acknowledged.
@@ -845,7 +901,7 @@ function reset(){
     stepV:0,downT:0,knockV:0,weapon:null,downed:false,wasAtShop:false});
   U={spirit:0,hands:0,shot:0,rapid:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
-  ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0;
+  ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0; dlg=null;
   boss=null; bossDone=0; bossDeaths=0; bossNagged=false; gauntlet=0; gauntletIx=0; stageNum=1; wavesThisStage=0; pendingSpawns=0;
   lives=3; continues=0; night={bosses:0,cash:0,reach:0}; dawnShown=false;   // fresh stage run
   cans=[]; crowd=[]; litter=[]; steam=[]; props=[];
@@ -1274,6 +1330,21 @@ const BOSS_PAL={
   farma:{body:'#e8e2d4',dark:'#2f7a3f',glow:'#2fffa8'},     // lab coat, pharma-green trim, toxic-glow weak point
   president:{body:'#1a2a4a',dark:'#0e1830',glow:'#ff2e88'}, // navy suit, near-black, power-red glow
 };
+// pre-fight exchanges, run through the typewriter dialogue box when the boss rises
+const BOSS_INTRO={
+  landlord:[
+    {who:'LANDLORD D. EVICT', col:'#c9d13a', text:"This block? Bought it this morning. Every door, every window. You're trespassing, kid."},
+    {who:'BAMBAM', col:'#3ad1ff', text:"The block belongs to the people standing on it. Serve THIS."},
+  ],
+  farma:[
+    {who:'B.I.G. FARMA', col:'#2fffa8', text:"You look stressed, son. I've got a prescription for that. Full price, no refills."},
+    {who:'BAMBAM', col:'#3ad1ff', text:"Keep it. Imagination's free."},
+  ],
+  president:[
+    {who:'THE PRESIDENT', col:'#ff2e88', text:"I own the courts. The cops. The papers. What exactly do YOU have?"},
+    {who:'BAMBAM', col:'#3ad1ff', text:"A full Freedom Meter."},
+  ],
+};
 const bossInv=b=>{                                 // i-frames: can't be traded through
   if(b.state==='intro') return true;
   if(b.arch==='landlord'){
@@ -1324,6 +1395,7 @@ function spawnBoss(bn,forceArch){
   for(const e of ents) if(!e.dead){ e.dead=1; e.vx=(e.x<b.x?-1:1)*3; }   // the street clears — scatter any stragglers
   for(const cw of crowd) cw.joinT=0;                          // and nobody new joins in
   boss=b; ents.push(b); bossDeaths=0; bossNagged=false;   // fresh encounter, fresh death count
+  if(BOSS_INTRO[b.arch]) startDialog(BOSS_INTRO[b.arch]); // the exchange before the fight (typewriter box; sim waits)
   for(const g of GATES) if(g.x<P.x && !g.done) g.done=true;   // no gate wave stacks onto/after the boss
   if(b.arch==='landlord'){                   // he sends security out first — beat them to reach him
     b.phase='guard';
@@ -3506,6 +3578,7 @@ function render(){
   if(camFlash>0){ ctx.fillStyle='rgba(255,255,255,'+clamp(camFlash,0,1)*0.85+')'; ctx.fillRect(0,0,W,H); }  // photo whiteout
   vignette();
   hud();
+  drawDialog();   // typewriter dialogue box, on top of everything
 
   composite();
 }
@@ -3662,7 +3735,8 @@ function loop(now){ requestAnimationFrame(loop);
     titleRender(); return;
   }
   if(shopOpen && !paused){ storeTick(); }                 // inside the store: browse/buy in place of the sim
-  if(dawnShown||continueOn||noticeOn||paused||shopOpen){ acc=0; render(); return; }
+  if(dlg && !paused && !shopOpen){ dialogTick(); }        // dialogue up: typewriter/advance in place of the sim
+  if(dawnShown||continueOn||noticeOn||paused||shopOpen||dlg){ acc=0; render(); return; }
   while(acc>=1/60){ update(); acc-=1/60; }
   render();
 }
