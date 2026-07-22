@@ -150,7 +150,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #21</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #24</small></h1>
         <div id="pcols">
           <div class="col">
             <h2>DISPLAY</h2>
@@ -1607,7 +1607,8 @@ $('d_chase').onclick=()=>{                                     // TEST: drop str
   for(const e of ents) e.dead=Math.max(e.dead,1); camLock=null; boss=null; dlg=null;
   P.hp=P.maxhp; P.state='walk'; P.z=252; P.face=1; P.sprinting=true; P.sprintDir=1;
   const want=P.x+2600; let tx=want,bd=1e9;
-  for(const x of XSTREETS){ if(x>P.x+900 && Math.abs(x-want)<bd){ bd=Math.abs(x-want); tx=x; } }
+  const cleanX=x=>!BUILDINGS.some(b=>b.kind==='store'&&Math.abs(b.doorX-x)<280);
+  for(const x of XSTREETS){ if(x>P.x+900 && cleanX(x) && Math.abs(x-want)<bd){ bd=Math.abs(x-want); tx=x; } }
   chase={ph:'run',t:0,t2:0,hits:0,boss:null,startX:P.x,alleyX:P.x+CHASE_LEN,
     turnX:tx, turned:false, turnSub:null, yaw:0,
     obs:[], nextOb:P.x+500, ball:{x:-1e9,vx:0,rot:0,gone:true}};   // gone:true → never drawn, never catches
@@ -2491,7 +2492,9 @@ function beatLandlord(b){
   startDialog([{who:'LANDLORD D. EVICT', col:'#c9d13a',
     text:"I don't give a fuck about none of that. You're still getting evicted."}],
     ()=>{ const want=P.x+CHASE_LEN*0.45; let tx=want, bd=1e9;   // turn at a REAL generated intersection near the midpoint
-      for(const x of XSTREETS){ if(x>P.x+1800 && Math.abs(x-want)<bd){ bd=Math.abs(x-want); tx=x; } }
+      // ...but never one with the walk-in store parked on its mouth — the store rig would sit in the gap
+      const clean=x=>!BUILDINGS.some(b=>b.kind==='store'&&Math.abs(b.doorX-x)<280);
+      for(const x of XSTREETS){ if(x>P.x+1800 && clean(x) && Math.abs(x-want)<bd){ bd=Math.abs(x-want); tx=x; } }
       chase={ph:'jump',t:0,t2:0,hits:0,boss:b,startX:P.x,alleyX:P.x+CHASE_LEN,
       turnX:tx, turned:false, turnSub:null, yaw:0,
       obs:[],nextOb:P.x+700,ball:null}; });
@@ -2581,33 +2584,45 @@ function chaseTick(){
       if(c.hits>=3) P.hp=0;                                   // flattened — the death flow takes it from here
       else ball.x=Math.min(ball.x,P.x-300);                   // it rolls past and you scramble back ahead
     }
-    if(!c.turned && P.x>=c.turnX-40){ c.ph='turn'; c.turnSub='in'; c.t2=0; c.obs.length=0; return; }   // reach the cross-street → turn the corner
+    if(!c.turned && P.x>=c.turnX-260){ c.ph='turn'; c.turnSub='in'; c.t2=0; c.obs.length=0;
+      c.freezeCamX=Math.max(0,c.turnX-500); P.state='scripted'; P.scriptTx=c.turnX+210; return; }   // the corner sequence takes the wheel
     if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX; }   // pull up centred on the gap
     return;
   }
-  // THE CORNER TURN — a cinematic, not a whip. Bam reaches the cross-street and FREEZES at the
-  // mouth (dead centre); the camera holds a beat, then slowly ORBITS ~90° around him to look
-  // straight down the side street — the real 3D perspective skews and pinches the facades toward
-  // the vanishing point on its own. At the far end of the swing it's a fresh side-on view of the
-  // next block (a warp to more of the same generated street) and he takes off running again.
+  // THE CORNER TURN — the hidden-cut framework:
+  //   1 TRACK ('in'):  the camera eases to a LOCK-OFF framing the intersection right-of-centre
+  //                    while Bam keeps running — PAST the corner and clean off the frame edge.
+  //   2 LOCK  ('lock'): dead-still beat on the empty corner. Establishes the space.
+  //   3 WHIP  ('whip'): fast whip-pan that centres the cross-street's mouth. No 3D rotation
+  //                    needed — Street B recedes AWAY from us, so the pan + streaks carry it.
+  //   4 DEPTH ('depth'): Bam re-enters as a silhouette billboard IN the 3D corridor, running
+  //                    away down Street B into the sunset haze, shrinking with real perspective.
+  //   5 RESOLVE:       flash-cut back to side-on on the continuing block; run resumes, ball reset.
   if(c.ph==='turn'){
-    const ball=c.ball; ball.x=Math.min(ball.x, P.x-300); ball.rot+=0.02;   // ball parked off-screen for the cinematic
-    if(c.turnSub==='in'){ c.t2++; P.face=1; P.state='walk';
-      const dx=c.turnX-P.x;
-      if(Math.abs(dx)>3){ P.x+=clamp(dx,-3.2,3.2); }                       // jog the last few px to the mouth
-      else { P.x=c.turnX; c.turnSub='hold'; c.t2=0; c.freezeCamX=Math.max(0,P.x-W/2); P.state='idle'; blip(320,.06); }
+    const ball=c.ball; ball.x=Math.min(ball.x, camX-260); ball.rot+=0.02;  // ball parked off-frame for the cinematic
+    // NB c.t2 already ticks once at the top of chaseTick — no extra increments here, or the
+    // whole sequence runs at double speed (it did).
+    if(c.turnSub==='in'){
+      camX += (c.freezeCamX-camX)*0.14;                                    // ease into the lock-off framing
+      if(P.state!=='scripted'){ c.turnSub='lock'; c.t2=0; camX=c.freezeCamX; blip(320,.05); }   // he's off-frame past the corner
       return; }
-    if(c.turnSub==='hold'){ c.t2++; camX=c.freezeCamX; P.state='idle'; P.face=1; P.sprinting=false;
-      if(c.t2>=20){ c.turnSub='swing'; c.t2=0; rumble(380,1,.7,true); blip(260,.07); }   // a breath, then the camera goes
+    if(c.turnSub==='lock'){ camX=c.freezeCamX;
+      if(c.t2>=14){ c.turnSub='whip'; c.t2=0; rumble(380,1,.7,true); blip(260,.07); }
       return; }
-    if(c.turnSub==='swing'){ c.t2++; camX=c.freezeCamX; P.state='idle'; P.sprinting=false;
-      const SW=84, p=Math.min(1,c.t2/SW);
-      c.yaw = (p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2) * 1.48;             // ease-in-out orbit to ~85°
-      if(c.t2>=SW){                                  // landed looking down the new street — warp to side-on and run
-        c.yaw=0; camFlash=Math.max(camFlash,0.6); shake=Math.max(shake,7); rumble(520,1,.8,true);
-        P.z=252; P.state='walk'; P.sprinting=true; P.sprintDir=1;
+    if(c.turnSub==='whip'){
+      const WF=24, p=Math.min(1,c.t2/WF), e=(p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2);
+      camX = c.freezeCamX + (c.turnX-320-c.freezeCamX)*e;                  // whip-pan to centre the mouth
+      if(c.t2>=WF){ camX=c.turnX-320; c.turnSub='depth'; c.t2=0; c.bbZ=248; }
+      return; }
+    if(c.turnSub==='depth'){ camX=c.turnX-320;
+      const DF=64, p=Math.min(1,c.t2/DF);
+      c.bbZ = 248 - (p*p*0.4+p*0.6)*230;                                   // his silhouette runs away down Street B (z shrinks him)
+      if(c.t2>=DF){                                                        // resolve: same neighbourhood, next stretch
+        camFlash=Math.max(camFlash,0.7); shake=Math.max(shake,8); rumble(520,1,.8,true);
+        P.x=c.turnX+230; P.z=252; P.state='walk'; P.face=1; P.sprinting=true; P.sprintDir=1;
+        camX=P.x-W*0.42;
         ball.x=P.x-460; ball.vx=3.0; c.turned=true;
-        c.ph='run'; c.t2=0; }
+        c.ph='run'; c.turnSub=null; c.t2=0; }
       return; }
     return;
   }
@@ -2909,6 +2924,7 @@ function update(){
   //---- must keep driving its phases (and the ball) right through them
   if(chase) chaseTick();
   chaseTilt += (((chase&&chase.ph==='run')?CHASE_TILT:0)-chaseTilt)*0.04;
+  if(chase&&chase.ph==='turn') chaseTilt*=0.86;   // the corner cinematic plays FLAT — dump the downhill roll fast
 
   //---- input
   const pad=pollPad();
@@ -3193,8 +3209,8 @@ function update(){
       for(const g of GATES.concat(S1G)) if(g.done==='fight' || g.x<P.x-40) g.done=true;   // retire this fight + anything already behind you, so nothing yanks you back
       if(wasBoss) stageCleared(); else { wavesThisStage++; say(P.x,P.z-40,'GO →','#c9d13a'); }
       if(gauntlet>0){ gauntlet--; if(gauntlet>0) forceBoss(); else say(P.x,P.z-58,'GAUNTLET CLEARED','#c9d13a'); } }
-  } else if(!(chase && chase.ph==='turn' && (chase.turnSub==='hold'||chase.turnSub==='swing'))){
-    camX+=((P.x-W*0.42)-camX)*0.09; camX=Math.max(0,camX);   // frozen while the camera orbits the corner
+  } else if(!(chase && chase.ph==='turn')){
+    camX+=((P.x-W*0.42)-camX)*0.09; camX=Math.max(0,camX);   // the corner sequence drives the camera itself
   }
 
   //---- enemies
@@ -4828,22 +4844,27 @@ function drawAlleyGap(){
 }
 
 // blit Bam's current frame onto bg3d's billboard canvas, so he can ride IN the 3D scene during the
-// corner orbit. We only have side (east/west) + front (south) views — no back-view run sprite — so
-// he faces the camera through the turn (the camera circling a planted character reads fine).
+// corner sequence. We have no back-view run sprite, so the depth leg draws him as a backlit
+// SILHOUETTE running into the sunset at the corridor's vanishing point — the missing facing reads
+// as rim-lit shadow, which is both a cover and a look.
 let _hbCtx=null;
 function heroBillboardFrame(){
   const bb=globalThis.__bg3d; if(!bb||!bb.heroCanvas) return;
   _hbCtx = _hbCtx || bb.heroCanvas.getContext('2d');
   _hbCtx.clearRect(0,0,92,92);
-  const key = P.state==='walk' ? 'hero.walk.'+(Math.floor(t*.16)%4) : 'hero.rot.east';
+  const key='hero.walk.'+(Math.floor(t*.24)%4);
   const p=IDX[key]||IDX['hero.rot.east']; if(!p) return;
-  const src = P.face<0?flip:sheet;
   _hbCtx.imageSmoothingEnabled=false;
-  _hbCtx.drawImage(src,p[0],p[1],S,S,0,0,92,92);
+  _hbCtx.globalCompositeOperation='source-over';
+  _hbCtx.drawImage(sheet,p[0],p[1],S,S,0,0,92,92);
+  _hbCtx.globalCompositeOperation='source-atop';                 // darken only his pixels
+  _hbCtx.fillStyle='rgba(24,16,30,0.78)'; _hbCtx.fillRect(0,0,92,92);
+  _hbCtx.globalCompositeOperation='source-over';
 }
 function render(){
   if(shopOpen){ drawStore(); composite(); return; }   // in-world store interior fully replaces the street view
-  const orbiting = chase && chase.ph==='turn' && (chase.turnSub==='hold'||chase.turnSub==='swing');   // corner cinematic
+  const whipping = chase && chase.ph==='turn' && chase.turnSub==='whip';    // the whip-pan (streaks, no sprites)
+  const depthing = chase && chase.ph==='turn' && chase.turnSub==='depth';   // Bam in the corridor (billboard, no sprites)
   ctx.save();
   const sh=shake*OPT.shake;
   if(sh>1) ctx.translate(rnd(-sh,sh),rnd(-sh,sh));
@@ -4867,11 +4888,15 @@ function render(){
     const xs3d = XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4).map(x=>(x-320)*0.0805);
     if(chase && chase.turnX!=null && !chase.turned) xs3d.push((chase.turnX-320)*0.0805);
     const yaw3d = (chase && chase.yaw) ? chase.yaw : 0;
-    // during the corner orbit, Bam rides IN the 3D scene as a billboard (so the camera can circle
-    // him and he stays planted on the ground); the flat 2D overlay is hidden for those frames.
-    const heroBB = orbiting ? {gx:P.x, gy:P.y, gz:P.z, camX} : null;
+    // the corner sequence's depth leg: Bam rides IN the 3D scene as a silhouette billboard,
+    // planted on Street B's centreline and shrinking away with real perspective.
+    const heroBB = depthing ? {gx:chase.turnX, gy:0, gz:chase.bbZ, camX} : null;
     if(heroBB) heroBillboardFrame();
-    globalThis.__bg3d.render(camX*0.0805, BUILDINGS.filter(b=>b.kind==='store').map(b=>(b.doorX-320)*0.0805), b3, chaseTilt, alley3d, xs3d, yaw3d, heroBB);
+    // during the corner cinematic, keep any store rig off the intersection mouth (it's not part of
+    // the front row, so the carved gap can't hide it)
+    const storeXs3d = BUILDINGS.filter(b=>b.kind==='store' && !(chase&&chase.ph==='turn'&&Math.abs(b.doorX-chase.turnX)<350))
+      .map(b=>(b.doorX-320)*0.0805);
+    globalThis.__bg3d.render(camX*0.0805, storeXs3d, b3, chaseTilt, alley3d, xs3d, yaw3d, heroBB);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();
@@ -4914,11 +4939,15 @@ function render(){
   // angle (same 4th arg above), and this rotates the sprite layer about the same screen centre,
   // so feet stay planted on the rolled 3D ground.
   const tl = chaseTilt>0.01 ? chaseTilt : 0;
-  // during the corner orbit Bam is a BILLBOARD inside the 3D scene (drawn by bg3d, above), so the
-  // camera genuinely circles him; the flat 2D sprite layer (ball, obstacles, and the overlay Bam)
-  // is held off until we're side-on again on the next block.
+  // corner sequence: the whip hides the sprite layer behind speed streaks; the depth leg hides it
+  // because Bam is IN the 3D scene (billboard) and everything else is parked off-frame.
   if(tl){ ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(tl); ctx.translate(-W/2,-H/2); }
-  if(!orbiting) for(const o of list) o.f();
+  if(!whipping && !depthing) for(const o of list) o.f();
+  else if(whipping){ ctx.save(); ctx.globalAlpha=0.5; ctx.strokeStyle='#ffe6d0'; ctx.lineWidth=2;
+    for(let i=0;i<22;i++){ const yy=i*17+((t*13)%17), ln=70+((i*47)%110);
+      const xx=(W - ((t*46+i*97)%(W+240)))-120;                      // streaks sweep AGAINST the pan
+      ctx.beginPath(); ctx.moveTo(xx,yy); ctx.lineTo(xx+ln,yy); ctx.stroke(); }
+    ctx.restore(); }
 
   for(const p of parts){ ctx.globalAlpha=clamp(p.life/20,0,1); ctx.fillStyle=p.col;
     ctx.fillRect(p.x-camX,p.z-p.y,2,2); } ctx.globalAlpha=1;
