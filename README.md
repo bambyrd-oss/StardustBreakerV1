@@ -34,7 +34,7 @@ only place the landscape lock behaves properly, so on a phone, install it.
 | Move | `WASD` / arrows | Stick / D-pad | Left stick |
 | Punch | `J` | **X** (or RB / RT) | PUNCH |
 | Kick | `I` | **LB** | KICK |
-| Shoot (finger gun) | `U` | **LT** | SHOOT |
+| Fight / Shoot toggle | `U` | **LT** | SHOOT |
 | Jump | `K` / `Space` | **A** | JUMP |
 | Imagination attack | `L` | **B** | IMAGINE |
 | Interact / eat | `E` | **Y** | TALK |
@@ -52,10 +52,12 @@ enemies into the air. Special attacks come off direction + button:
   that drives forward through the crowd.
 - **Dive punch** — **jump, then punch** (`K` then `J`). A downward air punch.
 
-**Shoot** — tap `U` (or the SHOOT button) for a dedicated finger-gun shot: BamBam
-pops off a ranged dot **and backpedals** as he fires, so it doubles as a spacing/
-retreat tool. It's its own button now, separate from the melee punch combo — no
-mode to toggle.
+**Fight vs. Shoot** — tap `U` (or the SHOOT button) to toggle attack modes. In
+**Fight** the punch button brawls with the melee combo. In **Shoot**, *hold* punch
+to spray finger-gun dots — he fires standing still (no forced movement), and if you
+walk while firing he moves at a slower walk instead of a run. Spammable. The
+**Imagination** special (`L`, on a full Freedom Meter) is the finger gun's ultimate:
+a huge plasma beam straight ahead.
 
 ## The design
 

@@ -95,7 +95,6 @@ const driver = `
    setBusMobAt:(v)=>{ busMobAt=v; },   // deterministic suite: park the once-a-run roll so it can't fire mid-scene
    releaseArena:()=>{ ents.length=0; camLock=null; boss=null; bossDone=0; hitstop=0; fires.length=0; },
    rat,vamp,connect,hurtPlayer,setShop,buy,spawnWave,tier,stream,update,render,aggro,coopApply,coopBroadcastEnts,coopMirrorEnts,
-   tryGrab,grabbable,slamDown,dropGrab,launchGrabbed,tossPlayerDown,
    throwWeapon,drop, get WEAPONS(){return WEAPONS},
    genBoss,spawnBoss,updateBoss,killBoss,hits,atkBox,stageCleared,
    buyContinue,callItNight,continueCost,
@@ -134,10 +133,12 @@ if(MISSING.length) console.log('ids requested but NOT in markup: '+[...new Set(M
 
 // ---------------- scenarios ----------------
 function scene(name, fn){
-  // clear any grab/street residue a prior scene's sim may have left on the player, so scenes stay independent
-  try{ const g=globalThis.__G();
-    if(['grab','grabbed','caged','wthrow','punch','jump','air','upper','kick'].includes(g.P.state)) g.P.state='idle';
-    g.P.grabE=null; g.P.grabbedBy=null; g.P.cageB=null; g.P.weapon=null; g.P.landHold=0; g.P.y=0; g.P.vy=0; }catch(e){}
+  // clear any residue a prior scene's sim may have left on the player, so scenes stay independent
+  try{ const g=globalThis.__G(), P=g.P;
+    if(['caged','wthrow','punch','jump','air','upper','kick','shoot'].includes(P.state)) P.state='idle';
+    P.cageB=null; P.weapon=null; P.landHold=0; P.y=0; P.vy=0;
+    // transient combat buffs/timers a prior scene (e.g. the Imagination special) can leave hot
+    P.fireT=0; P.dmgMul=1; P.dmgT=0; P.stepV=0; P.airT=0; P.buf=0; P.st=0; P.step=0; P.connected=false; }catch(e){}
   try{ fn(); console.log('  ok    '+name); }
   catch(e){ console.log('  FAIL  '+name+'\n        '+e.constructor.name+': '+e.message+
     '\n        '+(e.stack||'').split('\n')[1].trim()); err=err||e; }
@@ -270,21 +271,34 @@ if(!err){
     if(g.P.state!=='idle') throw new Error('kick should release back to idle, got '+g.P.state);
     console.log('        I on the ground -> kick state, standing kick connected for '+(hp0-e.hp)+' dmg');
   });
-  scene('shoot: dedicated SHOOT button fires a finger-gun dot and backpedals', ()=>{
-    const g=__G(); g.releaseArena();
-    g.P.x=1200; g.P.z=300; g.P.y=0; g.P.vy=0; g.P.state='idle'; g.P.face=1; g.P.weapon=null; g.P.iframes=999; g.setCamLock(Math.max(0,g.P.x-170));
-    const e=g.vamp(g.P.x+90,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
-    const x0=g.P.x;
-    __key('KeyU',true); __tick(1); __key('KeyU',false);
-    if(g.P.state!=='shoot') throw new Error('SHOOT button should enter the shoot state, got '+g.P.state);
-    const hp0=e.hp; __tick(6);                                  // through the muzzle frame (st===5)
-    if(!g.fires.some(f=>f.dot)) throw new Error('shoot should spawn a finger-gun dot projectile');
-    if(!(g.P.x<x0)) throw new Error('shoot should backpedal — x should drop below '+x0+', got '+g.P.x);
-    __tick(20);                                                 // let the dot fly into the enemy
-    if(!(e.hp<hp0)) throw new Error('the finger-gun dot should have connected, enemy hp unchanged at '+e.hp);
-    __tick(10);
-    if(g.P.state!=='idle') throw new Error('shoot should release back to idle, got '+g.P.state);
-    console.log('        SHOOT -> shoot state, backpedaled '+(x0-g.P.x).toFixed(1)+'px, dot connected for '+(hp0-e.hp)+' dmg');
+  scene('SHOOT mode: toggle on, hold punch to spam finger-gun dots while standing still', ()=>{
+    const g=__G(), P=g.P; g.releaseArena();
+    P.x=1200; P.z=300; P.y=0; P.vy=0; P.state='idle'; P.face=1; P.weapon=null; P.iframes=999; P.gunMode=false; P.shootCd=0; P.shootT=0;
+    g.setCamLock(Math.max(0,P.x-170));
+    const e=g.vamp(P.x+90,300,false,false,'guard'); e.state='walk'; e.hitstun=0; e.hp=e.maxhp=1000; g.spawn(e);
+    // toggle into SHOOT mode
+    __key('KeyU',true); __tick(1); __key('KeyU',false); __tick(1);
+    if(!P.gunMode) throw new Error('U should toggle into SHOOT mode');
+    // HOLD punch → sprays dots on a cooldown; the player stays put (no forced movement) and never enters a locked attack state
+    const x0=P.x, hp0=e.hp; let dots=0;
+    __key('KeyJ',true);
+    for(let i=0;i<40;i++){ const before=g.fires.filter(f=>f.dot).length; __tick(1); const after=g.fires.filter(f=>f.dot).length; if(after>before) dots++; }
+    __key('KeyJ',false);
+    if(dots<3) throw new Error('holding punch in SHOOT mode should spam several dots, got '+dots);
+    if(P.state==='punch') throw new Error('SHOOT mode must not enter the melee punch combo');
+    if(Math.abs(P.x-x0)>2) throw new Error('shooting should be stationary (no forced movement), drifted '+(P.x-x0).toFixed(1));
+    if(!(e.hp<hp0)) throw new Error('the finger-gun dots should connect');
+    // walk-not-run: holding a direction while firing moves slower than a normal run
+    P.gunMode=true; P.shootT=10; P.x=1200; __key('KeyD',true); __key('KeyJ',true);
+    const wx=P.x; __tick(1); const walkStep=P.x-wx; __key('KeyJ',false);
+    P.shootT=0; const rx=P.x; __tick(1); const runStep=P.x-rx; __key('KeyD',false);
+    if(!(walkStep>0 && walkStep<runStep)) throw new Error('firing while moving should walk (slower) not run: walk='+walkStep.toFixed(2)+' run='+runStep.toFixed(2));
+    // toggle back to FIGHT → punch melees again
+    P.gunMode=false; P.state='idle'; g.ents.length=0;
+    const e2=g.vamp(P.x+20,300,false,false,'guard'); e2.state='walk'; e2.hitstun=0; e2.hp=e2.maxhp=1000; g.spawn(e2);
+    __key('KeyJ',true); __tick(1); __key('KeyJ',false);
+    if(P.state!=='punch') throw new Error('FIGHT mode punch should melee, got '+P.state);
+    console.log('        toggle→SHOOT: '+dots+' dots held-fire, stationary; walk<run while firing; toggle→FIGHT melees');
   });
   scene('uppercut: UP+PUNCH on the ground launches a grounded enemy', ()=>{
     const g=__G(); g.releaseArena();
@@ -411,61 +425,6 @@ if(!err){
     const near={x:e.x + (e.w+22), z:e.z, rw:2, rd:6};
     if(g.hits(near,e)) throw new Error('the pad is boss-only — a vamp should not get it');
     console.log('        boss hurtbox pads +25px horizontally; street enemies unchanged');
-  });
-  scene('grab-toss: hold ↓+punch to grab, wind up, hurl+slam; a hit mid-windup breaks it', ()=>{
-    const g=__G(); g.releaseArena();
-    g.P.hp=g.P.maxhp=1e9; g.P.x=1200; g.P.z=280; g.P.y=0; g.P.state='idle'; g.P.iframes=999;
-    g.setCamLock(Math.max(0,g.P.x-170)); g.night.slams=0;
-    const mk=()=>{ const e=g.vamp(g.P.x+24,278,false,undefined,'guard'); e.state='walk'; e.hitstun=0; g.spawn(e); return e; };
-    // START the grab — works anywhere now, no curb requirement
-    let e=mk();
-    if(!g.grabbable()) throw new Error('should be able to grab nearby');
-    if(!g.tryGrab()) throw new Error('tryGrab should start the grab');
-    if(g.P.state!=='grab'||g.P.grabE!==e||e.state!=='held') throw new Error('grab did not lock both in place');
-    // it must NOT be instant — a couple frames in (holding punch) you are still winding, enemy still held
-    __key('KeyJ',true);
-    for(let i=0;i<10;i++) __tick(1);
-    if(e.state!=='held') throw new Error('the toss should not be instant — enemy left held too early: '+e.state);
-    // hold through the wind-up → HURL, then it slams down on its own (no car needed)
-    for(let i=0;i<90;i++){ __tick(1); if(e.state==='thrown') break; }
-    if(e.state!=='thrown') throw new Error('holding through the wind-up should hurl the enemy, got '+e.state);
-    for(let i=0;i<80 && !e.dead;i++) __tick(1);
-    if(!e.dead||g.night.slams!==1) throw new Error('landing should slam+tally, got dead='+e.dead+' slams='+g.night.slams);
-    __key('KeyJ',false);
-    // INTERRUPT: start another grab, then get hit mid-windup → grab breaks, enemy NOT thrown
-    g.P.state='idle'; g.P.grabE=null; g.ents.length=0; g.P.iframes=999; e=mk();
-    if(!g.tryGrab()) throw new Error('second grab should start');
-    __key('KeyJ',true); for(let i=0;i<8;i++) __tick(1);
-    if(g.P.state!=='grab') throw new Error('should still be winding the grab');
-    g.P.iframes=0; g.hurtPlayer(20, g.P.x+40, 0);          // someone clocks you mid-grab
-    if(g.P.state==='grab') throw new Error('a hit should knock you out of the grab');
-    if(e.state==='thrown') throw new Error('a broken grab must NOT toss the enemy');
-    __key('KeyJ',false);
-    console.log('        grab locks both → wind-up (not instant) → hurl+slam; hit breaks the grab');
-  });
-  scene('grabbed: an enemy slams YOU down unless you mash out', ()=>{
-    const g=__G(); g.releaseArena();
-    g.P.hp=g.P.maxhp=1000; g.P.x=1200; g.P.z=280; g.P.y=0; g.P.state='idle'; g.P.iframes=0;
-    g.setCamLock(Math.max(0,g.P.x-170));
-    const grabYou=()=>{ const e=g.vamp(g.P.x+22,278,false,undefined,'guard'); e.state='grabbing'; e.grabT=0; e.face=-1; g.spawn(e);
-      g.P.state='grabbed'; g.P.grabbedBy=e; g.P.struggle=0; return e; };
-    // DON'T mash → you get slammed down (heavy, but you survive) — anywhere, not just at a curb
-    let e=grabYou(); const hp0=g.P.hp;
-    for(let i=0;i<120;i++){ __tick(1); if(g.P.state==='down') break; }
-    if(g.P.state!=='down') throw new Error('failing to mash out should slam you down');
-    if(!(g.P.hp<hp0)) throw new Error('the slam should hurt');
-    if(g.P.hp<=0) throw new Error('the slam must not instantly kill you');
-    // recover fully
-    for(let i=0;i<120;i++){ __tick(1); if(g.P.state==='idle') break; }
-    if(g.P.state!=='idle') throw new Error('you should get back up');
-    // NOW mash out in time → you break free, no slam
-    g.P.hp=g.P.maxhp; g.P.x=1200; g.P.z=280; g.P.state='idle'; g.ents.length=0;
-    e=grabYou();
-    let escaped=false; for(let i=0;i<60;i++){ __key('KeyJ',true); __tick(1); __key('KeyJ',false); __tick(1);
-      if(g.P.state!=='grabbed'){ escaped=true; break; } }
-    if(!escaped) throw new Error('mashing punch should break the enemy grab');
-    if(g.P.state==='down') throw new Error('mashing out should mean you are NOT slammed');
-    console.log('        no mash → slammed down (survivable); mash → shook loose');
   });
   scene('weapon: walk over a pipe to equip; a second is left on the ground while armed', ()=>{
     const g=__G(); g.releaseArena();
