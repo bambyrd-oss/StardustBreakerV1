@@ -607,6 +607,10 @@ function bindBtn(id,k){ const el=$(id);
 }
 bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bD','D'); bindBtn('bE','E'); bindBtn('bF','F');
 function tapT(k){ if(T[k+'p']){T[k+'p']=false;return true;} return false; }
+// FIGHT/SHOOT feedback: the main action button (bA) shows what it does now (PUNCH vs SHOOT),
+// and the toggle (bF) shows the mode it switches TO — so pressing it visibly flips both.
+function syncModeBtn(){ const s=!!(typeof P!=='undefined' && P.gunMode);
+  const a=$('bA'), f=$('bF'); if(a) a.textContent=s?'SHOOT':'PUNCH'; if(f) f.textContent=s?'FIGHT':'SHOOT'; }
 if(matchMedia('(hover:hover)').matches && !('ontouchstart' in window)){
   OPT.touch=false; $('o_touch').classList.remove('on');
 } else $('touch').classList.add('on');
@@ -831,6 +835,7 @@ function reset(){
   BUILDINGS=[]; CLUBS=[]; GRATES=[]; GATES=[]; MADE.clear();
   _credited.clear();
   best=Math.max(best||0, 0);
+  syncModeBtn();                          // action button starts as PUNCH (FIGHT is the default mode)
   stream();
 }
 let best=0;
@@ -1703,7 +1708,7 @@ function update(){
         jTalk =tap('KeyE')||tapT('D')||(pad&&pad.TALK),
         jKick =tap('KeyI')||tapT('E')||(pad&&pad.KICK),
         jGun  =tap('KeyU')||tapT('F')||(pad&&pad.GUN);
-  if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); }   // toggle FIGHT ⇄ SHOOT (current mode shown in the HUD)
+  if(jGun){ P.gunMode=!P.gunMode; blip(P.gunMode?660:330,.05); syncModeBtn(); }   // toggle FIGHT ⇄ SHOOT — relabels PUNCH↔SHOOT + the toggle button
   if(pad&&pad.PAUSE) setPause(true);
 
   //---- PUNCH: mash to combo. player is LOCKED for the whole string.
