@@ -236,9 +236,9 @@ function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27
 // skyline sits low on the horizon for depth. `tile` = target building width (widths are then
 // normalised to sum to SPAN exactly so the wall stays seamless when it wraps).
 const BANDS = [
-  { z:-13, hBase:7,  hVar:6,  depth:3.5, store:true,  tile:9,  off:0 },   // FRONT (red) — connected storefront wall, narrow shops, jagged roofline (7..13); shallow so it reads as a facade, not a chunky box
-  { z:-27, hBase:4,  hVar:4,  depth:4,   store:false, tile:12, off:6 },   // BACK (blue) — connected but SHORTER (4..8), so sky shows over it in the front's valleys
-  { z:-74, hBase:7,  hVar:7,  depth:5,   store:false, tile:17, off:5, skyline:true },  // far hazy skyline, low on the horizon
+  { z:-13, hBase:6,  hVar:5,  depth:1.2, store:true,  tile:9,  off:0 },   // FRONT (red) — razor-thin facade wall (6..11): the camera looks down, so any real depth shows a big sunlit roof slab
+  { z:-27, hBase:5,  hVar:4,  depth:4,   store:false, tile:12, off:6 },   // BACK (blue) — 5..9: overlaps the front's range, so its roofs genuinely peek above the shorter fronts (its own roof hides behind the wall)
+  { z:-74, hBase:4,  hVar:4,  depth:4,   store:false, tile:17, off:5, skyline:true },  // far haze: LOW (4..8) so it sits on the horizon instead of curtaining off the sky
 ];
 const SPAN = 260;                        // world-x wrap width
 const boxGeo = new THREE.BoxGeometry(1,1,1);
@@ -282,14 +282,17 @@ function buildColumn(band, baseX, seed, fixedW){
   scene.add(m);
   const extras=[];
   // ink outline (inverted hull) for the comic silhouette — skip the hazy skyline band
+  // NO x-inflation on the hull: the wall is edge-to-edge, so a widened outline juts out from
+  // behind the neighbour as a black sliver at every seam. Inflate only height/depth — the
+  // silhouette line still reads along the roofline, where it matters.
   if(!band.skyline){ const OL=0.7, ol=new THREE.Mesh(boxGeo, OUTLINE_MAT);
-    ol.scale.set(w+OL, h+OL, band.depth+OL); ol.position.set(baseX, h/2, band.z); ol.userData.ox=0;
+    ol.scale.set(w, h+OL, band.depth+OL); ol.position.set(baseX, h/2, band.z); ol.userData.ox=0;
     scene.add(ol); extras.push(ol); }
   const front = band.z + band.depth/2;                       // z of the camera-facing face
   // parapet cap / cornice (some buildings get a stepped cornice)
   detail(extras, boxGeo, toonMat({ color:'#00000026', transparent:true, roughness:1 }), baseX, w*1.03,1.1,band.depth*1.05, baseX,h+0.3,band.z);
   if(!band.skyline && hash(seed*17)>0.5) detail(extras, boxGeo, MAT.trim, baseX, w*1.06,0.5,band.depth*1.08, baseX,h-0.3,band.z);
-  if(!band.skyline){
+  if(!band.skyline && band.depth>=3){   // rooftop clutter needs a real roof — on the razor-thin facade band it would overhang absurdly
     // rooftop water tower (iconic) on ~40%
     if(hash(seed*5+9)>0.6){
       const tr=1.1+hash(seed*5+6)*0.5, tx=baseX+(hash(seed*5+3)-0.5)*w*0.4, tz=band.z+(hash(seed*5+4)-0.5)*band.depth*0.3;
