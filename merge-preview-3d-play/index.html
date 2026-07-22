@@ -325,9 +325,9 @@ const HORIZON = new THREE.Color('#ff9e5a');       // warm haze the distant build
 scene.fog = new THREE.Fog(HORIZON, 58, 195);
 
 // ---- camera: side-on, slight downward tilt, pulled back so the street + skyline + sky all read ----
-const camera = new THREE.PerspectiveCamera(40, 1280/720, 0.1, 400);
-camera.position.set(0, 13, 24);
-camera.lookAt(0, 3, -20);
+const camera = new THREE.PerspectiveCamera(24, 1280/720, 0.1, 500);   // telephoto → gentle perspective, flatter ground to match the game's flat floor
+camera.position.set(0, 20, 62);
+camera.lookAt(0, 7, -26);
 
 // ---- golden-hour light: low warm sun + cool sky fill = saturated, contrasty colour ----
 scene.add(new THREE.HemisphereLight(0xffc98a, 0x59406a, 1.15));   // warm sky, cool violet ground bounce
