@@ -423,23 +423,26 @@ if(!err){
     if(!g.dawnShown) throw new Error('clearing stage 3 should end the run on the win recap');
     console.log('        2 waves -> named boss -> shop -> next stage; stage 3 wins the run');
   });
-  scene('wave enemies spawn INSIDE the locked arena (not off-screen / not a far club)', ()=>{
-    // regression: waves used to spawn at arbitrary club doors, which could land behind the lock
-    // line or clean off-screen — invisible, or culled by stream() the instant they appeared, so the
-    // screen locked with no reachable enemies. Every wave member must now land within the arena.
+  scene('wave enemies enter from off-screen AHEAD and are not culled', ()=>{
+    // regression: waves used to spawn at arbitrary club doors — behind the lock line or clean
+    // off-screen where stream() culled them the instant they appeared. They must now enter from
+    // just off the right edge (ahead of the player) and stay inside the cull-keep range so they
+    // actually walk in and can be cleared.
     const g=__G(); g.releaseArena();
     g.P.x=1200; g.P.z=300;
     g.setCamLock(995);                 // lock like the gate at 1165 (camLock = 1165-170); arena = [995, 1635]
-    g.stream();                        // populate clubs/buildings around the lock
     g.spawnWave(0);                    // setTimeout is synchronous in the harness → enemies spawn inline
-    const W=640, aL=g.camLock, aR=aL+W;
+    const W=640, aR=g.camLock+W, cullR=g.camX+W+460;   // stream() keeps x < camX+W+460
     const foes=g.ents.filter(e=>e.k==='vamp');
     if(!foes.length) throw new Error('spawnWave produced no enemies');
     for(const e of foes){
-      if(e.x < aL-64 || e.x > aR+64)
-        throw new Error('wave enemy spawned outside the locked arena at x='+Math.round(e.x)+' (arena '+aL+'..'+aR+')');
+      if(e.x <= g.P.x) throw new Error('wave enemy spawned behind/at the player (x='+Math.round(e.x)+', player '+g.P.x+')');
+      if(e.x >= cullR) throw new Error('wave enemy spawned past the cull edge (x='+Math.round(e.x)+' >= '+Math.round(cullR)+') — would be culled instantly');
+      if(e.x <= aR)    throw new Error('wave enemy spawned on-screen (x='+Math.round(e.x)+' <= right edge '+aR+') instead of walking in from off-screen');
     }
-    console.log('        '+foes.length+' wave enemies, all inside the locked arena');
+    g.stream();   // enemies are within the keep range, so a cull pass must not remove them
+    if(g.ents.filter(e=>e.k==='vamp').length!==foes.length) throw new Error('stream() culled freshly spawned wave enemies');
+    console.log('        '+foes.length+' wave enemies, all entering from off-screen ahead, none culled');
   });
   scene('boss hurtbox reaches ≥25px past its side (easier to hit)', ()=>{
     const g=__G(); g.clearEnts();

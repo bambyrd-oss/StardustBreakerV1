@@ -1240,26 +1240,20 @@ function spawnWave(T){
   // (Security Guards / Corrupt Politicians / Corporate Mascots, with Robotic Police mixed in),
   // with the count boosted to keep wave density where the rat pack used to fill it out.
   const nVamps = Math.min(10, 3+Math.floor(T*0.9)) * M;
-  // WHERE they come from: the locked arena's visible span. A wave that spawns its enemies at
-  // arbitrary club doors can drop them behind the lock line or clean off-screen — where they're
-  // invisible, or culled by stream() the instant they appear (a wave that never shows / can't be
-  // cleared). So spawn INSIDE the arena: out an on-screen club door when one's in view (keeps the
-  // "out the club door" flavor), otherwise walking in from just off the arena edges. Positions are
-  // decided now, while the arena is fresh, and captured per-enemy.
-  const aL = camLock!==null ? camLock : Math.max(0,P.x-W*0.5);   // arena left edge (lock settles here)
-  const aR = aL + W;                                             // arena right edge
-  const inView = CLUBS.filter(b=>b.doorX>aL+40 && b.doorX<aR-40);
-  const spawnX=(i)=>{
-    if(inView.length){ const b=inView[Math.floor(Math.random()*inView.length)]; b.open=60; return b.doorX+rnd(-14,14); }
-    return (i%3===2) ? aL-rnd(8,40) : aR+rnd(8,40);             // ~2/3 enter from ahead (right), the rest flank from behind
-  };
-  // Always spawn when the timer fires — even if paused. The old code skipped the spawn while
-  // paused but still decremented pendingSpawns, so pausing across the ~3s stagger silently dropped
-  // enemies (and could empty the whole wave). A vamp spawned during a pause just sits inert until
-  // you unpause (update() is frozen), which is fine.
-  for(let i=0;i<nVamps;i++){ const x=spawnX(i);
+  // WHERE they come from: they WALK IN from off-screen ahead (just past the right edge of the
+  // locked view) and close on the player — never pop in on-screen or spawn behind the lock line.
+  // (The old "out of the club door" spawn dropped them at arbitrary doors — sometimes behind you,
+  // sometimes off-screen where stream() culled them the instant they appeared.) Positions are
+  // decided now, off the right edge, staggered down the block and spread across the walk band.
+  const aR = (camLock!==null ? camLock : Math.max(0,P.x-W*0.5)) + W;   // right edge of the locked view
+  // Always spawn when the timer fires — even if paused. The old code skipped the spawn while paused
+  // but still decremented pendingSpawns, so pausing across the ~3s stagger silently dropped enemies
+  // (could empty the whole wave). A vamp spawned during a pause just sits inert until you unpause.
+  for(let i=0;i<nVamps;i++){
+    const x = aR + 24 + rnd(0,150) + i*10;                              // just off-screen right, trailing back down the block
+    const z = clamp(FLOOR_N-4 + rnd(0,64), FLOOR_N-10, ROAD_TARGET);    // spread in depth so they don't march single-file
     pendingSpawns++;
-    setTimeout(()=>{ pendingSpawns--; ents.push(vamp(x,FLOOR_N-10,true)); }, 240+i*300);   // all politicians while the other types are art-gated
+    setTimeout(()=>{ pendingSpawns--; ents.push(vamp(x,z,false)); }, 240+i*300);   // fromDoor=false → they just walk toward you; all politicians while the other types are art-gated
   }
   say(P.x,P.z-40,'FIGHT','#ff2e88');
 }
