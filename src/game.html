@@ -2054,9 +2054,14 @@ function update(){
     if(Math.abs(b.doorX-P.x)<34 && P.z<FLOOR_N+34){ P.atShop=b; break; } }
   const shopEnter = P.atShop && !P.wasAtShop;   // rising edge: just stepped into the doorway
   P.wasAtShop = !!P.atShop;
-  if(P.atShop && (jTalk||shopEnter) && P.y===0 && P.state!=='down'){
-    if(ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){ if(jTalk) say(P.x,P.z-24,'NOT WHILE THEY ON YOU','#ff2e88'); }
-    else { setShop(true,P.atShop); P.state='idle'; return; }
+  // the door is OPEN — walking into it takes you inside. Three ways in, all equivalent:
+  // step into the doorway (rising edge), keep walking north INTO the door (hold up — this also
+  // covers "the fight ended while I was standing in the doorway", where no edge ever fires),
+  // or press TALK/E. Blocked only while enemies are on you — and the door says so (see
+  // drawStoreFacade's busy cue; say() is a no-op so a float would be silent).
+  const wantIn = iz<-0.35;                      // pressing up = walking through the door
+  if(P.atShop && (jTalk||shopEnter||wantIn) && P.y===0 && P.state!=='down'){
+    if(!ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){ setShop(true,P.atShop); P.state='idle'; return; }
   }
 
   //---- fire lives on the pavement for a second after it leaves the mouth
@@ -3377,11 +3382,17 @@ function drawStoreFacade(){
       ctx.font='700 13px '+BEBAS; ctx.fillStyle='#ffe0f0'; ctx.fillText('OPEN',dx,ny+4.5);
       ctx.textAlign='left';
     } else { ctx.textAlign='center'; ctx.font='700 13px '+BEBAS; ctx.fillStyle='#40222f'; ctx.fillText('OPEN',dx,ny+4.5); ctx.textAlign='left'; }
-    // "step inside" cue when you're at the door and the street's quiet
-    if(P.atShop===b && !ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){
+    // door cue when you're in the doorway: walk in when it's quiet, told why when it's not —
+    // a mute door mid-fight reads as broken (say() is a no-op, so this is the only feedback)
+    if(P.atShop===b){
       ctx.textAlign='center'; ctx.font='bold 8px "JetBrains Mono",monospace';
-      ctx.fillStyle='#ffd98a'; ctx.globalAlpha=.6+.4*Math.sin(t*.12);
-      ctx.fillText(OPT.touch?'STEP INSIDE':'[E] STEP INSIDE', dx, ny-14); ctx.globalAlpha=1;
+      ctx.globalAlpha=.6+.4*Math.sin(t*.12);
+      if(ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){
+        ctx.fillStyle='#ff5a6a'; ctx.fillText('CLEAR THE STREET FIRST', dx, ny-14);
+      } else {
+        ctx.fillStyle='#ffd98a'; ctx.fillText(OPT.touch?'▲ WALK IN':'[W] WALK IN', dx, ny-14);
+      }
+      ctx.globalAlpha=1;
     }
   }
   ctx.textAlign='left';
