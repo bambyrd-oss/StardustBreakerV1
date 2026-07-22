@@ -118,6 +118,13 @@ const street = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 34),
 street.rotation.x = -Math.PI/2; street.position.set(0, 0, 6); street.receiveShadow = true;
 scene.add(street);
 
+// back lot: ground extending under all the building bands, so the gaps BETWEEN buildings
+// show dusky ground instead of the sunset sky punching through at street level
+const backlot = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 135),
+  toonMat({ color:'#6b4a52' }));
+backlot.rotation.x = -Math.PI/2; backlot.position.set(0, -0.06, -79.5);   // spans z -12 .. -147, tucked just under the sidewalk
+backlot.receiveShadow = true; scene.add(backlot);
+
 // scrolling centre dashes (dashed strip down the middle of the road)
 function dashTexture(){
   const c=document.createElement('canvas'); c.width=64;c.height=16; const x=c.getContext('2d');
@@ -345,42 +352,49 @@ function makeProp(type, seed){
 }
 
 // ---- pedestrians: small billboard walkers on the sidewalk (recycled) ----
-function pedTexture(shirt){
+// two texture frames per outfit — legs apart / legs together — swapped by walk phase
+function pedTexture(shirt, stride){
   const c=document.createElement('canvas'); c.width=32;c.height=64; const x=c.getContext('2d');
   x.clearRect(0,0,32,64);
   x.fillStyle='#2a2029'; x.beginPath(); x.arc(16,10,5,0,7); x.fill();   // head
   x.fillStyle=shirt; x.fillRect(10,15,12,20);                            // torso
-  x.fillStyle='#2a2833'; x.fillRect(11,34,4,22); x.fillRect(17,34,4,22); // legs
-  x.fillStyle=shirt; x.fillRect(8,16,3,16); x.fillRect(21,16,3,16);      // arms
+  x.fillStyle='#2a2833';
+  if(stride){ x.fillRect(7,34,4,22); x.fillRect(21,34,4,22); }           // legs apart, mid-stride
+  else      { x.fillRect(12,34,4,22); x.fillRect(17,34,4,22); }          // legs passing
+  x.fillStyle=shirt;
+  if(stride){ x.fillRect(6,16,3,16); x.fillRect(23,16,3,16); }           // arms swing with the stride
+  else      { x.fillRect(8,16,3,16); x.fillRect(21,16,3,16); }
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
 }
-const pedTex=['#c0503f','#3a7fae','#e0b24a','#4f9a52','#c9758f','#d8d2c4'].map(pedTexture);
+const PED_COLS=['#c0503f','#3a7fae','#e0b24a','#4f9a52','#c9758f','#d8d2c4'];
+const pedMats=PED_COLS.map(col=>[0,1].map(st=>new THREE.SpriteMaterial({ map:pedTexture(col,st), transparent:true })));
 const peds=[];
 for(let k=0;k<9;k++){
-  const spr=new THREE.Sprite(new THREE.SpriteMaterial({ map:pedTex[k%pedTex.length], transparent:true }));
+  const mats=pedMats[k%pedMats.length];
+  const spr=new THREE.Sprite(mats[0]);
   const s=2.4+hash(k*13)*0.5, z=-2.5-hash(k*9)*3.5, y=1.6;
   spr.scale.set(s,s*1.9,1); const bx=-SPAN/2+k*(SPAN/9)+(hash(k*3)-0.5)*4;
   spr.position.set(bx, y, z); scene.add(spr);
-  peds.push({ spr, baseX:bx, y, sx:s, vx:(hash(k*5)<0.5?-1:1)*(0.03+hash(k*11)*0.03) });
+  peds.push({ spr, mats, baseX:bx, y, sx:s, vx:(hash(k*5)<0.5?-1:1)*(0.03+hash(k*11)*0.03) });
 }
 
-// ---- drifting clouds (billboard planes, recycled) ----
-function cloudTexture(){
-  const c=document.createElement('canvas'); c.width=128; c.height=64; const x=c.getContext('2d');
-  x.clearRect(0,0,128,64);
-  for(let i=0;i<7;i++){ const cx=20+Math.random()*88, cy=34+Math.random()*10, r=10+Math.random()*16;
-    const g=x.createRadialGradient(cx,cy,2,cx,cy,r); g.addColorStop(0,'rgba(255,255,255,.95)'); g.addColorStop(1,'rgba(255,255,255,0)');
-    x.fillStyle=g; x.beginPath(); x.arc(cx,cy,r,0,7); x.fill(); }
-  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
-}
-const cloudTex=cloudTexture(); const clouds=[];
-const cloudTints=['#ffd8b0','#ffb99a','#ff9e8a','#f6c6d8','#ffe0b0'];   // sunset-lit undersides
-for(let i=0;i<9;i++){
-  const s=new THREE.Sprite(new THREE.SpriteMaterial({ map:cloudTex, transparent:true, opacity:.85, depthWrite:false,
-    color:new THREE.Color(cloudTints[i%cloudTints.length]) }));
-  const scl=22+Math.random()*22; s.scale.set(scl, scl*0.5, 1);
-  s.position.set(-130+Math.random()*260, 30+Math.random()*20, -120-Math.random()*40);
-  scene.add(s); clouds.push(s);
+// ---- clouds: real 3D toon puffs (clustered flattened spheres) drifting across the sunset ----
+const clouds=[];
+{ const tints=['#ffd8b0','#ffb99a','#ff9e8a','#f6c6d8','#ffe0b0'];   // sunset-lit undersides
+  for(let i=0;i<8;i++){
+    const g=new THREE.Group();
+    const mat=toonMat({ color:tints[i%tints.length], emissive:'#7a3050', emissiveIntensity:.18, fog:false });
+    const n=3+Math.floor(hash(i*23)*3);
+    for(let b=0;b<n;b++){                              // a fat core blob + smaller side puffs
+      const m=new THREE.Mesh(sphGeo, mat);
+      const r=(b===0?1:0.45+hash(i*31+b)*0.35) * (7+hash(i*17)*6);
+      m.scale.set(r*1.5, r*0.62, r);
+      m.position.set((b===0?0:(b%2?1:-1)*(0.9+hash(i*7+b))*r*1.1), (b===0?0:-r*0.14), (hash(i*11+b)-0.5)*r*0.7);
+      g.add(m);
+    }
+    g.position.set(-130+hash(i*41)*260, 32+hash(i*43)*18, -115-hash(i*47)*35);
+    scene.add(g); clouds.push(g);
+  }
 }
 
 
@@ -392,7 +406,8 @@ for(let i=0;i<9;i++){
       const nx=b.baseX-scroll; b.mesh.position.x=nx; for(const e of b.extras) e.position.x=nx+(e.userData.ox||0); }
     for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN; p.g.position.x=p.baseX-scroll; }
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
-      pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx)); }
+      pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
+      pe.spr.material = pe.mats[Math.floor(Math.abs(pe.baseX)*1.4)%2]; }   // stride/passing leg frames — an actual walk, not a glide
     asphaltTex.offset.x=scroll/9; dashTex.offset.x=scroll/6; pavingTex.offset.x=scroll/6;
     for(const g of road.concat(decals)){ const sx=g.baseX-scroll; if(sx<-SPAN/2)g.baseX+=SPAN; else if(sx>SPAN/2)g.baseX-=SPAN; g.mesh.position.x=g.baseX-scroll; }
     for(const s of clouds){ s.position.x-=0.012; if(s.position.x<-150)s.position.x=150; }

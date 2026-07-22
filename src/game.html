@@ -59,7 +59,6 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
   border-color:#2c4a6a;background:rgba(12,32,54,.55)}
 #bC{right:6%;bottom:34%;width:13vmin;height:13vmin;max-width:80px;max-height:80px;
   border-color:#5c6320;background:rgba(40,44,12,.55)}
-#bD{right:25%;bottom:5%;width:12vmin;height:12vmin;max-width:74px;max-height:74px;font-size:2.6vmin}
 #bE{right:21%;bottom:37%;width:15vmin;height:15vmin;max-width:90px;max-height:90px;font-size:3.4vmin;
   border-color:#5a2340;background:rgba(60,14,34,.55)}
 #bF{right:4%;top:18%;width:12vmin;height:12vmin;max-width:70px;max-height:70px;font-size:2.4vmin;
@@ -172,7 +171,6 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
         <div class="btn" id="bA">PUNCH</div>
         <div class="btn" id="bB">JUMP</div>
         <div class="btn" id="bC">IMAGINE</div>
-        <div class="btn" id="bD">TALK</div>
         <div class="btn" id="bE">KICK</div>
         <div class="btn" id="bF">SHOOT</div>
       </div>
@@ -611,7 +609,7 @@ function bindBtn(id,k){ const el=$(id);
   const up=e=>{T[k]=false; el.classList.remove('hit');};
   el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up); el.addEventListener('pointerleave',up);
 }
-bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bD','D'); bindBtn('bE','E'); bindBtn('bF','F');
+bindBtn('bA','A'); bindBtn('bB','B'); bindBtn('bC','C'); bindBtn('bE','E'); bindBtn('bF','F');   // TALK button retired — the shop opens on approach
 function tapT(k){ if(T[k+'p']){T[k+'p']=false;return true;} return false; }
 // FIGHT/SHOOT feedback: the main action button (bA) shows what it does now (PUNCH vs SHOOT),
 // and the toggle (bF) shows the mode it switches TO — so pressing it visibly flips both.
@@ -831,7 +829,7 @@ function reset(){
     state:'idle',st:0,step:0,buf:0,connected:false,hitDone:false,iframes:0,
     dmgMul:1,dmgT:0,fireT:0,hitFlash:0,airT:0,deaths:0,gunMode:false,shootCd:0,shootT:0,airPunch:false,punchHand:true,
     sprinting:false,sprintDir:0,tapDir:0,tapT:-99,lastDir:0,landHold:0,beamFace:1,
-    stepV:0,downT:0,knockV:0,weapon:null,downed:false});
+    stepV:0,downT:0,knockV:0,weapon:null,downed:false,wasAtShop:false});
   U={spirit:0,hands:0,body:0,chin:0,hustle:0,flow:0,insight:0,boots:0,reach:0,knuck:0,hide:0,second:0,pockets:0}; burgerCost=25;
 
   ents=[];drops=[];parts=[];floats=[];fires=[];camLock=null;camX=0;camFlash=0;
@@ -1040,9 +1038,8 @@ function dropN(c,suffix,kind,wtype){                 // spawn a drop tagged with
 function canLoot(c){                                  // deterministic per can → same drop on every client
   let s=0; const R=()=>hsh(c.x*0.53 + c.z*0.19 + (s++)*2.7 + 3.1);
   const r=R(), trash=c.type==='can'||c.type==='dumpster';
-  if(r<0.34 && trash && !coopGuest()){ for(let i=0;i<(c.type==='dumpster'?4:3);i++) ents.push(rat(c.x+rnd(-10,10),c.z)); say(c.x,c.z,'RATS','#7d7791'); }
-  else if(WEAPONS_ON && r<0.60){ const wt=trash?'bottle':'pipe'; dropN(c,'','weapon',wt); say(c.x,c.z,WEAPONS[wt].name+'!','#ffb545'); }
-  else dropN(c,'','cash');
+  if(WEAPONS_ON && r<0.60){ const wt=trash?'bottle':'pipe'; dropN(c,'','weapon',wt); say(c.x,c.z,WEAPONS[wt].name+'!','#ffb545'); }
+  else dropN(c,'','cash');   // (rats no longer ambush out of the trash — FATBACK leftover, retired)
   if(c.type==='dumpster') dropN(c,'b','cash');
 }
 function killCan(c,broadcast){                        // smash a can: mark dead + spawn its shared loot, once
@@ -1222,25 +1219,15 @@ function spawnWave(T){
   if(coopGuest()) return;    // host spawns waves; the guest mirrors them
   const near=CLUBS.filter(b=>Math.abs(b.doorX-P.x)<W*0.9);
   const pick=()=> near.length?near[Math.floor(Math.random()*near.length)]:CLUBS[0];
-  const grates=GRATES.filter(g=>Math.abs(g.x-camX-W/2)<W*0.7);
   const M = MP ? 2 : 1;      // twice the crowd in co-op — two players, twice the fight
-  const nRats  = Math.min(10, 3+Math.floor(T*0.9)) * M;
-  const nVamps = Math.min(7,  1+Math.floor(T*0.7)) * M;
-  const pFire  = T>=1 ? Math.min(0.55, 0.12+T*0.07) : 0;
-  const bigRat = T>=2 && (T%2===0 || Math.random()<0.4);
-  for(let i=0;i<nRats;i++){
-    const g=grates.length?grates[i%grates.length]:{x:camX+rnd(60,W-60),z:rnd(FLOOR_N,FLOOR_S)};
-    setTimeout(()=>{ if(!paused){ g.open=40; ents.push(rat(g.x+rnd(-6,6),g.z,true,{fire:Math.random()<pFire})); } }, i*200);
-  }
+  // rats (and the big rat) are retired — waves are all named street enemies now
+  // (Security Guards / Corrupt Politicians / Corporate Mascots, with Robotic Police mixed in),
+  // with the count boosted to keep wave density where the rat pack used to fill it out.
+  const nVamps = Math.min(10, 3+Math.floor(T*0.9)) * M;
   for(let i=0;i<nVamps;i++){ const b=pick(); if(!b) break;
     setTimeout(()=>{ if(!paused){ b.open=60;
       const spawn = Math.random()<0.35 ? robocop : vamp;   // Robotic Police mixed in alongside the regular enforcers
-      ents.push(spawn(b.doorX+rnd(-14,14),FLOOR_N-10,true)); } }, 240+i*380);
-  }
-  if(bigRat){ const g=grates.length?grates[grates.length-1]:{x:camX+W-80,z:FLOOR_S-20};
-    setTimeout(()=>{ if(!paused){ g.open=90; shake=8; rumble(500,1,.6,true);
-      ents.push(rat(g.x,g.z,true,{big:true,fire:T>=4&&Math.random()<0.5}));
-      say(g.x,g.z-60,'SOMETHING BIG','#ff5a2e'); } }, 900);
+      ents.push(spawn(b.doorX+rnd(-14,14),FLOOR_N-10,true)); } }, 240+i*300);
   }
   say(P.x,P.z-40,'FIGHT','#ff2e88');
 }
@@ -1921,6 +1908,7 @@ function update(){
   if(P.iframes>0)P.iframes--;
   if(P.shootCd>0)P.shootCd--;                    // finger-gun fire-rate gate
   if(P.shootT>0)P.shootT--;                       // finger-gun pose/anim hold (also gates walk-speed while firing)
+  if(t%15===0) syncModeBtn();                     // self-heal the PUNCH↔SHOOT button label (cheap, and survives any UI reset)
   if(P.hitFlash>0)P.hitFlash--;
   for(const e of ents){ if(e.flash>0) e.flash--; if(e.recoilT>0) e.recoilT--; if(e.hitAnimT>0) e.hitAnimT--; }
   if(P.dmgT>0){ P.dmgT--; if(!P.dmgT)P.dmgMul=1; }
@@ -2036,12 +2024,15 @@ function update(){
       blip(520,.04); } }
   drops=drops.filter(d=>!d.gone);
 
-  //---- the counter. TALK opens it, but only once the street's quiet.
+  //---- the counter. Opens automatically when you walk up (once per approach — leave the
+  //---- doorway to re-arm), and TALK/E still opens it manually. Only once the street's quiet.
   P.atShop=null;
   for(const b of BUILDINGS){ if(b.kind!=='burger') continue;
     if(Math.abs(b.doorX-P.x)<34 && P.z<FLOOR_N+34){ P.atShop=b; break; } }
-  if(P.atShop && jTalk && P.y===0 && P.state!=='down'){
-    if(ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)) say(P.x,P.z-24,'NOT WHILE THEY ON YOU','#ff2e88');
+  const shopEnter = P.atShop && !P.wasAtShop;   // rising edge: just stepped into the doorway
+  P.wasAtShop = !!P.atShop;
+  if(P.atShop && (jTalk||shopEnter) && P.y===0 && P.state!=='down'){
+    if(ents.some(e=>!e.dead && Math.abs(e.x-P.x)<W*0.6)){ if(jTalk) say(P.x,P.z-24,'NOT WHILE THEY ON YOU','#ff2e88'); }
     else { setShop(true,P.atShop); P.state='idle'; return; }
   }
 
@@ -2953,8 +2944,10 @@ function drawPlayer(){
                                                      : 'hero.kick.2';
   // SHOOT mode: while a shot is fresh (shootT>0) and he's on his feet (idle/walk), overlay the
   // finger-gun point — no dedicated state, so movement stays free and the pose rides on top.
+  // The BamBamShoot sheet is a point-and-STEP cycle, so it only cycles while actually walking;
+  // standing still holds one planted point frame (cycling it read as running in place).
   if(P.gunMode && P.shootT>0 && (P.state==='idle'||P.state==='walk') && IDX['hero.shoot.0'])
-    key='hero.shoot.'+clamp(3-Math.floor(P.shootT/3),0,3);
+    key = P.state==='walk' ? 'hero.shoot.'+clamp(3-Math.floor(P.shootT/3),0,3) : 'hero.shoot.0';
   if(P.state==='upper'){
     if(IDX['hero.uppercut.0']){
       const uf = P.landHold>0 ? 3 : (P.st<3?0:P.vy>1.0?1:P.vy>-2?2:3);   // crouch → rising fist → BAM → land (landHold forces the true landing frame — vy=0 while frozen would otherwise land on the BAM index)
