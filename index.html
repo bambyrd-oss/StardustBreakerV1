@@ -495,21 +495,21 @@ const awnings=[ awningTexture('#e0503f','#f4ead6'), awningTexture('#2f8f5a','#f4
 // a chunky 3D icon on the sign band, and its own sidewalk dressing.
 const SHOP_KINDS=[
   { k:'coffee',   fac:['#6f4e37','#ffd98a'], sign:'#4a3222', awA:'#6f4e37', awB:'#f4ead6', solid:false, icon:'cup',      dress:'aframe',
-    word:'COFFEE', neon:'#ffd23a', names:['BREW & CO','THE ROASTERY','GRIND TIME','CREMA','MORNING CO','PRESS'] },
+    glow:'#ffd98a', names:['BREW & CO','THE ROASTERY','GRIND TIME','CREMA','MORNING CO','PRESS'] },
   { k:'matcha',   fac:['#7fae7a','#eaffd8'], sign:'#2f6a44', awA:'#4f9a52', awB:'#4f9a52', solid:true,  icon:'leaf',     dress:'lantern',
-    word:'MATCHA', neon:'#7fffb0', names:['MATCHA HOUSE','ZEN MATCHA','LEAF & BEAN','STEEP'] },
+    glow:'#b0ffd0', names:['MATCHA HOUSE','ZEN MATCHA','LEAF & BEAN','STEEP'] },
   { k:'smoothie', fac:['#ff8a5a','#fff2b0'], sign:'#e0503f', awA:'#ff8a5a', awB:'#ffe6b0', solid:false, icon:'cupStraw', dress:'aframe',
-    word:'SMOOTHIES', neon:'#ff6f9e', names:['SMOOTHIE STOP','BLEND BAR','FOAM','SIP'] },
+    glow:'#ff6f9e', neon:'#ff6f9e', names:['SMOOTHIE STOP','BLEND BAR','FOAM','SIP'] },
   { k:'juice',    fac:['#ffb02e','#fff2b0'], sign:'#e07a2e', awA:'#ffd23a', awB:'#fffbe8', solid:false, icon:'orange',   dress:'crates',
-    word:'JUICE', neon:'#ffd23a', names:['THE JUICE BOX','PULP','CITRUS BAR','SUNBEAM'] },
+    glow:'#ffd23a', neon:'#ff9e2e', names:['THE JUICE BOX','PULP','CITRUS BAR','SUNBEAM'] },
   { k:'bakery',   fac:['#e8c9a0','#fffbe8'], sign:'#c9758f', awA:'#e8a4c0', awB:'#e8a4c0', solid:true,  icon:'donut',    dress:'aframe',
-    word:'BAKERY', neon:'#ff9ec8', names:['WHISK','GOLDEN HOUR','THE OVEN','BUTTER & CO'] },
+    glow:'#ffb545', names:['WHISK','GOLDEN HOUR','THE OVEN','BUTTER & CO'] },
   { k:'records',  fac:['#5f5286','#e8d8ff'], sign:'#31284e', awA:'#31284e', awB:'#c9bfe8', solid:false, icon:'vinyl',    dress:null,
-    word:'RECORDS', neon:'#c98aff', names:['B-SIDE','WAX CITY','THE CRATE','SPIN'] },
+    glow:'#c98aff', neon:'#c98aff', names:['B-SIDE','WAX CITY','THE CRATE','SPIN'] },
   { k:'florist',  fac:['#4f9a52','#ffd0e6'], sign:'#37703a', awA:'#4f9a52', awB:'#f4ead6', solid:false, icon:'flower',   dress:'planters',
-    word:'FLOWERS', neon:'#7fffb0', names:['BLOOM','PETAL & CO','STEM','WILDFLOWER'] },
+    glow:'#c0ffd8', names:['BLOOM','PETAL & CO','STEM','WILDFLOWER'] },
   { k:'pizza',    fac:['#e8552f','#ffcf9a'], sign:'#2f8f5a', awA:'#c94436', awB:'#f4ead6', solid:false, icon:'pizza',    dress:'crates',
-    word:'PIZZA', neon:'#ff5a5a', names:['SLICE HOUSE','BIG PIE','CORNER SLICE','RED SAUCE'] },
+    glow:'#ff5a5a', neon:'#ff5a5a', names:['SLICE HOUSE','BIG PIE','CORNER SLICE','RED SAUCE'] },
 ];
 for(const sk of SHOP_KINDS) sk.tex=facadeTexture(sk.fac[0], sk.fac[1]);
 // the shop's name, painted on its sign band
@@ -524,23 +524,62 @@ function signTexture(kind, name){
   x.fillStyle='#f4ead6'; x.fillText(name,148,25);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
 }
-// the display window: warm-lit interior, stocked shelves in the kind's colours, and a neon
-// word buzzing in the glass — same language as the item store's OPEN
+// a neon tube stroke: coloured glow passes + a white core, like real glass tube
+function neonPath(x, col, draw){
+  x.save(); x.lineCap='round'; x.lineJoin='round';
+  x.shadowColor=col; x.shadowBlur=13; x.strokeStyle=col; x.lineWidth=3.6;
+  x.beginPath(); draw(x); x.stroke(); x.stroke();
+  x.shadowBlur=0; x.strokeStyle='#fff'; x.lineWidth=1.5; x.beginPath(); draw(x); x.stroke();
+  x.restore();
+}
+// the display window. NOT every shop gets neon — each kind has its own light source:
+// juice/smoothie/records/pizza hang a neon ICON in the glass (a fruit, a cup, a disc, a slice —
+// no words); the bakery runs a golden pastry-case glow; the florist a cool botanical light;
+// coffee and matcha keep quiet warm interiors (their light hangs outside — bulbs and lanterns).
 function shopWindowTexture(kind, seed){
   const c=document.createElement('canvas'); c.width=192; c.height=96; const x=c.getContext('2d');
   x.fillStyle='#1d1410'; x.fillRect(0,0,192,96);
-  const g=x.createLinearGradient(0,0,0,96); g.addColorStop(0,'#5a3a22'); g.addColorStop(1,'#2a1a12');
+  let g=x.createLinearGradient(0,0,0,96);
+  if(kind.k==='bakery'){ g.addColorStop(0,'#8a5a2a'); g.addColorStop(1,'#4a2c16'); }
+  else if(kind.k==='florist'){ g.addColorStop(0,'#55705a'); g.addColorStop(1,'#26332a'); }
+  else { g.addColorStop(0,'#5a3a22'); g.addColorStop(1,'#2a1a12'); }
   x.fillStyle=g; x.fillRect(5,5,182,86);
-  const cols=[kind.awA, kind.awB, '#f4ead6'];
-  for(let r=0;r<2;r++){ const ry=56+r*26;
-    x.fillStyle='rgba(0,0,0,.4)'; x.fillRect(10,ry,172,3);
-    for(let i=0;i<8;i++){ const hh=8+((Math.floor(seed*13)+i*7+r*3)%9);
-      x.fillStyle=cols[(i+r)%cols.length]; x.globalAlpha=.85; x.fillRect(14+i*21, ry-hh, 14, hh); x.globalAlpha=1; } }
-  x.font='700 24px "Bebas Neue", Impact, sans-serif'; x.textAlign='center'; x.textBaseline='middle';
-  x.shadowColor=kind.neon; x.shadowBlur=14;
-  x.fillStyle=kind.neon; x.fillText(kind.word, 96, 26);
-  x.fillText(kind.word, 96, 26);
-  x.shadowBlur=0; x.fillStyle='#fff8f0'; x.globalAlpha=.85; x.fillText(kind.word, 96, 26); x.globalAlpha=1;
+  if(kind.k==='florist'){
+    // stems and blooms instead of shelf stock
+    for(let i=0;i<7;i++){ const px=20+i*24, hh=26+((Math.floor(seed*11)+i*5)%18);
+      x.strokeStyle='#3f8a4a'; x.lineWidth=3; x.beginPath(); x.moveTo(px,88); x.lineTo(px+((i%2)*6-3),88-hh); x.stroke();
+      x.fillStyle=['#ef5f92','#ffd23a','#ff8a5a','#e8a4c0'][i%4];
+      x.beginPath(); x.arc(px+((i%2)*6-3),86-hh,5.5,0,7); x.fill(); }
+  } else if(kind.k==='bakery'){
+    // pastry domes on lit shelves
+    for(let r=0;r<2;r++){ const ry=56+r*28;
+      x.fillStyle='rgba(0,0,0,.35)'; x.fillRect(10,ry,172,3);
+      for(let i=0;i<6;i++){ x.fillStyle=['#ffe6b0','#e8a4c0','#f4ead6'][i%3];
+        x.beginPath(); x.arc(24+i*28, ry-2, 9, Math.PI, 0); x.fill(); } }
+  } else {
+    const cols=[kind.awA, kind.awB, '#f4ead6'];
+    for(let r=0;r<2;r++){ const ry=56+r*26;
+      x.fillStyle='rgba(0,0,0,.4)'; x.fillRect(10,ry,172,3);
+      for(let i=0;i<8;i++){ const hh=8+((Math.floor(seed*13)+i*7+r*3)%9);
+        x.fillStyle=cols[(i+r)%cols.length]; x.globalAlpha=.85; x.fillRect(14+i*21, ry-hh, 14, hh); x.globalAlpha=1; } }
+  }
+  // icon neon, only for the neon kinds
+  if(kind.k==='juice'){
+    const v=Math.floor(seed*7)%3;
+    if(v===0){ neonPath(x,'#ff9e2e',p=>p.arc(96,32,14,0,Math.PI*2));                      // orange
+      neonPath(x,'#5fdc6a',p=>{ p.moveTo(96,16); p.quadraticCurveTo(108,8,114,16); p.quadraticCurveTo(104,20,96,16); }); }
+    else if(v===1){ neonPath(x,'#ffe23a',p=>{ p.moveTo(72,24); p.quadraticCurveTo(94,52,120,26); p.quadraticCurveTo(96,40,72,24); }); }  // banana
+    else { neonPath(x,'#ff4a5e',p=>{ p.moveTo(82,24); p.quadraticCurveTo(80,42,96,50); p.quadraticCurveTo(112,42,110,24); p.quadraticCurveTo(96,16,82,24); });  // strawberry
+      neonPath(x,'#5fdc6a',p=>{ p.moveTo(88,20); p.lineTo(92,12); p.moveTo(96,19); p.lineTo(96,10); p.moveTo(104,20); p.lineTo(100,12); }); }
+  } else if(kind.k==='smoothie'){
+    neonPath(x,kind.neon,p=>{ p.moveTo(84,20); p.lineTo(108,20); p.lineTo(104,50); p.lineTo(88,50); p.closePath(); p.moveTo(100,20); p.lineTo(107,7); });
+  } else if(kind.k==='records'){
+    neonPath(x,kind.neon,p=>p.arc(96,32,16,0,Math.PI*2));
+    neonPath(x,'#ff6f9e',p=>p.arc(96,32,5,0,Math.PI*2));
+  } else if(kind.k==='pizza'){
+    neonPath(x,kind.neon,p=>{ p.moveTo(78,20); p.lineTo(114,20); p.lineTo(96,52); p.closePath(); });
+    neonPath(x,'#ffd23a',p=>{ p.arc(90,27,2.5,0,7); p.moveTo(104.5,29); p.arc(102,29,2.5,0,7); p.moveTo(98.5,38); p.arc(96,38,2.5,0,7); });
+  }
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
 }
 
@@ -677,10 +716,27 @@ function buildColumn(band, baseX, seed, fixedW){
       detail(extras, boxGeo, MAT.wood, baseX, 0.95,0.45,0.7, baseX+w*0.32,0.7,-7.0);
       detail(extras, sphGeo, toonMat({color:'#ff9e2e'}), baseX, 0.2,0.2,0.2, baseX+w*0.32-0.22,0.99,-6.9);
       detail(extras, sphGeo, toonMat({color:'#c94436'}), baseX, 0.2,0.2,0.2, baseX+w*0.32+0.2,0.99,-6.88);
-    } else if(kind.dress==='lantern'){                                             // a warm paper lantern by the door
-      detail(extras, boxGeo, MAT.dark, baseX, 0.08,1.2,0.08, baseX-w*0.38,4.3,front+0.5);
-      detail(extras, sphGeo, toonMat({color:'#ffd98a', emissive:'#ffb545', emissiveIntensity:.6}), baseX, 0.32,0.42,0.32, baseX-w*0.38,3.5,front+0.5);
+    } else if(kind.dress==='lantern'){                                             // paper lanterns flanking the door
+      for(const o of [-0.38,0.38]){
+        detail(extras, boxGeo, MAT.dark, baseX, 0.08,1.2,0.08, baseX+w*o,4.3,front+0.5);
+        detail(extras, sphGeo, toonMat({color:'#ffd98a', emissive:'#ffb545', emissiveIntensity:.6}), baseX, 0.32,0.42,0.32, baseX+w*o,3.5,front+0.5); }
     }
+    // ---- each kind is its own SOURCE of light on the street ----
+    // (glow meshes bypass detail() so they never cast shadows)
+    const glow=(geo,mat,sx2,sy2,sz2,px,py,pz,rx)=>{ const gm=new THREE.Mesh(geo,mat);
+      gm.scale.set(sx2,sy2,sz2); if(rx) gm.rotation.x=rx; gm.position.set(px,py,pz);
+      gm.userData.ox=px-baseX; scene.add(gm); extras.push(gm); return gm; };
+    if(kind.k==='coffee'){                                                          // string lights sagging under the awning
+      const bulbMat=new THREE.MeshBasicMaterial({ color:0xffe6a8 });
+      for(let i=0;i<7;i++){ const tt=i/6;
+        glow(sphGeo, bulbMat, 0.11,0.11,0.11, baseX+(tt-0.5)*w*0.8, 4.5-Math.sin(Math.PI*tt)*0.35, front+1.9); }
+    }
+    // coloured light spilling from the shopfront onto the pavement — the street picks up
+    // a different pool of colour at every store
+    glow(new THREE.PlaneGeometry(1,1),
+      new THREE.MeshBasicMaterial({ map:POOL_TEX, color:new THREE.Color(kind.glow), transparent:true,
+        opacity: kind.neon?0.55:0.35, blending:THREE.AdditiveBlending, depthWrite:false }),
+      w*0.8,3.6,1, baseX,0.035,-6.7, -Math.PI/2);
   }
   return { mesh:m, baseX, band, extras };
 }
