@@ -125,16 +125,14 @@ const backlot = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 135),
 backlot.rotation.x = -Math.PI/2; backlot.position.set(0, -0.06, -79.5);   // spans z -12 .. -147, tucked just under the sidewalk
 backlot.receiveShadow = true; scene.add(backlot);
 
-// scrolling centre dashes (dashed strip down the middle of the road)
-function dashTexture(){
-  const c=document.createElement('canvas'); c.width=64;c.height=16; const x=c.getContext('2d');
-  x.clearRect(0,0,64,16); x.fillStyle='#d8c24a'; x.fillRect(6,5,34,6);   // one dash per 64px tile
-  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=THREE.RepeatWrapping; return t;
+// double yellow centre line — two solid stripes straddling the road's exact centre. The road is
+// bounded by the lane edges at z -3.4 and 18.4, so its middle is z 7.5; the stripes sit at 7.5 ± 1.4
+// (the perspective foreshortens the road hard, so they need real spacing to read as a pair, not one).
+for(const z of [ 6.1, 8.9 ]){
+  const line=new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 0.42),
+    toonMat({ color:'#f2c53a', roughness:.7 }));
+  line.rotation.x=-Math.PI/2; line.position.set(0,0.02,z); scene.add(line);
 }
-const dashTex=dashTexture(); dashTex.repeat.set(GROUND_W/6, 1);
-const centreLine=new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W, 0.85),
-  toonMat({ map:dashTex, transparent:true, roughness:.7 }));
-centreLine.rotation.x=-Math.PI/2; centreLine.position.set(0,0.02,8); scene.add(centreLine);
 
 // solid edge lines near each side of the road (static — a solid line reads the same scrolling or not)
 for(const z of [ -3.4, 18.4 ]){
@@ -238,9 +236,9 @@ function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27
 // skyline sits low on the horizon for depth. `tile` = target building width (widths are then
 // normalised to sum to SPAN exactly so the wall stays seamless when it wraps).
 const BANDS = [
-  { z:-13, hBase:7,  hVar:7,  depth:9,  store:true,  tile:15, off:0 },   // FRONT (red) — connected storefront wall, jagged roofline (7..14), leaves sky above
-  { z:-27, hBase:5,  hVar:4,  depth:11, store:false, tile:20, off:9 },   // BACK (blue) — connected but SHORTER (5..9), so sky shows over it in the front's valleys
-  { z:-74, hBase:9,  hVar:7,  depth:13, store:false, tile:30, off:5, skyline:true },  // far hazy skyline, low on the horizon
+  { z:-13, hBase:7,  hVar:6,  depth:9,  store:true,  tile:9,  off:0 },   // FRONT (red) — connected storefront wall, narrow shops, jagged roofline (7..13)
+  { z:-27, hBase:4,  hVar:4,  depth:11, store:false, tile:12, off:6 },   // BACK (blue) — connected but SHORTER (4..8), so sky shows over it in the front's valleys
+  { z:-74, hBase:7,  hVar:7,  depth:13, store:false, tile:17, off:5, skyline:true },  // far hazy skyline, low on the horizon
 ];
 const SPAN = 260;                        // world-x wrap width
 const boxGeo = new THREE.BoxGeometry(1,1,1);
@@ -421,7 +419,7 @@ const clouds=[];
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
       pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
       pe.spr.material = pe.mats[Math.floor(Math.abs(pe.baseX)*1.4)%2]; }   // stride/passing leg frames — an actual walk, not a glide
-    asphaltTex.offset.x=scroll/9; dashTex.offset.x=scroll/6; pavingTex.offset.x=scroll/6;
+    asphaltTex.offset.x=scroll/9; pavingTex.offset.x=scroll/6;
     for(const g of road.concat(decals)){ const sx=g.baseX-scroll; if(sx<-SPAN/2)g.baseX+=SPAN; else if(sx>SPAN/2)g.baseX-=SPAN; g.mesh.position.x=g.baseX-scroll; }
     for(const s of clouds){ s.position.x-=0.012; if(s.position.x<-150)s.position.x=150; }
     renderer.render(scene,camera);
