@@ -791,18 +791,21 @@ const mirrorRig=(function(){
     let x=side*gapHW;
     while(Math.abs(x)<SPAN/2){
       const sd=Math.round(Math.abs(x)*7)+ (side>0?3:5);
-      const w=6+hash(sd)*5, h=8+hash(sd*3+1)*5;
+      // LOW storefront row: the elevated orbit camera flies right over this band mid-swing, so tall
+      // buildings here loom as a giant rooftop filling the foreground. Keep it a believable 2-storey
+      // shopfront wall (h 4.2..7.4) — reads as the street across the way, never eats the frame.
+      const w=6+hash(sd)*5, h=4.2+hash(sd*3+1)*3.2;
       const ft=facades[Math.floor(hash(sd*7+2)*facades.length)].clone(); ft.needsUpdate=true;
-      ft.repeat.set(Math.max(1,Math.round(w/5)), Math.max(2,Math.round(h/7)));
+      ft.repeat.set(Math.max(1,Math.round(w/5)), Math.max(1,Math.round(h/4)));
       const bx=x+side*w/2;
       const b=new THREE.Mesh(boxGeo, toonMat({ map:ft, roughness:.92 }));
       b.scale.set(w,h,8); b.position.set(bx,h/2,25); g.add(b);
       const ol=new THREE.Mesh(boxGeo, OUTLINE_MAT); ol.scale.set(w,h+0.7,8.7); ol.position.copy(b.position); g.add(ol);
-      const roof=new THREE.Mesh(boxGeo, toonMat({ color:'#4a3b42', roughness:1 }));   // cap the roof — the camera looks down on this row
-      roof.scale.set(w*1.02,0.5,8.2); roof.position.set(bx,h+0.15,25); g.add(roof);
-      if(hash(sd*11)>0.45){                                   // awning strip over some storefronts
+      const roof=new THREE.Mesh(boxGeo, toonMat({ color:'#4a3b42', roughness:1 }));   // low parapet cap
+      roof.scale.set(w*1.02,0.4,8.2); roof.position.set(bx,h+0.12,25); g.add(roof);
+      if(hash(sd*11)>0.45){                                   // awning strip over the ground-floor windows
         const aw=new THREE.Mesh(boxGeo, toonMat({ color:SIGN_COLS[sd%SIGN_COLS.length], roughness:.9 }));
-        aw.scale.set(w*0.86,0.45,1.5); aw.position.set(bx,4.6,20.4); aw.rotation.x=0.3; g.add(aw);
+        aw.scale.set(w*0.86,0.45,1.5); aw.position.set(bx,2.8,20.4); aw.rotation.x=0.3; g.add(aw);
       }
       x += side*w;
     }
@@ -819,7 +822,11 @@ const mirrorRig=(function(){
 const heroCv=document.createElement('canvas'); heroCv.width=92; heroCv.height=92;
 const heroTex=new THREE.CanvasTexture(heroCv); heroTex.colorSpace=THREE.SRGBColorSpace;
 heroTex.magFilter=THREE.NearestFilter; heroTex.minFilter=THREE.NearestFilter;
-const heroSpr=new THREE.Sprite(new THREE.SpriteMaterial({ map:heroTex, transparent:true, depthTest:true }));
+// depthTest OFF: Bam is the cinematic star for the whole orbit — he must never vanish behind a
+// building as the camera swings past the row. He draws on top; at this speed the depth cheat reads as
+// nothing but "the hero stays on screen." (Only ever visible during the turn, so it can't affect play.)
+const heroSpr=new THREE.Sprite(new THREE.SpriteMaterial({ map:heroTex, transparent:true, depthTest:false, depthWrite:false }));
+heroSpr.renderOrder=999;
 heroSpr.visible=false; scene.add(heroSpr);
 let bgTick=0;
 
@@ -962,13 +969,11 @@ function syncBoss(bs){
     asphaltTex.offset.x=scroll/9; pavingTex.offset.x=scroll/6;
     for(const g of road.concat(decals)){ const sx=g.baseX-scroll; if(sx<-SPAN/2)g.baseX+=SPAN; else if(sx>SPAN/2)g.baseX-=SPAN; g.mesh.position.x=g.baseX-scroll; }
     for(const s of clouds){ s.position.x-=0.012; if(s.position.x<-150)s.position.x=150; }
-    // the fourth wall rides only with the cinematic: hidden side-on (it would sit between the
-    // camera and the game), rising in across yaw 0.08→0.35 while the frame edge sweeps fast
-    if(hero){
-      const p = (yaw||0)<=0.08 ? 0 : Math.min(1,((yaw||0)-0.08)/0.27);
-      mirrorRig.visible = p>0;
-      mirrorRig.position.y = -14*(1-p);
-    } else mirrorRig.visible=false;
+    // the fourth wall (the far side of the street) rides only with the corner cinematic — hidden
+    // in normal play (it would sit between the camera and the gameplay), fully up for the orbit
+    // where the swinging camera would otherwise see the void behind itself.
+    if(hero){ mirrorRig.visible=true; mirrorRig.position.y=0; }
+    else mirrorRig.visible=false;
     // Bam's billboard, planted in the 3D world for the corner-turn cinematic (the game drew his
     // frame onto heroCv before this call). Same game→3D mapping the boss/store use.
     if(hero){
@@ -976,7 +981,7 @@ function syncBoss(bs){
       const x3=(hero.gx - hero.camX - 320)*0.0805;
       const z3=-8.5 + ((hero.gz==null?252:hero.gz) - 228)*0.194;
       const y3=Math.max(0,hero.gy||0)*0.0805;
-      const hh=hero.h||7.4;
+      const hh=hero.h||8.6;
       heroSpr.scale.set(hh,hh,1);
       heroSpr.position.set(x3, y3 + 0.26*hh, z3);   // feet (row 70/92) on the ground
     } else heroSpr.visible=false;

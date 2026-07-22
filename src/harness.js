@@ -497,22 +497,20 @@ if(!err){
     ticks=0; while(g.chase && g.chase.ph!=='run' && ticks++<800){ __tick(1); }
     if(!g.chase || g.chase.ph!=='run') throw new Error('chase never reached the run');
     if(g.chase.turnX==null) throw new Error('the chase has no corner to turn');
-    // jump the player to the corner and let the hidden-cut sequence play out
-    g.P.state='walk'; g.P.x=g.chase.turnX-259;
-    ticks=0; const seen=new Set(); let lockCam=null, whipEnd=null;
+    // jump the player to the corner and let the orbit sequence play out
+    g.P.state='walk'; g.P.x=g.chase.turnX-25;
+    ticks=0; const seen=new Set(); let maxYaw=0, pivotLocked=false;
     while(g.chase && !g.chase.turned && ticks++<900){ __tick(1);
       if(g.chase.ph==='turn'){ seen.add(g.chase.turnSub);
-        if(g.chase.turnSub==='lock') lockCam=g.camX;
-        if(g.chase.turnSub==='depth' && whipEnd===null) whipEnd=g.camX; } }
-    for(const sub of ['in','lock','whip','depth']) if(!seen.has(sub))
+        maxYaw=Math.max(maxYaw, g.chase.yaw||0);
+        if(g.chase.turnSub==='orbit' && Math.abs(g.camX-(g.chase.turnX-320))<2) pivotLocked=true; } }
+    for(const sub of ['in','orbit']) if(!seen.has(sub))
       throw new Error('corner sequence skipped the "'+sub+'" beat (saw: '+[...seen].join(',')+')');
-    if(lockCam===null || Math.abs(lockCam-(g.chase.turnX-500))>2)
-      throw new Error('lock-off camera should freeze at turnX-500, got '+lockCam);
-    if(whipEnd===null || Math.abs(whipEnd-(g.chase.turnX-320))>2)
-      throw new Error('the whip should centre the mouth (turnX-320), got '+whipEnd);
+    if(!pivotLocked) throw new Error('the orbit never locked the camera pivot on the intersection');
+    if(maxYaw < 1.5) throw new Error('the camera never orbited the full ~90° (max yaw '+maxYaw.toFixed(2)+')');
     if(!g.chase || !g.chase.turned) throw new Error('the turn never completed');
     if(g.chase.ph!=='run') throw new Error('after the corner it should be running the next block, got '+g.chase.ph);
-    console.log('        track -> lock-off -> whip-pan -> depth run -> resolved to the next block');
+    console.log('        jog to mouth -> 90° orbit (yaw '+maxYaw.toFixed(2)+') -> resolved to the next block');
   });
   scene('a SHOT kill drops Bam Bucks — same payout as a melee kill', ()=>{
     const g=__G(); g.releaseArena();
