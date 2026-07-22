@@ -235,6 +235,23 @@ function awningTexture(a, b){
 }
 const awnings=[ awningTexture('#e0503f','#f4ead6'), awningTexture('#2f8f5a','#f4ead6'), awningTexture('#3a6fae','#f4ead6') ];
 
+// ---- shop identities for the front row ----
+// The block's culture from the game's own shop names — coffee, matcha, smoothies, juice,
+// a bakery, a record shop, a florist, pizza — as visual KINDS instead of one repeated
+// construction. Each kind owns its facade palette, sign colour, awning (striped or solid),
+// a chunky 3D icon on the sign band, and its own sidewalk dressing.
+const SHOP_KINDS=[
+  { k:'coffee',   fac:['#6f4e37','#ffd98a'], sign:'#4a3222', awA:'#6f4e37', awB:'#f4ead6', solid:false, icon:'cup',      dress:'aframe' },
+  { k:'matcha',   fac:['#7fae7a','#eaffd8'], sign:'#2f6a44', awA:'#4f9a52', awB:'#4f9a52', solid:true,  icon:'leaf',     dress:'lantern' },
+  { k:'smoothie', fac:['#ff8a5a','#fff2b0'], sign:'#e0503f', awA:'#ff8a5a', awB:'#ffe6b0', solid:false, icon:'cupStraw', dress:'aframe' },
+  { k:'juice',    fac:['#ffb02e','#fff2b0'], sign:'#e07a2e', awA:'#ffd23a', awB:'#fffbe8', solid:false, icon:'orange',   dress:'crates' },
+  { k:'bakery',   fac:['#e8c9a0','#fffbe8'], sign:'#c9758f', awA:'#e8a4c0', awB:'#e8a4c0', solid:true,  icon:'donut',    dress:'aframe' },
+  { k:'records',  fac:['#5f5286','#e8d8ff'], sign:'#31284e', awA:'#31284e', awB:'#c9bfe8', solid:false, icon:'vinyl',    dress:null },
+  { k:'florist',  fac:['#4f9a52','#ffd0e6'], sign:'#37703a', awA:'#4f9a52', awB:'#f4ead6', solid:false, icon:'flower',   dress:'planters' },
+  { k:'pizza',    fac:['#e8552f','#ffcf9a'], sign:'#2f8f5a', awA:'#c94436', awB:'#f4ead6', solid:false, icon:'pizza',    dress:'crates' },
+];
+for(const sk of SHOP_KINDS) sk.tex=facadeTexture(sk.fac[0], sk.fac[1]);
+
 // ---- deterministic per-column pseudo-random so recycling stays stable ----
 function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27d4eb2d); n=n^(n>>>15); return ((n>>>0)%100000)/100000; }
 
@@ -282,8 +299,10 @@ function detail(extras, geo, mat, baseX, sx,sy,sz, px,py,pz, rot){
 
 function buildColumn(band, baseX, seed, fixedW){
   const w = fixedW!=null ? fixedW : (5 + hash(seed)*6) * (band.wMul||1);
-  const h = band.hBase + hash(seed*3+1)*band.hVar;
-  const tex = facades[Math.floor(hash(seed*7+2)*facades.length)];
+  let h = band.hBase + hash(seed*3+1)*band.hVar;
+  const kind = band.store ? SHOP_KINDS[Math.floor(hash(seed*29+4)*SHOP_KINDS.length)] : null;
+  if(band.store && hash(seed*23+7)<0.28) h = 4.7 + hash(seed*23+9)*0.9;   // some shops are little one-storey joints — breaks the roofline rhythm
+  const tex = kind ? kind.tex : facades[Math.floor(hash(seed*7+2)*facades.length)];
   const t2 = tex.clone(); t2.needsUpdate=true; t2.repeat.set(Math.max(1,Math.round(w/5)), Math.max(2,Math.round(h/7)));
   const mat = band.skyline
     ? toonMat({ map:t2, color:'#ff9e6a', roughness:1 })   // warm hazy skyline, melts into the sunset fog
@@ -325,11 +344,48 @@ function buildColumn(band, baseX, seed, fixedW){
     detail(extras, boxGeo, MAT.metal, baseX, w*0.9,0.5,0.5, baseX,0.35,front+0.25);
     detail(extras, boxGeo, MAT.dark,  baseX, 1.2,3.0,0.34, baseX+w*0.25,1.7,front+0.27);           // door
     for(let mi=-1;mi<=1;mi++) detail(extras, boxGeo, MAT.metal, baseX, 0.12,4.2,0.33, baseX+mi*w*0.22,2.3,front+0.24);
-    const sc=SIGN_COLS[Math.floor(hash(seed*13)*SIGN_COLS.length)];
-    detail(extras, boxGeo, toonMat({ color:sc, roughness:.7, emissive:sc, emissiveIntensity:.14 }), baseX, w*0.8,1.5,0.35, baseX,6.5,front+0.2);
-    detail(extras, boxGeo, MAT.trim, baseX, w*0.8,0.28,0.4, baseX,5.75,front+0.22);
-    const aw=awnings[Math.floor(hash(seed*11+5)*awnings.length)].clone(); aw.needsUpdate=true; aw.repeat.set(Math.max(2,Math.round(w/2)),1);
-    detail(extras, boxGeo, toonMat({ map:aw, roughness:.85 }), baseX, w*0.9,0.5,2.4, baseX,4.9,front+0.9, -0.32);
+    // sign band in the shop's own colour (drops to a roof sign on the one-storey joints)
+    const sy=Math.min(6.5, h+0.4);
+    detail(extras, boxGeo, toonMat({ color:kind.sign, roughness:.7, emissive:kind.sign, emissiveIntensity:.14 }), baseX, w*0.8,1.5,0.35, baseX,sy,front+0.2);
+    detail(extras, boxGeo, MAT.trim, baseX, w*0.8,0.28,0.4, baseX,sy-0.75,front+0.22);
+    // awning: striped or solid, in the kind's colours
+    const awMat = kind.solid ? toonMat({ color:kind.awA, roughness:.85 })
+      : (()=>{ const t=awningTexture(kind.awA,kind.awB); t.repeat.set(Math.max(2,Math.round(w/2)),1); return toonMat({ map:t, roughness:.85 }); })();
+    detail(extras, boxGeo, awMat, baseX, w*0.9,0.5,2.4, baseX,4.9,front+0.9, -0.32);
+    // the shop's 3D icon, mounted on the sign band — what KIND of place this is at a glance
+    const ix=baseX-w*0.28, iy=sy, iz=front+0.6;
+    if(kind.icon==='cup'){ detail(extras, cylGeo, toonMat({color:'#f4ead6'}), baseX, 0.5,0.72,0.5, ix,iy,iz);
+      detail(extras, boxGeo, toonMat({color:'#f4ead6'}), baseX, 0.16,0.34,0.16, ix+0.58,iy,iz); }                      // mug + handle
+    else if(kind.icon==='cupStraw'){ detail(extras, cylGeo, toonMat({color:'#ff6f9e'}), baseX, 0.42,0.85,0.42, ix,iy,iz);
+      detail(extras, boxGeo, toonMat({color:'#fffbe8'}), baseX, 0.1,0.85,0.1, ix+0.2,iy+0.55,iz); }                    // smoothie + straw
+    else if(kind.icon==='leaf'){ detail(extras, sphGeo, toonMat({color:'#3f8a4a'}), baseX, 0.6,0.8,0.22, ix,iy,iz); }  // matcha leaf
+    else if(kind.icon==='orange'){ detail(extras, sphGeo, toonMat({color:'#ff9e2e'}), baseX, 0.55,0.55,0.4, ix,iy,iz);
+      detail(extras, boxGeo, toonMat({color:'#3f8a4a'}), baseX, 0.16,0.3,0.16, ix,iy+0.6,iz); }                        // orange + stem
+    else if(kind.icon==='donut'){ const d=new THREE.Mesh(new THREE.TorusGeometry(0.5,0.22,8,14), toonMat({color:'#e8a4c0'}));
+      d.position.set(ix,iy,iz); d.userData.ox=ix-baseX; d.castShadow=true; scene.add(d); extras.push(d); }             // pink donut
+    else if(kind.icon==='vinyl'){ detail(extras, cylGeo, toonMat({color:'#16121e'}), baseX, 0.9,0.14,0.9, ix,iy,iz, Math.PI/2);
+      detail(extras, cylGeo, toonMat({color:'#e0407a'}), baseX, 0.3,0.18,0.3, ix,iy,iz+0.04, Math.PI/2); }             // record + label
+    else if(kind.icon==='flower'){ detail(extras, sphGeo, toonMat({color:'#ef5f92'}), baseX, 0.42,0.42,0.42, ix,iy+0.2,iz);
+      detail(extras, boxGeo, toonMat({color:'#3f8a4a'}), baseX, 0.12,0.6,0.12, ix,iy-0.3,iz); }                        // bloom on a stem
+    else if(kind.icon==='pizza'){ detail(extras, new THREE.ConeGeometry(0.72,0.2,3), toonMat({color:'#ffb75a'}), baseX, 1,1,1, ix,iy,iz, Math.PI/2); }   // slice
+    // sidewalk dressing per kind, up against the shopfront
+    if(kind.dress==='aframe'){                                                     // chalkboard A-frame
+      detail(extras, boxGeo, toonMat({color:'#3a2a1a'}), baseX, 0.7,1.05,0.1, baseX+w*0.32,0.52,-7.0, -0.18);
+      detail(extras, boxGeo, toonMat({color:'#f4ead6'}), baseX, 0.52,0.68,0.03, baseX+w*0.32,0.58,-6.93, -0.18);
+    } else if(kind.dress==='planters'){                                            // flowers spilling out front
+      for(const o of [-0.32,0.34]){ detail(extras, boxGeo, MAT.wood, baseX, 0.85,0.5,0.55, baseX+w*o,0.25,-7.0);
+        detail(extras, sphGeo, toonMat({color:'#4f9a52'}), baseX, 0.48,0.36,0.32, baseX+w*o,0.62,-7.0);
+        detail(extras, sphGeo, toonMat({color:'#ef5f92'}), baseX, 0.16,0.16,0.16, baseX+w*o-0.22,0.74,-6.9);
+        detail(extras, sphGeo, toonMat({color:'#ffd23a'}), baseX, 0.14,0.14,0.14, baseX+w*o+0.2,0.72,-6.88); }
+    } else if(kind.dress==='crates'){                                              // produce stacked outside
+      detail(extras, boxGeo, MAT.wood, baseX, 0.95,0.45,0.7, baseX+w*0.32,0.23,-7.0);
+      detail(extras, boxGeo, MAT.wood, baseX, 0.95,0.45,0.7, baseX+w*0.32,0.7,-7.0);
+      detail(extras, sphGeo, toonMat({color:'#ff9e2e'}), baseX, 0.2,0.2,0.2, baseX+w*0.32-0.22,0.99,-6.9);
+      detail(extras, sphGeo, toonMat({color:'#c94436'}), baseX, 0.2,0.2,0.2, baseX+w*0.32+0.2,0.99,-6.88);
+    } else if(kind.dress==='lantern'){                                             // a warm paper lantern by the door
+      detail(extras, boxGeo, MAT.dark, baseX, 0.08,1.2,0.08, baseX-w*0.38,4.3,front+0.5);
+      detail(extras, sphGeo, toonMat({color:'#ffd98a', emissive:'#ffb545', emissiveIntensity:.6}), baseX, 0.32,0.42,0.32, baseX-w*0.38,3.5,front+0.5);
+    }
   }
   return { mesh:m, baseX, band, extras };
 }
