@@ -284,6 +284,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
 //__BG3D_JS__
 const ATLAS_B64="__ATLAS__";
 const IDX=__INDEX__;
+const TITLE_B64="__TITLE__";
 const S=92, W=640, H=360;
 
 //====================== display / landscape ======================
@@ -323,8 +324,9 @@ async function goLandscape(){
   layout();
 }
 addEventListener('pointerdown',function once(){ goLandscape(); removeEventListener('pointerdown',once); },{once:true});
-// the title's #startMenu is a single START button — co-op is deprecated, so every
-// start boots solo (chooseMode ignores its flag; see startCoop()).
+// the title art says "click anywhere to begin" — make that literally true
+disp.addEventListener('pointerdown',()=>{ if(mode==='title') chooseMode(false); });
+// co-op is deprecated, so every start boots solo (chooseMode ignores its flag; see startCoop()).
 
 //====================== atlas ======================
 const sheet=new Image(); const flip=document.createElement('canvas');
@@ -332,12 +334,19 @@ sheet.onload=()=>{ flip.width=sheet.width; flip.height=sheet.height;
   const fc=flip.getContext('2d'); fc.imageSmoothingEnabled=false;
   for(const k in IDX){ const [x,y]=IDX[k]; fc.save();
     fc.translate(x+S,y); fc.scale(-1,1); fc.drawImage(sheet,x,y,S,S,0,0,S,S); fc.restore(); }
-  buildManifest(); reset(); mode='title'; titleT=0; $('startMenu').classList.add('on');
+  buildManifest(); reset(); mode='title'; titleT=0;
+  // the title art already says "click anywhere to begin" — no need for the old
+  // START button/hint overlay on top of it (startMenu is left in the DOM but never shown)
   // canvas needs the display face actually loaded before it'll use it
   try{ if(document.fonts&&document.fonts.load){ document.fonts.load('400 62px "Bebas Neue"');
     document.fonts.load('400 26px "Bebas Neue"'); } }catch(e){}
   requestAnimationFrame(loop); };
 sheet.src="data:image/png;base64,"+ATLAS_B64;
+
+// title-screen artwork — drawn skyline + logo, painted once behind the title card
+const titleImg=new Image(); let titleImgReady=false;
+titleImg.onload=()=>titleImgReady=true;
+titleImg.src="data:image/png;base64,"+TITLE_B64;
 
 // measured off the alpha channel: feet sit on row 70 of the 92px cell, head crown on 23.
 // anchoring to the cell edge was floating every sprite 16px off the ground.
@@ -3314,7 +3323,7 @@ function spaced(g,txt,cx,y,sp){
 }
 const BEBAS='"Bebas Neue", Impact, "Arial Narrow", sans-serif';
 
-// just the name — pink letters on a flat blue background, no level behind it
+// fallback while the title artwork is still decoding — pink letters on flat blue
 function titleCard(g){
   g.save();
   g.textAlign='center'; g.textBaseline='alphabetic';
@@ -3324,9 +3333,15 @@ function titleCard(g){
   g.restore();
 }
 
+// the painted title card (skyline + neon logo + "click anywhere to begin") is 3:2,
+// the canvas is 16:9 — contain-fit it so nothing crops, and match the letterbox
+// bars to the art's own navy so they read as part of the scene, not a border.
+const TITLE_BARS='#08113f';
 function titleRender(){
-  dctx.fillStyle='#1a2fd8'; dctx.fillRect(0,0,W,H);
-  titleCard(dctx);
+  if(!titleImgReady){ dctx.fillStyle='#1a2fd8'; dctx.fillRect(0,0,W,H); titleCard(dctx); return; }
+  dctx.fillStyle=TITLE_BARS; dctx.fillRect(0,0,W,H);
+  const iw=titleImg.width, ih=titleImg.height, s=H/ih, dw=iw*s;
+  dctx.drawImage(titleImg,(W-dw)/2,0,dw,H);
 }
 
 // Press start -> straight into solo play; no mode choice on the title screen anymore.
