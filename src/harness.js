@@ -97,6 +97,7 @@ const driver = `
    genBoss,spawnBoss,updateBoss,killBoss,hits,atkBox,stageCleared,
    buyContinue,callItNight,continueCost,
    gainFreedom,gainXp,loseHeart,heavyHitAt,maxComboStep,xpToLevel,
+   startDialog,dialogTick, get dlg(){return dlg}, closeDialog:()=>{ dlg=null; },
    });
 ;globalThis.__key=(k,v)=>{ if(v&&!key[k]) pressed[k]=true; key[k]=v; };
 ;globalThis.__tick=(n)=>{ for(let i=0;i<n;i++){ update(); } };
@@ -513,6 +514,27 @@ if(!err){
     if(g.P.weapon) throw new Error('a knockdown should knock the weapon out of your hands');
     if(g.drops.filter(d=>d.kind==='weapon').length<=before) throw new Error('the dropped weapon should land on the street');
     console.log('        knocked down → dropped the pipe');
+  });
+  scene('dialogue: typewriter reveals, A advances pages, hold-B types fast, closes at the end', ()=>{
+    const g=__G(); g.closeDialog();
+    __key('Space',false); __key('KeyK',false); __key('KeyJ',false);   // a prior scene may have left fast/advance keys held
+    g.startDialog(['drain']); for(let i=0;i<4;i++) g.dialogTick(); g.closeDialog();   // and stale tap() edges — consume them on a throwaway box
+    const PAGE1='THE FIRST PAGE OF THE EXCHANGE RUNS LONG ENOUGH THAT FAST TYPING CANNOT FINISH IT EARLY.';
+    g.startDialog([{who:'TEST',text:PAGE1},'SECOND PAGE.']);
+    if(!g.dlg) throw new Error('startDialog did not open the box');
+    for(let i=0;i<10;i++) g.dialogTick();
+    const slow=g.dlg.chars;
+    if(!(slow>0 && slow<15)) throw new Error('typewriter should be mid-reveal after 10 ticks, chars='+slow);
+    __key('KeyK',true); for(let i=0;i<10;i++) g.dialogTick(); __key('KeyK',false);   // hold B → fast
+    if(!(g.dlg.chars>slow+20 && g.dlg.chars<PAGE1.length)) throw new Error('holding B should type much faster (and not finish), chars='+g.dlg.chars);
+    __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // press A mid-type → reveal all
+    if(g.dlg.chars<PAGE1.length) throw new Error('advance press should reveal the full page');
+    __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // full page + press → next page
+    if(g.dlg.i!==1) throw new Error('second press should turn the page, i='+g.dlg.i);
+    __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // reveal page 2
+    __key('KeyJ',true); g.dialogTick(); __key('KeyJ',false);                          // and close
+    if(g.dlg) throw new Error('dialogue should close after the last page');
+    console.log('        typewriter -> fast-type -> reveal -> page turn -> close, all ok');
   });
   scene('shop: open, buy every rank of everything', ()=>{
     const g=__G();
