@@ -2903,7 +2903,14 @@ function drawVamp(e){ const sx=e.x-camX;
   const pal = ENEMY_PAL[e.type]||ENEMY_PAL.guard;
   const body = dark?'#241a38':pal.body;
   const skin = dark?'#3a2a52':pal.skin;
-  drawFoePlaceholder(sx+rx, e.z-e.y-hover, f, e.sc||1, body, skin, e.anim, e.state==='atk', et, ea, dark?null:e.type);
+  if(e.type==='politician' && IDX['pol.idle.0']){
+    // real drawn art (skull ghost in a suit) — the other types keep the placeholder until theirs lands
+    let key='pol.idle.0';
+    if(e.state==='walk'||e.state==='enter') key='pol.walk.'+(Math.floor(e.anim*1.2)%4);
+    else if(e.state==='atk') key= e.st<17?'pol.atk.0' : e.st<30?'pol.atk.1' : 'pol.idle.0';   // fist-up windup -> kick through the active window -> recover
+    spr(key, sx+rx, e.z-e.y-hover, e.face, et, ea, e.sc||1);
+  }
+  else drawFoePlaceholder(sx+rx, e.z-e.y-hover, f, e.sc||1, body, skin, e.anim, e.state==='atk', et, ea, dark?null:e.type);
   if(rlean) ctx.restore();
   if(spin) ctx.restore();
   ctx.globalAlpha=1;
