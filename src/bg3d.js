@@ -57,7 +57,13 @@ const camera = new THREE.PerspectiveCamera(24, 640/360, 0.1, 500);
 camera.position.set(0, 21.91, 62);
 camera.lookAt(0, 0.66, -26);
 const camBaseQ = camera.quaternion.clone();   // the solved pose — roll (the eviction chase) is applied on top per frame
-const camBasePos = camera.position.clone();   // the solved position — the corner ORBIT swings the camera around this
+const camBasePos = camera.position.clone();   // the solved position — the corner crane/orbit move around this
+// the corner turn's HELICOPTER shot: crane the camera up+back to a bird's-eye over the city (aerial→1),
+// spin 90° up there where altitude hides the world reset, then dive back to the street pose on the new block
+const CAM_HIGH   = new THREE.Vector3(0, 150, 44);       // bird's-eye perch, high above + behind the block
+const CAM_PIVOT  = new THREE.Vector3(0, 1.5, -3.84);    // Bam at the corner (walk plane, screen centre)
+const CAM_STREETLOOK = new THREE.Vector3(0, 0.66, -26); // the street pose's look target
+const _camLook = new THREE.Vector3();
 
 // ---- golden-hour light: low warm sun + cool sky fill = saturated, contrasty colour ----
 scene.add(new THREE.HemisphereLight(0xffc98a, 0x59406a, 1.15));   // warm sky, cool violet ground bounce
@@ -895,20 +901,25 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero){
+  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero, aerial){
     scroll=sc; bgTick++;
-    // yaw = the corner turn: the camera ORBITS around Bam (planted at the intersection) — its
-    // POSITION swings 90° about the vertical axis through him while it keeps looking at him, so he
-    // stays centred and the whole street rotates behind him toward the cross-street's vanishing
-    // point. roll = the downhill tilt, applied on top about the view axis.
+    // The corner turn is a HELICOPTER shot: aerial (0..1) cranes the camera up+back into a bird's-eye
+    // over the city, yaw spins it about the vertical axis through the corner, roll is the downhill tilt.
+    // With aerial high the whole block shrinks, so the 90° spin + world reset up there read as one
+    // smooth swoop; then aerial eases back to 0 and we dive onto the new street. yaw always looks at the
+    // pivot; the LOOK target blends street→pivot with altitude so lift-off from the run stays smooth.
     camera.position.copy(camBasePos);
     camera.quaternion.copy(camBaseQ);
-    if(yaw){
-      const px=0, pz=-3.84, py=1.5;                    // pivot = Bam at the corner (walk plane, screen centre)
-      const dx=camera.position.x-px, dz=camera.position.z-pz, c=Math.cos(yaw), s=Math.sin(yaw);
+    aerial = aerial||0;
+    if(aerial>0 || yaw){
+      if(aerial>0) camera.position.lerpVectors(camBasePos, CAM_HIGH, aerial);
+      const px=CAM_PIVOT.x, pz=CAM_PIVOT.z, c=Math.cos(yaw||0), s=Math.sin(yaw||0);
+      const dx=camera.position.x-px, dz=camera.position.z-pz;
       camera.position.x = px + dx*c - dz*s;
       camera.position.z = pz + dx*s + dz*c;
-      camera.up.set(0,1,0); camera.lookAt(px,py,pz);
+      camera.up.set(0,1,0);
+      _camLook.lerpVectors(CAM_STREETLOOK, CAM_PIVOT, Math.max(aerial, yaw?1:0));
+      camera.lookAt(_camLook);
     }
     if(roll) camera.rotateZ(roll);
     syncBoss(bossState);
