@@ -774,35 +774,68 @@ function buildCrossStreet(){
 }
 const xstreetPool=[]; for(let i=0;i<2;i++){ const s=buildCrossStreet(); scene.add(s); xstreetPool.push(s); }
 
-// ---- the AERIAL CITY: block-mass fill for the helicopter shot ----
-// From the drone the set is naked — the razor-thin facades read as dominoes standing on a bare brown
-// field. This rig fills the quadrants around the corner with real building MASSES (deep boxes with
-// roof caps and rooftop clutter, laid out in a jittered grid with courtyard gaps) so the bird's-eye
-// reads as an actual city block. The two street corridors stay clear. The far side rides with any
-// altitude; the near side (which would wall off the camera at street level) only appears once the
-// drone is high enough to look down past it.
+// ---- the AERIAL CITY: what a helicopter actually sees over a city block ----
+// Reference: real aerial photography of urban blocks. The signature is NOT scattered boxes — it's
+// CONTIGUOUS buildings shoulder-to-shoulder around each block's PERIMETER (jagged rooflines, shared
+// walls), hollow courtyards inside, a street GRID with avenues and a back street (asphalt +
+// centre lines + intersections), pale sidewalk aprons ringing every block, and rooftop clutter —
+// stair huts, AC units, and the classic water tower on the taller roofs. That's what this builds.
+// The far side rides with any altitude; the near side (which would wall off the camera at street
+// level) only appears once the drone is high enough to look down past it.
 const aerialFar=new THREE.Group(), aerialNear=new THREE.Group();
 (function(){
-  const roofMats=['#cbb49c','#bfa78e','#d8c3ab','#a89078'].map(c=>toonMat({ color:c, roughness:1 }));   // pale sunlit rooftops, like the main row's caps
+  const roofMats=['#cbb49c','#bfa78e','#3f3a44','#c9c2b8','#a89078','#d8c3ab'].map(c=>toonMat({ color:c, roughness:1 }));  // sun-lit tar/silver/pale mix
   const hutMat=toonMat({ color:'#5a4636', roughness:1 });
+  const acMat=toonMat({ color:'#9aa0a8', roughness:.9 });
+  const wtCap=toonMat({ color:'#3a2f2a', roughness:1 });
+  const walkMat=toonMat({ color:'#b9a98f', roughness:1 });
+  const asMat=toonMat({ color:'#2b2731', roughness:1 });
+  const ylMat=toonMat({ color:'#f2c53a', roughness:.7 });
   const cols=['#8a5a40','#7a5a52','#6f4f66','#a06a48','#57496b','#8f5f52','#463f5e','#b0714b'];
-  const XW=17/2+7.2;                                 // half-width of the cross-street clear corridor (road + its facades)
-  for(let gx=-91;gx<=91;gx+=13){
-    for(let gz=-88;gz<=70;gz+=13){
-      if(gz>-16&&gz<22) continue;                    // the main drag, sidewalks and mirror row stay clear
-      if(Math.abs(gx)<XW && gz<0) continue;          // the cross-street corridor stays clear
-      const sd=Math.abs(Math.round(gx*7+gz*131));
-      if(hash(sd)<0.22) continue;                    // gaps — courtyards, parking lots
-      const w=7+hash(sd+1)*7, d=7+hash(sd+2)*7, h=5+hash(sd+3)*13;
-      const bx=gx+(hash(sd+4)-0.5)*3, bz=gz+(hash(sd+5)-0.5)*3;
-      const g=(gz>0)?aerialNear:aerialFar;
-      const m=new THREE.Mesh(boxGeo, toonMat({ color:cols[sd%cols.length], roughness:1 }));
-      m.scale.set(w,h,d); m.position.set(bx,h/2,bz); g.add(m);
-      const r=new THREE.Mesh(boxGeo, roofMats[sd%roofMats.length]); r.scale.set(w*1.04,0.5,d*1.04); r.position.set(bx,h+0.2,bz); g.add(r);
-      if(hash(sd+6)>0.72){ const hut=new THREE.Mesh(boxGeo,hutMat); const hw=1.6+hash(sd+7)*1.6;   // stair hut / AC unit
-        hut.scale.set(hw,1.4,hw); hut.position.set(bx+(hash(sd+8)-0.5)*w*0.5, h+1.15, bz+(hash(sd+9)-0.5)*d*0.5); g.add(hut); }
+  let sd=7; const R=()=>hash(sd++);
+  const wtGeo=new THREE.CylinderGeometry(1.05,1.05,2.1,10), wtCapGeo=new THREE.ConeGeometry(1.22,0.9,10);
+  function bldg(g,x,z,w,d){
+    const h=5+R()*12;
+    const m=new THREE.Mesh(boxGeo, toonMat({ color:cols[Math.floor(R()*cols.length)], roughness:1 }));
+    m.scale.set(w,h,d); m.position.set(x,h/2,z); g.add(m);
+    const r=new THREE.Mesh(boxGeo, roofMats[Math.floor(R()*roofMats.length)]);
+    r.scale.set(w+0.3,0.5,d+0.3); r.position.set(x,h+0.2,z); g.add(r);           // parapet lip
+    if(h>11 && R()>0.7){                                                          // the classic rooftop water tower
+      const wx=x+(R()-0.5)*w*0.4, wz=z+(R()-0.5)*d*0.4;
+      const t=new THREE.Mesh(wtGeo, hutMat); t.position.set(wx,h+1.5,wz); g.add(t);
+      const c=new THREE.Mesh(wtCapGeo, wtCap); c.position.set(wx,h+3.0,wz); g.add(c);
+    } else if(R()>0.55){                                                          // stair hut / AC unit
+      const hut=new THREE.Mesh(boxGeo, R()>0.5?hutMat:acMat); const hw=1.4+R()*1.6;
+      hut.scale.set(hw,1.3,hw); hut.position.set(x+(R()-0.5)*w*0.5, h+1.1, z+(R()-0.5)*d*0.5); g.add(hut);
     }
   }
+  function block(g,cx,cz,bw,bd){
+    const walk=new THREE.Mesh(boxGeo, walkMat);                                   // sidewalk apron under the whole block
+    walk.scale.set(bw+3,0.28,bd+3); walk.position.set(cx,0.14,cz); g.add(walk);
+    const D=9;                                                                    // perimeter building depth — courtyard hollow inside
+    for(const sz of [-1,1]){                                                      // north+south edges: contiguous row along x
+      const ez=cz+sz*(bd/2-D/2); let x=cx-bw/2;
+      while(x<cx+bw/2-2){ const w=Math.min(6+R()*6, cx+bw/2-x); bldg(g,x+w/2,ez,w,D); x+=w; }
+    }
+    for(const sx of [-1,1]){                                                      // east+west edges fill between the rows
+      const ex=cx+sx*(bw/2-D/2); let z=cz-bd/2+D;
+      while(z<cz+bd/2-D-2){ const d2=Math.min(6+R()*6, cz+bd/2-D-z); bldg(g,ex,z+d2/2,D,d2); z+=d2; }
+    }
+  }
+  function street(g,cx,cz,w,len,vert){                                            // asphalt strip + centre line
+    const a=new THREE.Mesh(boxGeo, asMat); a.scale.set(vert?w:len,0.22,vert?len:w); a.position.set(cx,0.11,cz); g.add(a);
+    const l=new THREE.Mesh(new THREE.PlaneGeometry(vert?0.5:len*0.94, vert?len*0.94:0.5), ylMat);
+    l.rotation.x=-Math.PI/2; l.position.set(cx,0.24,cz); g.add(l);
+  }
+  // FAR side (beyond the main street's rows): 2×2 blocks each side of the corridor + avenues + a back street
+  for(const sx of [-1,1]){
+    for(const cz of [-33,-77]){ block(aerialFar, sx*37, cz, 44, 34); block(aerialFar, sx*91, cz, 44, 34); }
+    street(aerialFar, sx*64, -55, 10, 78, true);                                  // the avenues, x=±64
+  }
+  street(aerialFar, 0, -55, 10, 226, false);                                      // the back street, crossing the corridor
+  // NEAR side (south of the main drag): one row of blocks, corridor continuing between them
+  for(const sx of [-1,1]){ block(aerialNear, sx*37, 47, 44, 34); block(aerialNear, sx*91, 47, 44, 34); }
+  street(aerialNear, 0, 47, 17, 42, true);                                        // the cross-street continues south
   aerialFar.visible=false; aerialNear.visible=false;
   scene.add(aerialFar); scene.add(aerialNear);
 })();
