@@ -1594,37 +1594,52 @@ function chaseTick(){
     if(P.x>=c.alleyX){ c.ph='end'; c.t2=0; P.state='scripted'; P.scriptTx=c.alleyX; }   // pull up centred on the gap
     return;
   }
-  // THE CORNER TURN — a two-stage 90° camera ORBIT around the intersection, Bam visible the whole
-  // time as a billboard running down the cross-street:
-  //   in    : jog him to the mouth and turn up the cross-street.
-  //   orbit : the camera swings 0→45° while Bam runs DOWN the side street (recedes, shrinking, 3/4
-  //           view), then 45→90° while he runs back OUT toward the lens (grows, emerging) as it comes
-  //           side-on — "down then out", ending near full size so the resolve cut matches gameplay.
-  //   resolve: at 90° the frame already matches gameplay (side-on street, Bam centred running
-  //           right, the mouth behind him left) — cut to the continuing block, run + ball resume.
+  // THE CORNER TURN — "two J-shaped runs" bridged by a real alley (hands-off cinematic). Street one
+  // and street two are the same side-scroll axis; the alley detour is where the corner is hidden, so
+  // both streets present clean and side-on with no looking-down-the-barrel frame. Bam rides as a 3D
+  // billboard through it (bb=true) so he can recede up the alley and grow back out.
+  //   in  : jog him to the alley mouth, ease the camera to centre it.
+  //   up  : J① — he curves UP off the street into the alley, receding + shrinking into the gap.
+  //   top : deepest in the alley — while he's small and masked, the world pans to the fresh block.
+  //   out : J② — he curves DOWN & right out of the alley onto street two, growing back to full size.
+  //   resolve: already side-on on the new block, alley behind-left — hand the stick back, ball resets.
   if(c.ph==='turn'){
-    const ball=c.ball; ball.x=Math.min(ball.x, camX-260); ball.rot+=0.02;  // ball parked off-frame for the cinematic
-    const pivotCam=Math.max(0, c.turnX-320);
+    const ball=c.ball; if(ball){ ball.x=Math.min(ball.x, camX-320); ball.rot+=0.02; }   // ball parked off-frame
+    const mouthCam=Math.max(0, c.turnX-320);            // camera framing the alley mouth dead-centre
+    const runCamX =(c.turnX+230)-W*0.42;                // street two's side-on camera (Bam ~42% from left)
+    const DEPTH=105;                                    // how far up the alley he recedes (bbZ 252→147, near the far haze)
+    const TURN_YAW=0.30;                                // a gentle camera lean into the corner — NOT a full orbit
+    const ss=q=>q*q*(3-2*q);                            // smoothstep
     if(c.turnSub==='in'){ P.face=1; P.state='walk';
-      camX += (pivotCam-camX)*0.14;                                        // ease the orbit pivot onto the intersection
+      camX += (mouthCam-camX)*0.14;
       const dx=c.turnX-P.x;
-      if(Math.abs(dx)>3){ P.x+=clamp(dx,-3.2,3.2); }                       // jog the last few px to the mouth
-      else if(Math.abs(camX-pivotCam)<4){ P.x=c.turnX; camX=pivotCam; c.turnSub='orbit'; c.t2=0; c.bbZ=252; blip(320,.06); rumble(360,1,.7,true); }
+      if(Math.abs(dx)>3){ P.x+=clamp(dx,-3.4,3.4); }                       // jog the last few px to the mouth
+      else if(Math.abs(camX-mouthCam)<4){ P.x=c.turnX; camX=mouthCam;
+        c.turnSub='up'; c.t2=0; c.bb=true; c.bbX=c.turnX; c.bbZ=252; c.yaw=0; blip(320,.06); rumble(360,1,.7,true); }
       return; }
-    camX=pivotCam;                                                         // locked for the orbit
-    if(c.turnSub==='orbit'){
-      const OF=104, p=Math.min(1,c.t2/OF);
-      // ease-in-out across the whole 90°, with a soft plateau at the 45° midpoint so each half reads
-      const e = p<0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2;                  // cubic ease — lingers mid-turn
-      c.yaw = e * 1.57;                                                    // 0 → 90°
-      // depth: recede a touch down the cross-street to a peak at the 45° midpoint, then come back OUT
-      // so he emerges at full size — sin(pi*p) is 0→1→0, a clean there-and-back. Kept SHALLOW (×70) so
-      // he stays big enough to read as Bam the whole way; the camera swing sells the corner, not distance.
-      c.bbZ = 252 - Math.sin(p*Math.PI)*70;
-      if(c.t2>=OF){                                                        // resolve — matched frame, cut to the block
-        c.yaw=0; shake=Math.max(shake,6); rumble(500,1,.7,true);
+    if(c.turnSub==='up'){                               // J① — up into the alley
+      const OF=46, p=Math.min(1,c.t2/OF), e=ss(p);
+      camX=mouthCam; c.bbX=c.turnX;
+      c.bbZ=252 - e*DEPTH;                              // recede into the gap (up-screen, shrinking)
+      c.yaw=Math.sin(p*Math.PI/2)*TURN_YAW;             // lean in as he climbs
+      if(c.t2>=OF){ c.turnSub='top'; c.t2=0; }
+      return; }
+    if(c.turnSub==='top'){                              // masked reset — pan the world to the fresh block
+      const OF=18, p=Math.min(1,c.t2/OF), e=ss(p);
+      camX=mouthCam + (runCamX-mouthCam)*e;             // he's deep + small in the alley — the pan hides under him
+      c.bbX=c.turnX; c.bbZ=252-DEPTH; c.yaw=TURN_YAW;
+      if(c.t2>=OF){ c.turnSub='out'; c.t2=0; }
+      return; }
+    if(c.turnSub==='out'){                              // J② — down & right out of the alley onto street two
+      const OF=46, p=Math.min(1,c.t2/OF), e=ss(p);
+      camX=runCamX;
+      c.bbX=c.turnX + 230*e;                            // curve right out of the mouth (now behind-left)
+      c.bbZ=(252-DEPTH) + e*DEPTH;                      // grow back to street level (emerging)
+      c.yaw=(1-e)*TURN_YAW;                             // ease the lean back to side-on
+      if(c.t2>=OF){                                     // resolve — seamless: billboard already sits where the 2D sprite takes over
+        c.yaw=0; c.bb=false; shake=Math.max(shake,4);
         P.x=c.turnX+230; P.z=252; P.state='walk'; P.face=1; P.sprinting=true; P.sprintDir=1;
-        camX=P.x-W*0.42; ball.x=P.x-460; ball.vx=3.0;
+        camX=runCamX; if(ball){ ball.x=P.x-460; ball.vx=3.0; }
         c.turned=true; c.ph='run'; c.turnSub=null; c.t2=0; }
       return; }
     return;
@@ -3866,7 +3881,7 @@ function heroBillboardFrame(){
 }
 function render(){
   if(shopOpen){ drawStore(); composite(); return; }   // in-world store interior fully replaces the street view
-  const orbiting = chase && chase.ph==='turn' && chase.turnSub==='orbit';   // the corner orbit (Bam is a 3D billboard)
+  const turnBB = !!(chase && chase.ph==='turn' && chase.bb);   // Bam rides as a 3D billboard through the alley turn
   ctx.save();
   const sh=shake*OPT.shake;
   if(sh>1) ctx.translate(rnd(-sh,sh),rnd(-sh,sh));
@@ -3885,14 +3900,20 @@ function render(){
     // left-edge-referenced — without recentering, everything placed by game position renders
     // exactly 320px right of where the gameplay actually happens.
     // the chase alley is a REAL gap carved into the 3D front row at its x (same -320 centring)
-    const alley3d = (chase && (chase.ph==='run'||chase.ph==='end'||chase.ph==='done')) ? (chase.alleyX-320)*0.0805 : null;
-    // cross-street intersections near the view, plus (during the chase) the corner you turn down
-    const xs3d = XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4).map(x=>(x-320)*0.0805);
-    if(chase && chase.turnX!=null && !chase.turned) xs3d.push((chase.turnX-320)*0.0805);
+    // the ending alley AND the mid-chase corner-turn both use the alley rig (the corner is an alley he
+    // ducks up, per the J-run choreography) — carve it in at the ending gap, or at turnX during the turn.
+    const alley3d = chase ? (
+        chase.ph==='turn' ? (chase.turnX-320)*0.0805 :
+        (chase.ph==='run'||chase.ph==='end'||chase.ph==='done') ? (chase.alleyX-320)*0.0805 : null
+      ) : null;
+    // cross-street intersections near the view (visual ambience only). turnX is itself an xstreet slot,
+    // so during the turn we suppress the cross-street there — the alley rig owns that gap, no double-up.
+    const xs3d = XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4
+        && !(chase&&chase.ph==='turn'&&Math.abs(x-chase.turnX)<60)).map(x=>(x-320)*0.0805);
     const yaw3d = (chase && chase.yaw) ? chase.yaw : 0;
-    // during the orbit Bam rides IN the 3D scene as a billboard, running down the cross-street's
-    // centreline (bbZ) — so he's visible the whole turn and the camera swings around him.
-    const heroBB = orbiting ? {gx:chase.turnX, gy:0, gz:chase.bbZ, camX} : null;
+    // through the alley turn Bam rides IN the 3D scene as a billboard (bbX/bbZ), so he recedes up the
+    // alley and grows back out while the flat 2D sprite layer is held off.
+    const heroBB = turnBB ? {gx:chase.bbX, gy:0, gz:chase.bbZ, camX} : null;
     if(heroBB) heroBillboardFrame();
     // during the corner cinematic, keep any store rig off the intersection mouth (it's not part of
     // the front row, so the carved gap can't hide it)
@@ -3941,10 +3962,10 @@ function render(){
   // angle (same 4th arg above), and this rotates the sprite layer about the same screen centre,
   // so feet stay planted on the rolled 3D ground.
   const tl = chaseTilt>0.01 ? chaseTilt : 0;
-  // during the orbit Bam is a BILLBOARD in the 3D scene (drawn by bg3d, above) so the camera can
-  // swing around him; the flat 2D sprite layer (ball, obstacles, overlay Bam) is held off.
+  // through the alley turn Bam is a BILLBOARD in the 3D scene (drawn by bg3d, above); the flat 2D
+  // sprite layer (ball, obstacles, overlay Bam) is held off so it can't double him up.
   if(tl){ ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(tl); ctx.translate(-W/2,-H/2); }
-  if(!orbiting) for(const o of list) o.f();
+  if(!turnBB) for(const o of list) o.f();
 
   for(const p of parts){ ctx.globalAlpha=clamp(p.life/20,0,1); ctx.fillStyle=p.col;
     ctx.fillRect(p.x-camX,p.z-p.y,2,2); } ctx.globalAlpha=1;
