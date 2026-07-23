@@ -150,7 +150,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #29</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #30</small></h1>
         <div id="pcols">
           <div class="col">
             <h2>DISPLAY</h2>
@@ -171,7 +171,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
             <div class="row"><button class="mini" id="d_freedom">FULL FREEDOM</button><button class="mini" id="d_xp">+50 XP</button></div>
             <div class="row"><button class="mini" id="d_cash">+100 BB</button></div>
             <div class="row"><button class="mini" id="d_kill">CLEAR WAVE</button><button class="mini" id="d_reset">RESET RUN</button></div>
-            <div class="row"><button class="mini" id="d_chase" style="width:100%">CHASE RUN (NO BALL)</button></div>
+            <div class="row"><button class="mini" id="d_chase" style="width:100%">CHASE RUN</button></div>
             <div class="row"><button class="mini" id="d_boss" style="width:100%">BOSS GAUNTLET</button></div>
             <div class="row" style="justify-content:flex-start"><span style="font-size:8px;color:#5c5670;letter-spacing:.12em">SPAWN BOSS</span></div>
             <div class="row" id="d_bosssel" style="flex-wrap:wrap;gap:4px;justify-content:flex-start"></div>
@@ -1607,7 +1607,7 @@ $('d_kill').onclick=()=>{ for(const e of ents) if(!e.dead){e.hp=0;e.dead=1;} };
 $('d_reset').onclick=()=>{ reset(); setPause(false); };
 $('d_boss').onclick=()=>{ for(const e of ents) e.dead=Math.max(e.dead,1); camLock=null; boss=null;
   gauntlet=3; gauntletIx=0; setPause(false); forceBoss(); };   // clear the street, then one of each
-$('d_chase').onclick=()=>{                                     // TEST: drop straight into the eviction run, ball parked off-screen
+$('d_chase').onclick=()=>{                                     // TEST: drop straight into the eviction run, ball rolling in behind
   if(MP) return;
   for(const e of ents) e.dead=Math.max(e.dead,1); camLock=null; boss=null; dlg=null;
   P.hp=P.maxhp; P.state='walk'; P.z=252; P.face=1; P.sprinting=true; P.sprintDir=1;
@@ -1616,7 +1616,7 @@ $('d_chase').onclick=()=>{                                     // TEST: drop str
   for(const x of XSTREETS){ if(x>P.x+900 && cleanX(x) && Math.abs(x-want)<bd){ bd=Math.abs(x-want); tx=x; } }
   chase={ph:'run',t:0,t2:0,hits:0,boss:null,startX:P.x,alleyX:P.x+CHASE_LEN,
     turnX:tx, turned:false, turnSub:null, yaw:0,
-    obs:[], nextOb:P.x+500, ball:{x:-1e9,vx:0,rot:0,gone:true}};   // gone:true → never drawn, never catches
+    obs:[], nextOb:P.x+500, ball:{x:P.x-300, vx:2.4, rot:0}};   // the eviction ball, rolling in behind
   setPause(false);
 };
 $('install').onclick=async()=>{
