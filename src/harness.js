@@ -98,6 +98,7 @@ const driver = `
    genBoss,spawnBoss,updateBoss,killBoss,hits,atkBox,stageCleared,
    buyContinue,callItNight,continueCost,
    gainFreedom,gainXp,loseHeart,heavyHitAt,maxComboStep,xpToLevel,
+   get INV(){return INV}, get INV_CAP(){return INV_CAP}, useInvItem,tossInvItem,
    startDialog,dialogTick, get dlg(){return dlg},
    // closeDialog(true) also fires the box's onClose (a story beat may hang off it); default discards
    closeDialog:(fire)=>{ const cb=dlg&&dlg.onClose; dlg=null; if(fire&&cb)cb(); },
@@ -665,8 +666,40 @@ if(!err){
     g.P.bucks=99999; g.setShop(true,b);
     for(const k in g.UPG) for(let i=0;i<g.UPG[k].max+2;i++) g.buy(k);
     g.P.hp=1; g.buy('burger'); g.buy('burger'); g.buy('life');
+    if(!g.INV.includes('plate')) throw new Error('bought HOT PLATE never landed in the bag');
+    if(g.P.hp!==1) throw new Error('buying food healed instantly — it should go to the bag');
     g.setShop(false);
     for(const k in g.UPG) if(g.U[k]!==g.UPG[k].max) throw new Error(k+' stuck at '+g.U[k]);
+  });
+  scene('the bag: pickups bag up, eating heals, the cap forces choices, the brush earns its slot', ()=>{
+    const g=__G(); g.releaseArena();
+    g.INV.length=0; g.P.hp=1; g.P.maxhp=8;
+    // street burger lands in the bag, not the health bar
+    g.drop(g.P.x+4,g.P.z,'burger'); __tick(30);
+    if(g.P.hp!==1) throw new Error('street burger healed on touch (hp '+g.P.hp+')');
+    if(!g.INV.includes('burger')) throw new Error('street burger never bagged');
+    // eat it from the menu — heals now
+    if(!g.useInvItem(g.INV.indexOf('burger'))) throw new Error('EAT refused with hp low');
+    if(g.P.hp<=1) throw new Error('eating healed nothing');
+    if(g.INV.includes('burger')) throw new Error('eaten burger still in the bag');
+    // full health → eating is refused, item stays
+    g.INV.push('burger'); g.P.hp=g.P.maxhp;
+    if(g.useInvItem(g.INV.indexOf('burger'))) throw new Error('ate food at full health');
+    if(!g.INV.includes('burger')) throw new Error('refused EAT still consumed the food');
+    // cap: a 5th item can't come home
+    g.INV.length=0; for(let i=0;i<g.INV_CAP;i++) g.INV.push('burger');
+    g.drop(g.P.x+4,g.P.z,'burger'); __tick(40);
+    if(g.INV.length>g.INV_CAP) throw new Error('bag overfilled: '+g.INV.length);
+    if(!g.drops.some(d=>d.kind==='burger')) throw new Error('bag-full burger vanished off the street');
+    g.drops.length=0;
+    // the brush boosts FREEDOM gains while carried
+    g.tossInvItem(0); g.INV.push('brush');
+    g.P.freedom=0; g.gainFreedom(10); const withBrush=g.P.freedom;
+    g.tossInvItem(g.INV.indexOf('brush'));
+    g.P.freedom=0; g.gainFreedom(10); const without=g.P.freedom;
+    if(!(withBrush>without*1.2)) throw new Error('brush passive missing ('+withBrush+' vs '+without+')');
+    g.INV.length=0;
+    console.log('        bag pickups, menu eating, full-bag refusal, brush +'+Math.round((withBrush/without-1)*100)+'% freedom — all live');
   });
   scene('play on with all upgrades maxed', ()=>{
     __key('KeyD',true); __tick(1500); __key('KeyD',false); __draw();
