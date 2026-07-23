@@ -686,40 +686,101 @@ function layoutStore(s, c, bw){
 }
 const storePool=[]; for(let i=0;i<3;i++){ const s=buildStoreMesh(); s.visible=false; scene.add(s); storePool.push(s); }
 
-// ---- a back-alley: an OPEN path receding between two rows of buildings (no wall in front) ----
-// Hide the front building at the alley's x and drop in a corridor you can see straight DOWN: brick
-// walls step back along both sides, the floor runs to a hazy far end — a path, not a dead-end box.
-const ALLEY_H=12, ALLEY_D=22;
+// ---- a back-alley, rebuilt from the user's reference photos (Cortlandt Alley et al.) ----
+// The real-photo signature: a SERVICE-LANE width (not a slot), FULL-height brick flanks, a black
+// zigzag FIRE ESCAPE on one wall, utility WIRES sagging down its length, dumpster + trash bags +
+// AC boxes along the walls, a graffiti tag, a caged-bulb service door, a WET centre strip catching
+// the light — and an OPEN far end glowing through to the next street (never a dead end).
+const ALLEY_H=13, ALLEY_D=30;
 function buildAlleyMesh(){
   const g=new THREE.Group();
-  const brick=brickTexture(); brick.repeat.set(2,4);
-  const wallMat=toonMat({ map:brick, color:'#7a6450', roughness:1 });   // grimier than the lit storefronts
-  const F=new THREE.Mesh(boxGeo, toonMat({ color:'#161320', roughness:1 })); g.add(F);   // wet-dark asphalt path
-  // stepped brick walls down BOTH sides (segments receding in z) — reads as a path with depth
-  const wallsL=[], wallsR=[];
-  for(let i=0;i<4;i++){ for(const [side,arr] of [[-1,wallsL],[1,wallsR]]){
-    const m=new THREE.Mesh(boxGeo, wallMat); g.add(m);
-    const o=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(o); arr.push({m,o,side,i}); } }
-  // the far end fades to warm haze (a lit opening) instead of a black wall
-  const far=new THREE.Mesh(new THREE.PlaneGeometry(3,6), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.7 })); g.add(far);
-  const bin=new THREE.Mesh(boxGeo, toonMat({ color:'#2f5a3a', roughness:1 }));         // a dumpster against one wall
-  const binOl=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(bin); g.add(binOl);
+  const brick=brickTexture(); brick.repeat.set(2,5);
+  const brick2=brickTexture(); brick2.repeat.set(2,5);
+  const wallMatL=toonMat({ map:brick,  color:'#7a6450', roughness:1 });
+  const wallMatR=toonMat({ map:brick2, color:'#6a5a52', roughness:1 });   // the two flanks read as different buildings
+  const steel=toonMat({ color:'#14101a', roughness:.9 });
+  const F=new THREE.Mesh(boxGeo, toonMat({ color:'#161320', roughness:1 })); g.add(F);   // worn asphalt path
+  const wet=new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.13 })); // the drainage strip, catching warm light
+  wet.rotation.x=-Math.PI/2; g.add(wet);
+  const puddles=[]; for(let i=0;i<2;i++){ const p=new THREE.Mesh(new THREE.CircleGeometry(0.9,10),
+    new THREE.MeshBasicMaterial({ color:0xffc98a, transparent:true, opacity:0.22 })); p.rotation.x=-Math.PI/2; g.add(p); puddles.push(p); }
+  // full-height flanking walls, one long slab per side (real 3D does the perspective)
+  const wallL=new THREE.Mesh(boxGeo, wallMatL), wallR=new THREE.Mesh(boxGeo, wallMatR); g.add(wallL); g.add(wallR);
+  const olL=new THREE.Mesh(boxGeo, OUTLINE_MAT), olR=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(olL); g.add(olR);
+  // FIRE ESCAPE on the left wall: platforms + diagonal stair runs + drop ladder, all thin black steel
+  const fe=[]; for(let i=0;i<7;i++){ const m=new THREE.Mesh(boxGeo, steel); g.add(m); fe.push(m); }
+  // utility wires strung ACROSS the gap between the two buildings (reads as horizontal lines in the
+  // mouth from the street — wires along the alley are edge-on to the camera and just look like noise)
+  const wires=[]; for(let i=0;i<3;i++){ const m=new THREE.Mesh(boxGeo, steel); g.add(m); wires.push(m); }
+  // small barred windows on the inner faces — scale cue that these flanks are real buildings
+  const wins=[]; for(let i=0;i<4;i++){ const w=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.6),
+    new THREE.MeshBasicMaterial({ color:0x2a1f2e })); g.add(w); wins.push(w); }
+  // dumpster + lid + trash bags + a second can + AC boxes on the right wall
+  const bin=new THREE.Mesh(boxGeo, toonMat({ color:'#2f5a3a', roughness:1 })); g.add(bin);
+  const binOl=new THREE.Mesh(boxGeo, OUTLINE_MAT); g.add(binOl);
+  const lid=new THREE.Mesh(boxGeo, toonMat({ color:'#254a30', roughness:1 })); g.add(lid);
+  const bags=[]; for(let i=0;i<3;i++){ const b=new THREE.Mesh(sphGeo, toonMat({ color:'#191521', roughness:1 })); g.add(b); bags.push(b); }
+  const can2=new THREE.Mesh(boxGeo, toonMat({ color:'#4a4552', roughness:1 })); g.add(can2);
+  const acs=[]; for(let i=0;i<2;i++){ const a=new THREE.Mesh(boxGeo, toonMat({ color:'#9aa0a8', roughness:.9 })); g.add(a); acs.push(a); }
+  // service door + caged amber bulb + its light pool; a loud graffiti tag on the opposite wall
+  const door=new THREE.Mesh(boxGeo, toonMat({ color:'#3a2a22', roughness:1 })); g.add(door);
+  const bulb=new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({ color:0xffca7a })); g.add(bulb);
+  const pool=new THREE.Mesh(new THREE.CircleGeometry(1.4,10), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.20 })); pool.rotation.x=-Math.PI/2; g.add(pool);
+  const graf=new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.1), new THREE.MeshBasicMaterial({ color:0xff2e88, transparent:true, opacity:0.55 })); g.add(graf);
+  const graf2=new THREE.Mesh(new THREE.PlaneGeometry(1.6,0.8), new THREE.MeshBasicMaterial({ color:0x3ad1ff, transparent:true, opacity:0.45 })); g.add(graf2);
+  // the far end fades to warm haze (the lit next street showing through) — an opening, not a wall.
+  // Grounded and wide, plus a soft outer wash, so it reads as street light spilling in, not a door.
+  const far=new THREE.Mesh(new THREE.PlaneGeometry(5,6), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.8 })); g.add(far);
+  const farSoft=new THREE.Mesh(new THREE.PlaneGeometry(9,9), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.28 })); g.add(farSoft);
   g.position.z=-8.5;   // mouth on the front-row plane; children recede in -z
-  g.userData={F,wallsL,wallsR,far,bin,binOl};
+  g.userData={F,wet,puddles,wallL,wallR,olL,olR,fe,wires,wins,bin,binOl,lid,bags,can2,acs,door,bulb,pool,graf,graf2,far,farSoft};
   g.visible=false;
   return g;
 }
 function layoutAlley(a, bw){
-  const u=a.userData, H=ALLEY_H, D=ALLEY_D, hw=bw/2, wt=0.6;
-  u.F.scale.set(bw,0.3,D); u.F.position.set(0,0.15,-D/2);
-  for(const arr of [u.wallsL,u.wallsR]) for(const w of arr){
-    const seg=D/4, z=-w.i*seg-seg/2, h=H-w.i*1.0;                       // step DOWN a touch with distance
-    w.m.scale.set(wt,h,seg+0.4); w.m.position.set(w.side*(hw-wt/2), h/2, z);
-    w.o.scale.set(wt+0.3,h+0.3,seg+0.7); w.o.position.copy(w.m.position);
+  const u=a.userData, H=ALLEY_H, D=ALLEY_D, hw=Math.max(bw/2, 3.4), wt=0.7;   // service-lane width floor — never a slot
+  u.F.scale.set(hw*2,0.3,D); u.F.position.set(0,0.15,-D/2);
+  u.wet.scale.set(hw*0.5,1,1); u.wet.scale.set(hw*0.5, D*0.94, 1); u.wet.position.set(0,0.32,-D/2);
+  u.puddles[0].position.set(-hw*0.3,0.33,-D*0.28); u.puddles[1].position.set(hw*0.34,0.33,-D*0.62);
+  u.wallL.scale.set(wt,H,D+0.6); u.wallL.position.set(-(hw+wt/2), H/2, -D/2);
+  u.wallR.scale.set(wt,H,D+0.6); u.wallR.position.set( (hw+wt/2), H/2, -D/2);
+  u.olL.scale.set(wt+0.3,H+0.3,D+0.9); u.olL.position.copy(u.wallL.position);
+  u.olR.scale.set(wt+0.3,H+0.3,D+0.9); u.olR.position.copy(u.wallR.position);
+  // fire escape: 3 platforms + 3 stair runs + a drop ladder, hugging the left wall
+  const fx=-(hw-0.35);
+  for(let f=0;f<3;f++){
+    const py=4.2+f*3.4, pz=-D*0.36 - f*1.2;
+    u.fe[f].scale.set(0.5,0.16,4.6); u.fe[f].position.set(fx, py, pz);                 // platform
+    u.fe[3+f].scale.set(0.14,3.4,0.9); u.fe[3+f].position.set(fx, py-1.7, pz-1.6);     // stair run (angled)
+    u.fe[3+f].rotation.x=0.62;
   }
+  u.fe[6].scale.set(0.12,3.4,0.5); u.fe[6].position.set(fx, 2.0, -D*0.34+1.6); u.fe[6].rotation.x=0;  // drop ladder
+  // wires strung ACROSS the gap, wall to wall, stepping back into the alley
+  for(let w=0;w<3;w++){
+    const m=u.wires[w]; m.scale.set(hw*2+1.2,0.07,0.07); m.rotation.set(0,0,0);
+    m.position.set(0, H-2.6-w*1.1, -D*0.22-w*5.5);
+  }
+  // barred windows: two per inner face, staggered heights and depths
+  u.wins[0].position.set(-(hw-0.03),7.6,-D*0.30); u.wins[0].rotation.y= Math.PI/2;
+  u.wins[1].position.set(-(hw-0.03),10.6,-D*0.55); u.wins[1].rotation.y= Math.PI/2;
+  u.wins[2].position.set( (hw-0.03),6.8,-D*0.48); u.wins[2].rotation.y=-Math.PI/2;
+  u.wins[3].position.set( (hw-0.03),10.0,-D*0.26); u.wins[3].rotation.y=-Math.PI/2;
+  u.bin.scale.set(2.6,1.9,1.5); u.bin.position.set(-hw*0.52,0.95,-D*0.5);
+  u.binOl.scale.set(3.0,2.3,1.9); u.binOl.position.copy(u.bin.position);
+  u.lid.scale.set(2.7,0.35,1.6); u.lid.position.set(-hw*0.52,2.0,-D*0.5);
+  u.bags[0].scale.set(0.9,0.6,0.8); u.bags[0].position.set(-hw*0.4,0.3,-D*0.4);
+  u.bags[1].scale.set(0.7,0.5,0.7); u.bags[1].position.set(-hw*0.28,0.25,-D*0.44);
+  u.bags[2].scale.set(0.8,0.55,0.7); u.bags[2].position.set(hw*0.44,0.27,-D*0.74);
+  u.can2.scale.set(0.9,1.3,0.9); u.can2.position.set(hw*0.55,0.65,-D*0.3);
+  u.acs[0].scale.set(1.3,1.0,0.7); u.acs[0].position.set(hw+0.2,5.4,-D*0.42);
+  u.acs[1].scale.set(1.1,0.9,0.6); u.acs[1].position.set(hw+0.2,8.2,-D*0.66);
+  u.door.scale.set(0.24,3.0,1.7); u.door.position.set(-(hw-0.05),1.5,-D*0.72);
+  u.bulb.scale.set(0.16,0.16,0.16); u.bulb.position.set(-(hw-0.5),3.6,-D*0.72);
+  u.pool.position.set(-(hw-1.2),0.34,-D*0.72);
+  u.graf.position.set(hw-0.05,2.1,-D*0.42); u.graf.rotation.y=-Math.PI/2;
+  u.graf2.position.set(-(hw-0.05),1.6,-D*0.22); u.graf2.rotation.y=Math.PI/2;
   u.far.position.set(0,3.0,-D+0.2);
-  u.bin.scale.set(2.0,1.8,1.4); u.bin.position.set(-hw*0.4,0.9,-D*0.45);
-  u.binOl.scale.set(2.4,2.2,1.8); u.binOl.position.copy(u.bin.position);
+  u.farSoft.position.set(0,4.2,-D+0.05);
 }
 const alleyRig=buildAlleyMesh(); scene.add(alleyRig);
 
@@ -1064,7 +1125,7 @@ function syncBoss(bs){
       for(const b of fronts){ const d=Math.abs(b.mesh.position.x-gx); if(d<bd){bd=d;best=b;} }
       let bw=7;
       if(best && bd<16){ best.mesh.visible=false; for(const e of best.extras) e.visible=false; bw=best.mesh.scale.x+0.4; }
-      const aw=Math.max(4.5, Math.min(bw, 9));
+      const aw=Math.max(7, Math.min(bw, 12));   // service-lane width (per the reference photos), never a slot
       clearBehind(gx, aw/2+3);                      // nothing capping the alley right behind the front row
       layoutAlley(alleyRig, aw);
     } else alleyRig.visible=false;
@@ -1111,6 +1172,6 @@ function syncBoss(bs){
     } else heroSpr.visible=false;
     renderer.render(scene,camera);
   }
-  globalThis.__bg3d = { render:stepBg, canvas:canvas, heroCanvas:heroCv };
+  globalThis.__bg3d = { render:stepBg, canvas:canvas, heroCanvas:heroCv, _alley:alleyRig };
 }catch(e){ /* any init failure -> game keeps its procedural background */ }
 })();
