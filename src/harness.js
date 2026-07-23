@@ -500,22 +500,23 @@ if(!err){
     // jump the player to the corner and let the helicopter turn play out
     const turnX=g.chase.turnX, runCamX=(turnX+230)-Math.round(640*0.42);
     g.P.state='walk'; g.P.x=turnX-25;
-    ticks=0; const seen=new Set(); let maxYaw=0, maxAerial=0, endAerial=1, pannedOut=false;
+    ticks=0; const seen=new Set(); let maxYaw=0, maxAerial=0, minRunZ=1e9, pannedOut=false;
     while(g.chase && !g.chase.turned && ticks++<900){ __tick(1);
       if(g.chase.ph==='turn'){ seen.add(g.chase.turnSub);
         maxYaw=Math.max(maxYaw, g.chase.yaw||0);
         maxAerial=Math.max(maxAerial, g.chase.aerial||0);
-        if(g.chase.turnSub==='dive') endAerial=g.chase.aerial||0;                   // dive craning back to the street
+        if(g.chase.turnSub==='run') minRunZ=Math.min(minRunZ, g.chase.bbZ==null?1e9:g.chase.bbZ);  // he ran down the cross-street
         if(Math.abs(g.camX-runCamX)<3) pannedOut=true; } }                          // world slid onto the fresh block
-    for(const sub of ['in','rise','spin','dive']) if(!seen.has(sub))
+    for(const sub of ['in','rise','run','flash','dive']) if(!seen.has(sub))
       throw new Error('corner sequence skipped the "'+sub+'" beat (saw: '+[...seen].join(',')+')');
     if(maxAerial < 0.9) throw new Error('the camera never craned up to the bird\'s-eye (max aerial '+maxAerial.toFixed(2)+')');
-    if(maxYaw < 1.4) throw new Error('the camera never turned the ~90° up top (max yaw '+maxYaw.toFixed(2)+')');
+    if(maxYaw < 1.4) throw new Error('the camera never turned the ~90° following him round (max yaw '+maxYaw.toFixed(2)+')');
+    if(minRunZ > 120) throw new Error('Bam never ran DOWN the cross-street in the middle (min bbZ '+(minRunZ<1e9?minRunZ.toFixed(0):'none')+')');
     if(!pannedOut) throw new Error('the world never slid onto the next block (camX did not reach runCamX)');
     if(!g.chase || !g.chase.turned) throw new Error('the turn never completed');
     if(g.chase.ph!=='run') throw new Error('after the corner it should be running the next block, got '+g.chase.ph);
     if((g.chase.aerial||0) > 0.01) throw new Error('resolved still up in the air (aerial '+(g.chase.aerial||0).toFixed(2)+')');
-    console.log('        jog to corner -> crane up (aerial '+maxAerial.toFixed(2)+') -> spin '+maxYaw.toFixed(2)+' + slide to next block -> dive back down side-on');
+    console.log('        crane up (aerial '+maxAerial.toFixed(2)+') -> RUN down the cross-street (bbZ→'+minRunZ.toFixed(0)+') + swing '+maxYaw.toFixed(2)+' -> apex bloom -> dive side-on');
   });
   scene('a SHOT kill drops Bam Bucks — same payout as a melee kill', ()=>{
     const g=__G(); g.releaseArena();
