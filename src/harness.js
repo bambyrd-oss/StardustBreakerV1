@@ -497,25 +497,25 @@ if(!err){
     ticks=0; while(g.chase && g.chase.ph!=='run' && ticks++<800){ __tick(1); }
     if(!g.chase || g.chase.ph!=='run') throw new Error('chase never reached the run');
     if(g.chase.turnX==null) throw new Error('the chase has no corner to turn');
-    // jump the player to the corner and let the two-J alley turn play out
-    const turnX=g.chase.turnX, mouthCam=Math.max(0,turnX-320), runCamX=(turnX+230)-Math.round(640*0.42);
+    // jump the player to the corner and let the helicopter turn play out
+    const turnX=g.chase.turnX, runCamX=(turnX+230)-Math.round(640*0.42);
     g.P.state='walk'; g.P.x=turnX-25;
-    ticks=0; const seen=new Set(); let maxYaw=0, minBbZ=1e9, mouthSeen=false, pannedOut=false;
+    ticks=0; const seen=new Set(); let maxYaw=0, maxAerial=0, endAerial=1, pannedOut=false;
     while(g.chase && !g.chase.turned && ticks++<900){ __tick(1);
       if(g.chase.ph==='turn'){ seen.add(g.chase.turnSub);
         maxYaw=Math.max(maxYaw, g.chase.yaw||0);
-        if(g.chase.bb){ minBbZ=Math.min(minBbZ, g.chase.bbZ==null?1e9:g.chase.bbZ); }
-        if(g.chase.turnSub==='up' && Math.abs(g.camX-mouthCam)<2) mouthSeen=true;   // camera framed the alley mouth
-        if(Math.abs(g.camX-runCamX)<3) pannedOut=true; } }                          // then panned to the fresh block
-    for(const sub of ['in','up','top','out']) if(!seen.has(sub))
+        maxAerial=Math.max(maxAerial, g.chase.aerial||0);
+        if(g.chase.turnSub==='dive') endAerial=g.chase.aerial||0;                   // dive craning back to the street
+        if(Math.abs(g.camX-runCamX)<3) pannedOut=true; } }                          // world slid onto the fresh block
+    for(const sub of ['in','rise','spin','dive']) if(!seen.has(sub))
       throw new Error('corner sequence skipped the "'+sub+'" beat (saw: '+[...seen].join(',')+')');
-    if(!mouthSeen) throw new Error('the camera never framed the alley mouth during the climb');
-    if(minBbZ > 200) throw new Error('Bam never receded up the alley (min bbZ '+(minBbZ<1e9?minBbZ.toFixed(0):'none')+')');
-    if(!pannedOut) throw new Error('the world never panned onto the next block (camX did not reach runCamX)');
-    if(maxYaw < 0.05 || maxYaw > 1.0) throw new Error('the corner lean was off — expected a gentle swing, got yaw '+maxYaw.toFixed(2));
+    if(maxAerial < 0.9) throw new Error('the camera never craned up to the bird\'s-eye (max aerial '+maxAerial.toFixed(2)+')');
+    if(maxYaw < 1.4) throw new Error('the camera never turned the ~90° up top (max yaw '+maxYaw.toFixed(2)+')');
+    if(!pannedOut) throw new Error('the world never slid onto the next block (camX did not reach runCamX)');
     if(!g.chase || !g.chase.turned) throw new Error('the turn never completed');
     if(g.chase.ph!=='run') throw new Error('after the corner it should be running the next block, got '+g.chase.ph);
-    console.log('        jog to mouth -> J① up the alley (bbZ→'+minBbZ.toFixed(0)+') -> masked pan -> J② out -> next block');
+    if((g.chase.aerial||0) > 0.01) throw new Error('resolved still up in the air (aerial '+(g.chase.aerial||0).toFixed(2)+')');
+    console.log('        jog to corner -> crane up (aerial '+maxAerial.toFixed(2)+') -> spin '+maxYaw.toFixed(2)+' + slide to next block -> dive back down side-on');
   });
   scene('a SHOT kill drops Bam Bucks — same payout as a melee kill', ()=>{
     const g=__G(); g.releaseArena();
