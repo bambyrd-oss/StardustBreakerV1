@@ -519,6 +519,20 @@ if(!err){
     if((g.chase.aerial||0) > 0.01) throw new Error('resolved still up in the air (aerial '+(g.chase.aerial||0).toFixed(2)+')');
     console.log('        crane up (aerial '+maxAerial.toFixed(2)+') -> RUN down the cross-street (bbZ→'+minRunZ.toFixed(0)+') + swing '+maxYaw.toFixed(2)+' -> apex bloom -> dive side-on');
   });
+  scene('stage 2 plays left-to-right in the alley: waves run, no storefront access', ()=>{
+    const g=__G(); g.releaseArena(); g.closeDialog();
+    g.setStage(2); g.setWaves(0); g.setBossDone(0);
+    g.P.hp=g.P.maxhp; g.P.x=300; g.P.z=300; g.P.state='idle';
+    __key('KeyD',true); __tick(600); __key('KeyD',false); __draw();
+    if(g.stageNum!==2) throw new Error('stage drifted to '+g.stageNum);
+    if(g.P.x<=300) throw new Error('never moved right (x '+Math.round(g.P.x)+')');
+    // storefronts do not exist in the alley — walking a store door must not arm the shop
+    const st=g.BUILDINGS.find(b=>b.kind==='store');
+    if(st){ g.P.x=st.doorX; g.P.z=230; __tick(4);
+      if(g.P.atShop) throw new Error('shop armed inside the alley stage'); }
+    if(g.shopOpen) throw new Error('store opened inside the alley stage');
+    console.log('        alley stage ticks, scrolls right, and keeps the storefronts locked out');
+  });
   scene('a SHOT kill drops Bam Bucks — same payout as a melee kill', ()=>{
     const g=__G(); g.releaseArena();
     g.P.x=1200; g.P.z=260; g.P.face=1;
