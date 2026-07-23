@@ -1061,8 +1061,9 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero, aerial){
+  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero, aerial, chaseOn){
     scroll=sc; bgTick++;
+    const openings=[];   // gaps carved into the row this frame (alley, cross-streets) — props keep clear of them
     // The corner turn is a HELICOPTER shot: aerial (0..1) cranes into a bird's-eye DRONE that TRACKS
     // Bam — its perch is a fixed offset above+behind him, rotated by yaw, always looking at him — so he
     // stays centred and legible while he runs the corner and the city rotates around him. roll is the
@@ -1141,6 +1142,7 @@ function syncBoss(bs){
       const gapW=Math.min(rE-lE, 30);
       alleyRig.userData._dbg={gx:+gx.toFixed(1),lE:+lE.toFixed(1),rE:+rE.toFixed(1),gapW:+gapW.toFixed(1)};
       alleyRig.position.x=(lE+rE)/2;                // centre the rig on the REAL gap, not the trigger x
+      openings.push({gx:(lE+rE)/2, hw:gapW/2+2});
       clearBehind(gx, 6.5);                         // see through the corridor, nothing capping it
       layoutAlley(alleyRig, gapW);
     } else alleyRig.visible=false;
@@ -1152,9 +1154,15 @@ function syncBoss(bs){
       const gx=ixs[i]-scroll; s.visible=true; s.position.x=gx;
       for(const b of fronts){ if(Math.abs(b.mesh.position.x-gx) < XST_W/2+1){ b.mesh.visible=false; for(const e of b.extras) e.visible=false; } }
       clearBehind(gx, XST_W/2+3);                    // clear the back rows so you see all the way down the cross-street
+      openings.push({gx, hw:XST_W/2+2});
     }
-    for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN; p.g.position.x=p.baseX-scroll; }
+    // street furniture stays OFF the openings (no trees standing in the middle of a cross-street)
+    // and clears out entirely during the chase — nothing on the sidewalk but the notice guys.
+    for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN;
+      const px=p.baseX-scroll; p.g.position.x=px;
+      p.g.visible = !chaseOn && !openings.some(o=>Math.abs(px-o.gx)<o.hw); }
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
+      pe.spr.visible=!chaseOn;                       // bystanders clear the street when the ball is rolling
       pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
       pe.spr.material = pe.mats[Math.floor(Math.abs(pe.baseX)*1.4)%2]; }   // stride/passing leg frames — an actual walk, not a glide
     asphaltTex.offset.x=scroll/9; pavingTex.offset.x=scroll/6;
