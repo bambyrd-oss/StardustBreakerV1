@@ -154,7 +154,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #49</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #50</small></h1>
         <div id="ptabs">
           <button class="ptab on" id="pt_bag">BAG</button>
           <button class="ptab" id="pt_set">SETTINGS</button>
@@ -5193,9 +5193,12 @@ function render(){
     const alley3d = (chase && (chase.ph==='run'||chase.ph==='end'||chase.ph==='done')) ? (chase.alleyX-320)*0.0805 : null;
     // cross-street intersections near the view (visual ambience). During the turn, the corner cross-street
     // at turnX is the star — Bam runs DOWN it from the drone view — so pin it as the one that renders.
+    // And NO cross-street near the ending alley: its wide apron cuts the sidewalk and its carve blows
+    // the row open far wider than the alley — it read as an intersection with a detached alley wall in it.
     const xs3d = (chase && chase.ph==='turn' && chase.turnX!=null)
       ? [(chase.turnX-320)*0.0805]
-      : XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4).map(x=>(x-320)*0.0805);
+      : XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4
+          && !(chase && chase.alleyX!=null && Math.abs(x-chase.alleyX)<900)).map(x=>(x-320)*0.0805);
     const yaw3d = (chase && chase.yaw) ? chase.yaw : 0;
     // through the alley turn Bam rides IN the 3D scene as a billboard (bbX/bbZ), so he recedes up the
     // alley and grows back out while the flat 2D sprite layer is held off.
