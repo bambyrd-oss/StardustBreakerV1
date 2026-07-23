@@ -1616,22 +1616,31 @@ function chaseTick(){
       else if(Math.abs(camX-mouthCam)<4){ P.x=c.turnX; camX=mouthCam;
         c.turnSub='rise'; c.t2=0; c.bb=true; c.bbX=c.turnX; c.bbZ=252; c.yaw=0; c.aerial=0; blip(320,.06); rumble(360,1,.7,true); }
       return; }
-    if(c.turnSub==='rise'){                             // crane up to the bird's-eye
-      const OF=40, p=Math.min(1,c.t2/OF);
+    if(c.turnSub==='rise'){                             // crane up to the bird's-eye, Bam still running right up to the corner
+      const OF=36, p=Math.min(1,c.t2/OF);
       camX=mouthCam; c.bbX=c.turnX; c.bbZ=252; c.yaw=0;
       c.aerial=ss(p);
-      if(c.t2>=OF){ c.turnSub='spin'; c.t2=0; }
+      if(c.t2>=OF){ c.turnSub='run'; c.t2=0; }
       return; }
-    if(c.turnSub==='spin'){                             // up top: turn 90° while the world slides to the next block
-      const OF=48, p=Math.min(1,c.t2/OF), e=ss(p);
+    if(c.turnSub==='run'){                              // THE MIDDLE — he actually RUNS down the cross-street while the
+      const OF=66, p=Math.min(1,c.t2/OF), e=ss(p);      // bird's-eye camera swings 90° to follow him around the corner
       c.aerial=1;
-      c.yaw=(p<0.5? ss(p/0.5) : (1-ss((p-0.5)/0.5)))*SPIN; // 0 → 90° → 0 (there-and-back, no corridor, no snap)
-      camX=mouthCam + (runCamX-mouthCam)*e;              // the block slides beneath us — a fresh stretch to land on
-      c.bbX=c.turnX + 230*e;                             // ferry the dot toward the street-two spot
+      c.yaw=e*SPIN;                                     // 0 → 90°, keeping his run reading as forward as it swings
+      c.bbX=c.turnX;
+      c.bbZ=252 - e*212;                                // recede DOWN the cross-street — you watch him run it, not a parked dot
+      camX=mouthCam + (runCamX-mouthCam)*e;             // the block slides to the fresh stretch beneath us
+      if(c.t2>=OF){ c.turnSub='flash'; c.t2=0; c.reset=false; }
+      return; }
+    if(c.turnSub==='flash'){                            // a sunset bloom at the apex hides the swap onto street two
+      const OF=12, p=Math.min(1,c.t2/OF);
+      c.aerial=1;
+      camFlash=Math.sin(p*Math.PI)*0.8;                 // 0 → .8 → 0
+      if(p>=0.5 && !c.reset){ c.reset=true;             // at the whitest point: yaw back to level, Bam onto the street-two spot
+        c.yaw=0; c.bbX=c.turnX+230; c.bbZ=252; camX=runCamX; }
       if(c.t2>=OF){ c.turnSub='dive'; c.t2=0; }
       return; }
-    if(c.turnSub==='dive'){                             // crane back down onto the new street, side-on
-      const OF=40, p=Math.min(1,c.t2/OF);
+    if(c.turnSub==='dive'){                             // crane back down onto the new street, side-on, Bam running right
+      const OF=38, p=Math.min(1,c.t2/OF);
       camX=runCamX; c.yaw=0; c.bbX=c.turnX+230; c.bbZ=252;
       c.aerial=1-ss(p);
       if(c.t2>=OF){                                     // resolve — billboard already sits where the 2D sprite takes over
@@ -3898,16 +3907,14 @@ function render(){
     // left-edge-referenced — without recentering, everything placed by game position renders
     // exactly 320px right of where the gameplay actually happens.
     // the chase alley is a REAL gap carved into the 3D front row at its x (same -320 centring)
-    // the ending alley AND the mid-chase corner-turn both use the alley rig (the corner is an alley he
-    // ducks up, per the J-run choreography) — carve it in at the ending gap, or at turnX during the turn.
-    const alley3d = chase ? (
-        chase.ph==='turn' ? (chase.turnX-320)*0.0805 :
-        (chase.ph==='run'||chase.ph==='end'||chase.ph==='done') ? (chase.alleyX-320)*0.0805 : null
-      ) : null;
-    // cross-street intersections near the view (visual ambience only). turnX is itself an xstreet slot,
-    // so during the turn we suppress the cross-street there — the alley rig owns that gap, no double-up.
-    const xs3d = XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4
-        && !(chase&&chase.ph==='turn'&&Math.abs(x-chase.turnX)<60)).map(x=>(x-320)*0.0805);
+    // the ending alley uses the alley rig; the corner turn runs Bam down a REAL perpendicular
+    // cross-street (the xstreet rig), so no alley there.
+    const alley3d = (chase && (chase.ph==='run'||chase.ph==='end'||chase.ph==='done')) ? (chase.alleyX-320)*0.0805 : null;
+    // cross-street intersections near the view (visual ambience). During the turn, the corner cross-street
+    // at turnX is the star — Bam runs DOWN it from the drone view — so pin it as the one that renders.
+    const xs3d = (chase && chase.ph==='turn' && chase.turnX!=null)
+      ? [(chase.turnX-320)*0.0805]
+      : XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4).map(x=>(x-320)*0.0805);
     const yaw3d = (chase && chase.yaw) ? chase.yaw : 0;
     // through the alley turn Bam rides IN the 3D scene as a billboard (bbX/bbZ), so he recedes up the
     // alley and grows back out while the flat 2D sprite layer is held off.

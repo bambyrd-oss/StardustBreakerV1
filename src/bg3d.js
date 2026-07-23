@@ -60,7 +60,7 @@ const camBaseQ = camera.quaternion.clone();   // the solved pose — roll (the e
 const camBasePos = camera.position.clone();   // the solved position — the corner crane/orbit move around this
 // the corner turn's HELICOPTER shot: crane the camera up+back to a bird's-eye over the city (aerial→1),
 // spin 90° up there where altitude hides the world reset, then dive back to the street pose on the new block
-const CAM_HIGH   = new THREE.Vector3(0, 150, 44);       // bird's-eye perch, high above + behind the block
+const CAM_HIGH   = new THREE.Vector3(0, 96, 40);        // drone perch — high enough to read as bird's-eye, low enough that Bam stays legible
 const CAM_PIVOT  = new THREE.Vector3(0, 1.5, -3.84);    // Bam at the corner (walk plane, screen centre)
 const CAM_STREETLOOK = new THREE.Vector3(0, 0.66, -26); // the street pose's look target
 const _camLook = new THREE.Vector3();
@@ -903,22 +903,32 @@ function syncBoss(bs){
   let scroll=0;
   function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero, aerial){
     scroll=sc; bgTick++;
-    // The corner turn is a HELICOPTER shot: aerial (0..1) cranes the camera up+back into a bird's-eye
-    // over the city, yaw spins it about the vertical axis through the corner, roll is the downhill tilt.
-    // With aerial high the whole block shrinks, so the 90° spin + world reset up there read as one
-    // smooth swoop; then aerial eases back to 0 and we dive onto the new street. yaw always looks at the
-    // pivot; the LOOK target blends street→pivot with altitude so lift-off from the run stays smooth.
+    // The corner turn is a HELICOPTER shot: aerial (0..1) cranes into a bird's-eye DRONE that TRACKS
+    // Bam — its perch is a fixed offset above+behind him, rotated by yaw, always looking at him — so he
+    // stays centred and legible while he runs the corner and the city rotates around him. roll is the
+    // downhill tilt. On the ground (aerial 0) it's the solved street pose; the perch/look blend by
+    // altitude for a smooth lift-off and dive.
     camera.position.copy(camBasePos);
     camera.quaternion.copy(camBaseQ);
     aerial = aerial||0;
-    if(aerial>0 || yaw){
-      if(aerial>0) camera.position.lerpVectors(camBasePos, CAM_HIGH, aerial);
-      const px=CAM_PIVOT.x, pz=CAM_PIVOT.z, c=Math.cos(yaw||0), s=Math.sin(yaw||0);
-      const dx=camera.position.x-px, dz=camera.position.z-pz;
-      camera.position.x = px + dx*c - dz*s;
-      camera.position.z = pz + dx*s + dz*c;
+    // push the sunset fog WAY out while airborne so the bird's-eye city (and Bam running the corner)
+    // reads crisp instead of dissolving into orange haze; restore the street-level haze on the ground.
+    scene.fog.near = 58 + aerial*300;
+    scene.fog.far  = 195 + aerial*650;
+    if(aerial>0){
+      // Bam's ground position in 3D (same mapping the billboard uses)
+      const hx = hero ? (hero.gx - hero.camX - 320)*0.0805 : CAM_PIVOT.x;
+      const hz = hero ? -8.5 + ((hero.gz==null?252:hero.gz) - 228)*0.194 : CAM_PIVOT.z;
+      const c=Math.cos(yaw||0), s=Math.sin(yaw||0);
+      const rx = -CAM_HIGH.z*s, rz = CAM_HIGH.z*c;     // "behind" offset, rotated by yaw about vertical
+      const droneX=hx+rx, droneY=CAM_HIGH.y, droneZ=hz+rz;   // perch above+behind Bam
+      camera.position.set(camBasePos.x+(droneX-camBasePos.x)*aerial,
+                          camBasePos.y+(droneY-camBasePos.y)*aerial,
+                          camBasePos.z+(droneZ-camBasePos.z)*aerial);
       camera.up.set(0,1,0);
-      _camLook.lerpVectors(CAM_STREETLOOK, CAM_PIVOT, Math.max(aerial, yaw?1:0));
+      _camLook.set(CAM_STREETLOOK.x+(hx-CAM_STREETLOOK.x)*aerial,
+                   CAM_STREETLOOK.y+(CAM_PIVOT.y-CAM_STREETLOOK.y)*aerial,
+                   CAM_STREETLOOK.z+(hz-CAM_STREETLOOK.z)*aerial);
       camera.lookAt(_camLook);
     }
     if(roll) camera.rotateZ(roll);
