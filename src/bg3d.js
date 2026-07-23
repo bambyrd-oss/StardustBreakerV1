@@ -853,8 +853,33 @@ const alleySegs=[];
     if(R(30)>0.6){ const hut=new THREE.Mesh(boxGeo, capMat); const hw2=1.6+R(31)*1.4;
       hut.scale.set(hw2,1.5,1.4); hut.position.set((R(32)-0.5)*18, h+0.95, -9.5); g.add(hut); }
     const baseX=-SPAN/2 + k*SEG + SEG/2;
+    g.position.z = R(40)>0.55 ? -(0.5+R(41)*1.0) : 0;   // stagger some buildings back — the wall itself has relief
     g.visible=false; scene.add(g);
     alleySegs.push({ g, baseX });
+  }
+})();
+// foreground silhouettes for the alley: crates, cans, a chain-link run — close to the lens at the
+// bottom of the frame, sliding faster than the play plane. Sparse, low, and dark so they read as
+// depth, not obstacles.
+const alleyFg=[];
+(function(){
+  const dim=toonMat({ color:'#1d1826', roughness:1 });
+  const dim2=toonMat({ color:'#262133', roughness:1 });
+  const N=8;
+  for(let k=0;k<N;k++){
+    const g=new THREE.Group(), R=s=>hash(k*77+s+9);
+    const kind=Math.floor(R(1)*3);
+    if(kind===0){ for(let i=0;i<2+Math.floor(R(2)*2);i++){ const c=new THREE.Mesh(boxGeo, i%2?dim:dim2);   // crate stack
+        const s2=1.0+R(3+i)*0.7; c.scale.set(s2,s2*0.8,s2); c.position.set((R(5+i)-0.5)*1.2, s2*0.4+i*0.7, 0); g.add(c); } }
+    else if(kind===1){ for(let i=0;i<2;i++){ const c=new THREE.Mesh(cylGeo, dim);                          // trash cans
+        c.scale.set(0.5,1.0,0.5); c.position.set(i*0.9,0.5,0); g.add(c); } }
+    else { const rail=new THREE.Mesh(boxGeo, dim); rail.scale.set(7,0.12,0.08); rail.position.set(0,1.75,0); g.add(rail);   // chain-link run
+      for(let i=0;i<4;i++){ const p2=new THREE.Mesh(boxGeo, dim); p2.scale.set(0.1,1.8,0.1); p2.position.set(-3+i*2,0.9,0); g.add(p2); }
+      const net=new THREE.Mesh(new THREE.PlaneGeometry(7,1.55), new THREE.MeshBasicMaterial({ color:0x14101a, transparent:true, opacity:0.35 }));
+      net.position.set(0,0.95,0); g.add(net); }
+    const baseX=-SPAN/2+(k+R(8))*(SPAN/N);
+    g.position.set(baseX,0,16.6+R(9)*1.5);
+    g.visible=false; scene.add(g); alleyFg.push({ g, baseX });
   }
 })();
 
@@ -1138,6 +1163,8 @@ function syncBoss(bs){
     for(const e of edgeLines) e.visible=!alleyMode;
     for(const s of alleySegs){ const sx=s.baseX-scroll; if(sx<-SPAN/2)s.baseX+=SPAN; else if(sx>SPAN/2)s.baseX-=SPAN;
       s.g.position.x=s.baseX-scroll; s.g.visible=alleyMode; }
+    for(const f of alleyFg){ const sx=f.baseX-scroll; if(sx<-SPAN/2)f.baseX+=SPAN; else if(sx>SPAN/2)f.baseX-=SPAN;
+      f.g.position.x=f.baseX-scroll; f.g.visible=alleyMode; }
     // The corner turn is a HELICOPTER shot: aerial (0..1) cranes into a bird's-eye DRONE that TRACKS
     // Bam — its perch is a fixed offset above+behind him, rotated by yaw, always looking at him — so he
     // stays centred and legible while he runs the corner and the city rotates around him. roll is the
@@ -1176,7 +1203,9 @@ function syncBoss(bs){
     const fronts=[], backs=[];
     for(const b of world){ const sx=b.baseX-scroll; if(sx<-SPAN/2)b.baseX+=SPAN; else if(sx>SPAN/2)b.baseX-=SPAN;
       const nx=b.baseX-scroll; b.mesh.position.x=nx; for(const e of b.extras) e.position.x=nx+(e.userData.ox||0);
-      const vis=!alleyMode;
+      // alley mode: only the FRONT storefront band swaps out for the alley wall — the back rows and
+      // skyline stay up, rising over the parapet and scrolling at their own depths (real parallax).
+      const vis=!alleyMode || !b.band.store;
       b.mesh.visible=vis; for(const e of b.extras) e.visible=vis;
       (b.band.store ? fronts : backs).push(b); }
     // an alley/intersection is a GAP you see THROUGH — so the rows BEHIND the front row can't cap it.
