@@ -150,7 +150,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #38</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #40</small></h1>
         <div id="pcols">
           <div class="col">
             <h2>DISPLAY</h2>
@@ -982,21 +982,29 @@ const alleyRig=buildAlleyMesh(); scene.add(alleyRig);
 // straight back between two receding rows of buildings, with a crosswalk where it meets the drag.
 // Reads unmistakably as another street of the same neighbourhood heading off into the sunset haze.
 const XST_W=26;                                    // as wide as the main drag — it's the same kind of street
+// the whole chase is a DOWNHILL run, so the cross-street keeps falling: the corridor's road deck
+// drops away at this grade past the mouth, buildings sit full-size and vertical on the slope
+// (bases stepping down — never shrinking), and the aerial blocks terrace down with it.
+const XGRADE=0.2, XGA=Math.atan(0.2), XMOUTH=-8.5;
+const xdrop=z=> z<XMOUTH ? (XMOUTH-z)*XGRADE : 0;
 function buildCrossStreet(){
   const g=new THREE.Group();
   const roadMat=toonMat({ color:'#2b2731', roughness:1 });
   const yellowMat=toonMat({ color:'#f2c53a', roughness:.7 });
   const cwMat=toonMat({ color:'#e8e2d4', roughness:.9 });
-  const Zfront=1.6, Zback=-72, midZ=(Zfront+Zback)/2, len=Zfront-Zback, roadW=17;
-  // the perpendicular roadway — a box whose top sits at sidewalk level, so it CUTS THROUGH the
-  // sidewalk (which shows as raised curbs either side) and fills to ground level out the back
-  const road=new THREE.Mesh(boxGeo, roadMat); road.scale.set(roadW,0.66,len); road.position.set(0,0.31,midZ); g.add(road);
-  // double yellow centre lines, running AWAY from us (perpendicular to the main road's lines)
-  for(const sx of [-1.1,1.1]){ const yl=new THREE.Mesh(new THREE.PlaneGeometry(0.45,len-8), yellowMat);
-    yl.rotation.x=-Math.PI/2; yl.position.set(sx,0.665,midZ-1); g.add(yl); }
-  // a crosswalk where the side street meets the main drag
+  const Zfront=1.6, Zback=-72, roadW=17;
+  // FLAT APRON through the intersection (the crosswalk zone) — level with the main drag
+  const apLen=Zfront-XMOUTH+0.4;
+  const apron=new THREE.Mesh(boxGeo, roadMat); apron.scale.set(roadW,0.66,apLen); apron.position.set(0,0.31,(Zfront+XMOUTH)/2); g.add(apron);
   for(let i=0;i<4;i++){ const st=new THREE.Mesh(new THREE.PlaneGeometry(roadW*0.82,0.6), cwMat);
     st.rotation.x=-Math.PI/2; st.position.set(0,0.67, Zfront-0.6-i*1.0); g.add(st); }
+  // GRADED DECK past the mouth — the road itself falls away downhill (the whole chase is a downhill
+  // run; a level corridor made the receding buildings read as shrinking instead of descending)
+  const dkLen=XMOUTH-Zback;
+  const grade=new THREE.Group(); grade.position.set(0,0.31,XMOUTH); grade.rotation.x=-XGA; g.add(grade);
+  const deck=new THREE.Mesh(boxGeo, roadMat); deck.scale.set(roadW,0.66,dkLen); deck.position.set(0,0,-dkLen/2); grade.add(deck);
+  for(const sx of [-1.1,1.1]){ const yl=new THREE.Mesh(new THREE.PlaneGeometry(0.45,dkLen-6), yellowMat);
+    yl.rotation.x=-Math.PI/2; yl.position.set(sx,0.36,-dkLen/2); grade.add(yl); }
   // BOTH sides of the side street are lined with thin shopfront facades (razor-thin like the main
   // row, since you look straight down the street and the far side is fully visible too). They tile
   // back toward the vanishing point, stepping down in height for a receding roofline. The FRONT
@@ -1004,23 +1012,29 @@ function buildCrossStreet(){
   const cols=['#c07a54','#c98a5e','#a8694c','#8f5f52','#6f4f66','#57496b','#463f5e','#3a3450'];
   const roofC=['#cbb49c','#bfa78e','#d8c3ab'];
   const bd=5.0;                                  // real building DEPTH — the drone shot looks down on these; slats read as cardboard
-  for(let i=0;i<8;i++){ const z=(-8.5-bd/2) - i*5.4, h=12.5-i*1.05, w=5.6, lit=i<3;
+  for(let i=0;i<8;i++){ const z=(XMOUTH-bd/2) - i*5.4, lit=i<3;
+    // full-size buildings STEPPING DOWN the grade — bases drop with the road, heights just vary.
+    // (The old 12.5-i*1.05 shrink was a flat-view perspective fake; real 3D made it read as the
+    // buildings literally getting smaller down the street.)
+    const h=9.5+hash(i*97+11)*4.5, w=5.6, dp=xdrop(z);
     const ftex=facades[i%facades.length].clone(); ftex.needsUpdate=true;
     ftex.repeat.set(1, Math.max(2,Math.round(h/7)));
     for(const side of [-1,1]){
       const bx=side*(roadW/2 + w/2 - 0.2);
       const m=new THREE.Mesh(boxGeo, toonMat({ map:ftex, color:cols[i], roughness:1, emissive:lit?'#ff8a3a':'#000', emissiveIntensity:lit?0.14:0 }));
-      m.scale.set(w,h,bd); m.position.set(bx,h/2,z); m.castShadow=true; g.add(m);
+      m.scale.set(w,h,bd); m.position.set(bx,h/2-dp,z); m.castShadow=true; g.add(m);
       const o=new THREE.Mesh(boxGeo, OUTLINE_MAT); o.scale.set(w+0.25,h+0.25,bd+0.25); o.position.copy(m.position); g.add(o);
       const r=new THREE.Mesh(boxGeo, toonMat({ color:roofC[(i+ (side>0?1:0))%3], roughness:1 }));   // pale sunlit roof cap
-      r.scale.set(w+0.2,0.4,bd+0.2); r.position.set(bx,h+0.15,z); g.add(r);
+      r.scale.set(w+0.2,0.4,bd+0.2); r.position.set(bx,h+0.15-dp,z); g.add(r);
     }
   }
   // a low hazy band capping the vanishing point, and a warm glow so the street glows into the sunset
+  // (both ride at the bottom of the grade, where the road has dropped to)
+  const capDp=xdrop(Zback+1.5);
   const cap=new THREE.Mesh(boxGeo, toonMat({ color:'#5a4a63', roughness:1, emissive:'#ff8a3a', emissiveIntensity:0.15 }));
-  cap.scale.set(roadW+14,8,3); cap.position.set(0,4,Zback+1.5); g.add(cap);
+  cap.scale.set(roadW+14,8,3); cap.position.set(0,4-capDp,Zback+1.5); g.add(cap);
   const glow=new THREE.Mesh(new THREE.PlaneGeometry(roadW*0.7,7), new THREE.MeshBasicMaterial({ color:0xffb867, transparent:true, opacity:0.6 }));
-  glow.position.set(0,3.4,Zback+2.9); g.add(glow);
+  glow.position.set(0,3.4-capDp,Zback+2.9); g.add(glow);
   g.position.set(0,0,0);   // positioned in x only per frame; all z's are world-space
   g.userData={};
   g.visible=false;
@@ -1063,33 +1077,43 @@ const aerialFar=new THREE.Group(), aerialNear=new THREE.Group();
       hut.scale.set(hw,1.3,hw); hut.position.set(x+(R()-0.5)*w*0.5, h+1.1, z+(R()-0.5)*d*0.5); g.add(hut);
     }
   }
-  function block(g,cx,cz,bw,bd){
+  function block(g,cx,cz,bw,bd,y0){
+    // each block sits on its own TERRACE — the whole hillside steps down the grade with the road
+    const tg=new THREE.Group(); tg.position.y=y0||0; g.add(tg);
     const walk=new THREE.Mesh(boxGeo, walkMat);                                   // sidewalk apron under the whole block
-    walk.scale.set(bw+3,0.28,bd+3); walk.position.set(cx,0.14,cz); g.add(walk);
+    walk.scale.set(bw+3,0.28,bd+3); walk.position.set(cx,0.14,cz); tg.add(walk);
     const D=9;                                                                    // perimeter building depth — courtyard hollow inside
     for(const sz of [-1,1]){                                                      // north+south edges: contiguous row along x
       const ez=cz+sz*(bd/2-D/2); let x=cx-bw/2;
-      while(x<cx+bw/2-2){ const w=Math.min(6+R()*6, cx+bw/2-x); bldg(g,x+w/2,ez,w,D); x+=w; }
+      while(x<cx+bw/2-2){ const w=Math.min(6+R()*6, cx+bw/2-x); bldg(tg,x+w/2,ez,w,D); x+=w; }
     }
     for(const sx of [-1,1]){                                                      // east+west edges fill between the rows
       const ex=cx+sx*(bw/2-D/2); let z=cz-bd/2+D;
-      while(z<cz+bd/2-D-2){ const d2=Math.min(6+R()*6, cz+bd/2-D-z); bldg(g,ex,z+d2/2,D,d2); z+=d2; }
+      while(z<cz+bd/2-D-2){ const d2=Math.min(6+R()*6, cz+bd/2-D-z); bldg(tg,ex,z+d2/2,D,d2); z+=d2; }
     }
   }
-  function street(g,cx,cz,w,len,vert){                                            // asphalt strip + centre line
-    const a=new THREE.Mesh(boxGeo, asMat); a.scale.set(vert?w:len,0.22,vert?len:w); a.position.set(cx,0.11,cz); g.add(a);
+  function street(g,cx,cz,w,len,vert,y0){                                         // asphalt strip + centre line
+    const a=new THREE.Mesh(boxGeo, asMat); a.scale.set(vert?w:len,0.22,vert?len:w); a.position.set(cx,0.11+(y0||0),cz); g.add(a);
     const l=new THREE.Mesh(new THREE.PlaneGeometry(vert?0.5:len*0.94, vert?len*0.94:0.5), ylMat);
-    l.rotation.x=-Math.PI/2; l.position.set(cx,0.24,cz); g.add(l);
+    l.rotation.x=-Math.PI/2; l.position.set(cx,0.24+(y0||0),cz); g.add(l);
   }
-  // FAR side (beyond the main street's rows): 2×2 blocks each side of the corridor + avenues + a back street
+  // FAR side (beyond the main street's rows): 2×2 blocks each side of the corridor + avenues + a back
+  // street — every row terraced down the grade so the hillside falls WITH the corridor's road.
+  // Each terrace gets its own GROUND SLAB (the world's flat backlot carpet is dropped out of the way
+  // during the aerial — it would otherwise cover the sunken terraces from above).
+  const slabMat=toonMat({ color:'#6b4a52', roughness:1 });
   for(const sx of [-1,1]){
-    for(const cz of [-33,-77]){ block(aerialFar, sx*37, cz, 44, 34); block(aerialFar, sx*91, cz, 44, 34); }
-    street(aerialFar, sx*64, -55, 10, 78, true);                                  // the avenues, x=±64
+    for(const [cz,zc,zd] of [[-33,-32.2,40.5],[-77,-74.2,43.5]]){
+      const slab=new THREE.Mesh(boxGeo, slabMat);                                 // terrace ground, corridor kept clear
+      slab.scale.set(101,0.24,zd); slab.position.set(sx*64.6,-xdrop(cz)-0.12,zc); aerialFar.add(slab);
+      block(aerialFar, sx*37, cz, 44, 34, -xdrop(cz)); block(aerialFar, sx*91, cz, 44, 34, -xdrop(cz));
+      street(aerialFar, sx*64, cz, 10, 44, true, -xdrop(cz));                     // avenue segments ride each terrace
+    }
   }
-  street(aerialFar, 0, -55, 10, 226, false);                                      // the back street, crossing the corridor
-  // NEAR side (south of the main drag): one row of blocks, corridor continuing between them
-  for(const sx of [-1,1]){ block(aerialNear, sx*37, 47, 44, 34); block(aerialNear, sx*91, 47, 44, 34); }
-  street(aerialNear, 0, 47, 17, 42, true);                                        // the cross-street continues south
+  street(aerialFar, 0, -55, 10, 226, false, -xdrop(-55));                         // the back street, crossing the corridor
+  // NEAR side (south of the main drag, uphill of the crest): level row of blocks
+  for(const sx of [-1,1]){ block(aerialNear, sx*37, 47, 44, 34, 0); block(aerialNear, sx*91, 47, 44, 34, 0); }
+  street(aerialNear, 0, 47, 17, 42, true, 0);                                     // the cross-street continues south
   aerialFar.visible=false; aerialNear.visible=false;
   scene.add(aerialFar); scene.add(aerialNear);
 })();
@@ -1239,9 +1263,10 @@ function syncBoss(bs){
     scene.fog.near = 58 + aerial*300;
     scene.fog.far  = 195 + aerial*650;
     if(aerial>0){
-      // Bam's ground position in 3D (same mapping the billboard uses)
+      // Bam's ground position in 3D (same mapping the billboard uses), riding the corridor's grade
       const hx = hero ? (hero.gx - hero.camX - 320)*0.0805 : CAM_PIVOT.x;
       const hz = hero ? -8.5 + ((hero.gz==null?252:hero.gz) - 228)*0.194 : CAM_PIVOT.z;
+      const hy = CAM_PIVOT.y - xdrop(hz);
       const c=Math.cos(yaw||0), s=Math.sin(yaw||0);
       const rx = -CAM_HIGH.z*s, rz = CAM_HIGH.z*c;     // "behind" offset, rotated by yaw about vertical
       const droneX=hx+rx, droneY=CAM_HIGH.y, droneZ=hz+rz;   // perch above+behind Bam
@@ -1250,7 +1275,7 @@ function syncBoss(bs){
                           camBasePos.z+(droneZ-camBasePos.z)*aerial);
       camera.up.set(0,1,0);
       _camLook.set(CAM_STREETLOOK.x+(hx-CAM_STREETLOOK.x)*aerial,
-                   CAM_STREETLOOK.y+(CAM_PIVOT.y-CAM_STREETLOOK.y)*aerial,
+                   CAM_STREETLOOK.y+(hy-CAM_STREETLOOK.y)*aerial,
                    CAM_STREETLOOK.z+(hz-CAM_STREETLOOK.z)*aerial);
       camera.lookAt(_camLook);
     }
@@ -1325,14 +1350,15 @@ function syncBoss(bs){
       const cgx=xstreetXs[0]-scroll;
       aerialFar.position.x=cgx; aerialNear.position.x=cgx;
       aerialFar.visible=true; aerialNear.visible=aerial>0.45;
-    } else { aerialFar.visible=false; aerialNear.visible=false; }
+      backlot.position.y=-15.5;      // drop the flat carpet below the hillside — it would cover the sunken terraces from above
+    } else { aerialFar.visible=false; aerialNear.visible=false; backlot.position.y=-0.06; }
     // Bam's billboard, planted in the 3D world for the corner-turn cinematic (the game drew his
     // frame onto heroCv before this call). Same game→3D mapping the boss/store use.
     if(hero){
       heroSpr.visible=true; heroTex.needsUpdate=true;
       const x3=(hero.gx - hero.camX - 320)*0.0805;
       const z3=-8.5 + ((hero.gz==null?252:hero.gz) - 228)*0.194;
-      const y3=Math.max(0,hero.gy||0)*0.0805;
+      const y3=Math.max(0,hero.gy||0)*0.0805 - xdrop(z3);   // feet ride the corridor's downhill grade
       const hh=hero.h||8.6;
       heroSpr.scale.set(hh,hh,1);
       heroSpr.position.set(x3, y3 + 0.26*hh, z3);   // feet (row 70/92) on the ground
