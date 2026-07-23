@@ -154,7 +154,7 @@ kbd{background:#191725;border:1px solid #2f2b3d;border-bottom-width:2px;border-r
       </div>
       <div id="pauseBtn">| |</div>
       <div id="pause">
-        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #51</small></h1>
+        <h1>PAUSED<small>STARDUST BREAKER — PROTOTYPE · BUILD #52</small></h1>
         <div id="ptabs">
           <button class="ptab on" id="pt_bag">BAG</button>
           <button class="ptab" id="pt_set">SETTINGS</button>
@@ -404,10 +404,11 @@ backlot.receiveShadow = true; scene.add(backlot);
 // crosswalk like real road paint, so its segments must ride the same scroll/recycle slots)
 
 // solid edge lines near each side of the road (static — a solid line reads the same scrolling or not)
+const edgeLines=[];
 for(const z of [ -3.4, 18.4 ]){
   const edge=new THREE.Mesh(new THREE.PlaneGeometry(GROUND_W,0.4),
     toonMat({ color:'#cfc6a4', roughness:.8 }));
-  edge.rotation.x=-Math.PI/2; edge.position.set(0,0.02,z); scene.add(edge);
+  edge.rotation.x=-Math.PI/2; edge.position.set(0,0.02,z); scene.add(edge); edgeLines.push(edge);
 }
 
 // paved sidewalk with expansion joints
@@ -1057,6 +1058,73 @@ function layoutAlley(a, gapW){
 }
 const alleyRig=buildAlleyMesh(); scene.add(alleyRig);
 
+// ---- STAGE 2: the ALLEY WORLD — the whole level runs inside the alley Bam ducked into ----
+// The storefront row is replaced by one continuous back-of-building brick wall, dressed from the
+// reference-photo kit: service doors with caged bulbs, barred windows, fire escapes, AC boxes,
+// graffiti, dumpsters + bags + cans on an all-asphalt floor, wires sagging overhead, rooftop huts.
+// Segments wrap with scroll exactly like the street's building bands.
+const alleySegs=[];
+(function(){
+  const SEG=26, N=Math.round(SPAN/SEG);
+  const doorMat=toonMat({ color:'#3a2a22', roughness:1 });
+  const steel=toonMat({ color:'#14101a', roughness:.9 });
+  const winMat=new THREE.MeshBasicMaterial({ color:0x241a2c });
+  const acMat=toonMat({ color:'#9aa0a8', roughness:.9 });
+  const bagMat=toonMat({ color:'#191521', roughness:1 });
+  const capMat=toonMat({ color:'#4a3b42', roughness:1 });
+  const grafCols=[0xff2e88,0x3ad1ff,0xc9d13a,0xff9d3a];
+  for(let k=0;k<N;k++){
+    const g=new THREE.Group(), R=s=>hash(k*131+s);
+    const h=11.5+R(1)*4.5, wallCol=['#7a6450','#6a5a52','#75604a','#665648'][k%4];
+    const btex=brickTexture(); btex.repeat.set(5,Math.max(3,Math.round(h/4)));
+    const wall=new THREE.Mesh(boxGeo, toonMat({ map:btex, color:wallCol, roughness:1 }));
+    wall.scale.set(SEG+0.15,h,2); wall.position.set(0,h/2,-9.5); g.add(wall);       // face flush at z=-8.5
+    const cap=new THREE.Mesh(boxGeo, capMat); cap.scale.set(SEG+0.3,0.5,2.3); cap.position.set(0,h+0.2,-9.5); g.add(cap);
+    // barred windows — sparse, high, dark
+    for(let i=0;i<3;i++){ if(R(20+i)<0.35) continue;
+      const w=new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.7), winMat);
+      w.position.set(-9+i*8+(R(24+i)-0.5)*3, 5.5+R(28+i)*4, -8.44); g.add(w);
+      const bar=new THREE.Mesh(boxGeo, steel); bar.scale.set(1.4,0.06,0.06); bar.position.set(w.position.x, w.position.y, -8.42); g.add(bar); }
+    // a service door with a caged amber bulb + light pool
+    if(R(3)>0.3){ const dx=(R(4)-0.5)*16;
+      const door=new THREE.Mesh(boxGeo, doorMat); door.scale.set(1.8,3.1,0.3); door.position.set(dx,1.55,-8.4); g.add(door);
+      const bulb=new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({ color:0xffca7a })); bulb.scale.set(0.15,0.15,0.15); bulb.position.set(dx,3.9,-8.2); g.add(bulb);
+      const pool=new THREE.Mesh(new THREE.CircleGeometry(1.6,10), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.16 }));
+      pool.rotation.x=-Math.PI/2; pool.position.set(dx,0.04,-7.2); g.add(pool); }
+    // graffiti tag at waist height
+    if(R(5)>0.5){ const gr=new THREE.Mesh(new THREE.PlaneGeometry(2.6+R(6)*1.6,1.1),
+      new THREE.MeshBasicMaterial({ color:grafCols[Math.floor(R(7)*grafCols.length)], transparent:true, opacity:0.5 }));
+      gr.position.set((R(8)-0.5)*18, 1.6+R(9)*0.8, -8.44); g.add(gr); }
+    // AC boxes bolted on
+    if(R(10)>0.4){ const ac=new THREE.Mesh(boxGeo, acMat); ac.scale.set(1.2,0.9,0.7); ac.position.set((R(11)-0.5)*18, 4.5+R(12)*4, -8.2); g.add(ac); }
+    // a fire escape every third segment: platforms + angled runs
+    if(k%3===1){ const fx=(R(13)-0.5)*10;
+      for(let f=0;f<3;f++){ const py=4+f*3.2;
+        const p=new THREE.Mesh(boxGeo, steel); p.scale.set(4.6,0.16,0.9); p.position.set(fx,py,-8.0); g.add(p);
+        const s=new THREE.Mesh(boxGeo, steel); s.scale.set(0.9,3.2,0.14); s.position.set(fx+(f%2?2.1:-2.1),py-1.6,-8.0); s.rotation.z=(f%2?-1:1)*0.55; g.add(s);
+        const rail=new THREE.Mesh(boxGeo, steel); rail.scale.set(4.6,0.06,0.06); rail.position.set(fx,py+0.9,-7.6); g.add(rail); } }
+    // ground clutter: dumpster + bags / a can — hugging the wall
+    if(R(14)>0.55){ const dxx=(R(15)-0.5)*16;
+      const bin=new THREE.Mesh(boxGeo, toonMat({ color:['#2f5a3a','#5a2f34','#33475a'][Math.floor(R(16)*3)], roughness:1 }));
+      bin.scale.set(2.6,1.9,1.5); bin.position.set(dxx,0.95,-6.9); g.add(bin);
+      const lid=new THREE.Mesh(boxGeo, capMat); lid.scale.set(2.7,0.3,1.6); lid.position.set(dxx,2.0,-6.9); g.add(lid);
+      for(let b2=0;b2<2;b2++){ const bag=new THREE.Mesh(sphGeo, bagMat); bag.scale.set(0.8,0.55,0.7);
+        bag.position.set(dxx+2+b2*0.9, 0.28, -6.6); g.add(bag); } }
+    if(R(17)>0.6){ const can=new THREE.Mesh(cylGeo, toonMat({ color:'#4a4552', roughness:.9 }));
+      can.scale.set(0.55,1.2,0.55); can.position.set((R(18)-0.5)*20,0.6,-6.6); g.add(can); }
+    // wires sagging overhead across the play space
+    if(k%2===0){ const wx=(R(19)-0.5)*12;
+      const wire=new THREE.Mesh(boxGeo, steel); wire.scale.set(0.07,0.07,27);
+      wire.position.set(wx, 10.4, 4.5); wire.rotation.x=-0.075; g.add(wire); }
+    // rooftop silhouette: a stair hut or water tower against the sky
+    if(R(30)>0.6){ const hut=new THREE.Mesh(boxGeo, capMat); const hw2=1.6+R(31)*1.4;
+      hut.scale.set(hw2,1.5,1.4); hut.position.set((R(32)-0.5)*18, h+0.95, -9.5); g.add(hut); }
+    const baseX=-SPAN/2 + k*SEG + SEG/2;
+    g.visible=false; scene.add(g);
+    alleySegs.push({ g, baseX });
+  }
+})();
+
 // ---- a cross-street intersection: a real perpendicular ROAD that cuts through the sidewalk ----
 // The front row breaks; an asphalt strip with its OWN double-yellow lines runs from the main road
 // straight back between two receding rows of buildings, with a crosswalk where it meets the drag.
@@ -1328,9 +1396,15 @@ function syncBoss(bs){
 
   renderer.setSize(640,360,false);
   let scroll=0;
-  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero, aerial, chaseOn){
+  function stepBg(sc, storeXs, bossState, roll, alleyX, xstreetXs, yaw, hero, aerial, chaseOn, alleyMode){
     scroll=sc; bgTick++;
     const openings=[];   // gaps carved into the row this frame (alley, cross-streets) — props keep clear of them
+    // STAGE 2 — the ALLEY WORLD: swap the whole street dressing for the back-alley kit
+    alleyMode=!!alleyMode;
+    sidewalk.visible=!alleyMode; curb.visible=!alleyMode;
+    for(const e of edgeLines) e.visible=!alleyMode;
+    for(const s of alleySegs){ const sx=s.baseX-scroll; if(sx<-SPAN/2)s.baseX+=SPAN; else if(sx>SPAN/2)s.baseX-=SPAN;
+      s.g.position.x=s.baseX-scroll; s.g.visible=alleyMode; }
     // The corner turn is a HELICOPTER shot: aerial (0..1) cranes into a bird's-eye DRONE that TRACKS
     // Bam — its perch is a fixed offset above+behind him, rotated by yaw, always looking at him — so he
     // stays centred and legible while he runs the corner and the city rotates around him. roll is the
@@ -1362,13 +1436,15 @@ function syncBoss(bs){
     }
     if(roll) camera.rotateZ(roll);
     syncBoss(bossState);
-    const xs=(storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
+    const xs=alleyMode ? [] : (storeXs||[]).filter(x=>Math.abs(x-scroll)<40).slice(0,storePool.length);
     const lit=(bgTick%150)<126;
-    // position the row first (restore ALL visible), collecting the front band AND the rows behind it
+    // position the row first (restore ALL visible), collecting the front band AND the rows behind it.
+    // In alley mode the whole street's building bands hide — the alley wall is the world.
     const fronts=[], backs=[];
     for(const b of world){ const sx=b.baseX-scroll; if(sx<-SPAN/2)b.baseX+=SPAN; else if(sx>SPAN/2)b.baseX-=SPAN;
       const nx=b.baseX-scroll; b.mesh.position.x=nx; for(const e of b.extras) e.position.x=nx+(e.userData.ox||0);
-      if(!b.mesh.visible){ b.mesh.visible=true; for(const e of b.extras) e.visible=true; }
+      const vis=!alleyMode;
+      b.mesh.visible=vis; for(const e of b.extras) e.visible=vis;
       (b.band.store ? fronts : backs).push(b); }
     // an alley/intersection is a GAP you see THROUGH — so the rows BEHIND the front row can't cap it.
     // Clear every building (back band + skyline) sitting behind an opening's mouth, so the path
@@ -1427,13 +1503,14 @@ function syncBoss(bs){
     // and clears out entirely during the chase — nothing on the sidewalk but the notice guys.
     for(const p of props){ const sx=p.baseX-scroll; if(sx<-SPAN/2)p.baseX+=SPAN; else if(sx>SPAN/2)p.baseX-=SPAN;
       const px=p.baseX-scroll; p.g.position.x=px;
-      p.g.visible = !chaseOn && !openings.some(o=>Math.abs(px-o.gx)<o.hw); }
+      p.g.visible = !chaseOn && !alleyMode && !openings.some(o=>Math.abs(px-o.gx)<o.hw); }
     for(const pe of peds){ pe.baseX+=pe.vx; let sx=pe.baseX-scroll; if(sx<-SPAN/2)pe.baseX+=SPAN; else if(sx>SPAN/2)pe.baseX-=SPAN;
-      pe.spr.visible=!chaseOn;                       // bystanders clear the street when the ball is rolling
+      pe.spr.visible=!chaseOn && !alleyMode;         // bystanders clear out for the chase — and nobody strolls the alley
       pe.spr.position.x=pe.baseX-scroll; pe.spr.position.y=pe.y+Math.abs(Math.sin(pe.baseX*0.6))*0.18; pe.spr.scale.x=(pe.vx<0?-Math.abs(pe.sx):Math.abs(pe.sx));
       pe.spr.material = pe.mats[Math.floor(Math.abs(pe.baseX)*1.4)%2]; }   // stride/passing leg frames — an actual walk, not a glide
     asphaltTex.offset.x=scroll/9; pavingTex.offset.x=scroll/6;
-    for(const g of road.concat(decals)){ const sx=g.baseX-scroll; if(sx<-SPAN/2)g.baseX+=SPAN; else if(sx>SPAN/2)g.baseX-=SPAN; g.mesh.position.x=g.baseX-scroll; }
+    for(const g of road.concat(decals)){ const sx=g.baseX-scroll; if(sx<-SPAN/2)g.baseX+=SPAN; else if(sx>SPAN/2)g.baseX-=SPAN;
+      g.mesh.position.x=g.baseX-scroll; g.mesh.visible=!alleyMode; }   // no lane paint on an alley floor
     for(const s of clouds){ s.position.x-=0.012; if(s.position.x<-150)s.position.x=150; }
     // the fourth wall (the far side of the street) rides only with the corner cinematic — hidden
     // in normal play (it would sit between the camera and the gameplay), fully up for the orbit
@@ -3637,7 +3714,7 @@ function update(){
   //---- the counter. Opens automatically when you walk up (once per approach — leave the
   //---- doorway to re-arm), and TALK/E still opens it manually. Only once the street's quiet.
   P.atShop=null;
-  for(const b of BUILDINGS){ if(b.kind!=='store') continue;
+  if(stageNum!==2) for(const b of BUILDINGS){ if(b.kind!=='store') continue;   // no storefronts in the alley
     if(Math.abs(b.doorX-P.x)<44 && P.z<FLOOR_N+40){ P.atShop=b; break; } }
   const nearDoor = P.atShop && P.z<FLOOR_N+14;  // right in the doorway, hugging the wall
   const doorEdge = nearDoor && !P.wasAtShop;    // just walked up into the doorway itself
@@ -4868,7 +4945,7 @@ function hud(){
     ctx.font='9px "JetBrains Mono",monospace';
     if(t%40<26){ ctx.fillStyle='#3ad1ff'; ctx.fillText('PROCEED TO STAGE 2 →', W/2, py+52); }
     ctx.fillStyle='#5c5670'; ctx.font='7px "JetBrains Mono",monospace';
-    ctx.fillText('STAGE 2 UNDER CONSTRUCTION', W/2, py+70);
+    ctx.fillText('INTO THE ALLEY', W/2, py+70);
     ctx.textAlign='left';
   }
 
@@ -5032,6 +5109,7 @@ function drawStoreFacade(){
   // window with the flashing neon OPEN, and the open doorway built INTO it — instead of a door
   // decal floating over whatever 3D building happens to scroll by. It's BamBam's one enterable
   // building; he jogs up into the lit doorway to go inside (the enterShop state in update()).
+  if(stageNum===2) return;   // the alley has no storefronts
   for(const b of BUILDINGS){ if(b.kind!=='store') continue;
     const dx=b.doorX-camX; if(dx<-150||dx>W+150) continue;
     const fx=dx-88, fw=124, top=88;
@@ -5219,8 +5297,11 @@ function render(){
     const storeXs3d = BUILDINGS.filter(b=>b.kind==='store' && !(chase&&chase.ph==='turn'&&Math.abs(b.doorX-chase.turnX)<350))
       .map(b=>(b.doorX-320)*0.0805);
     const aerial3d = (chase && chase.aerial) ? chase.aerial : 0;   // the corner turn's bird's-eye crane
-    // during the chase the sidewalk clears out — no props or bystanders, just the eviction-notice guys
-    globalThis.__bg3d.render(camX*0.0805, storeXs3d, b3, chaseTilt, alley3d, xs3d, yaw3d, heroBB, aerial3d, !!chase);
+    // during the chase the sidewalk clears out — no props or bystanders, just the eviction-notice guys.
+    // STAGE 2 runs INSIDE the alley Bam ducked into: the whole street swaps for the alley world.
+    const alleyMode2 = stageNum===2;
+    globalThis.__bg3d.render(camX*0.0805, alleyMode2?[]:storeXs3d, b3, chaseTilt, alleyMode2?null:alley3d,
+      alleyMode2?[]:xs3d, yaw3d, heroBB, aerial3d, !!chase, alleyMode2);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();

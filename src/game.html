@@ -2430,7 +2430,7 @@ function update(){
   //---- the counter. Opens automatically when you walk up (once per approach — leave the
   //---- doorway to re-arm), and TALK/E still opens it manually. Only once the street's quiet.
   P.atShop=null;
-  for(const b of BUILDINGS){ if(b.kind!=='store') continue;
+  if(stageNum!==2) for(const b of BUILDINGS){ if(b.kind!=='store') continue;   // no storefronts in the alley
     if(Math.abs(b.doorX-P.x)<44 && P.z<FLOOR_N+40){ P.atShop=b; break; } }
   const nearDoor = P.atShop && P.z<FLOOR_N+14;  // right in the doorway, hugging the wall
   const doorEdge = nearDoor && !P.wasAtShop;    // just walked up into the doorway itself
@@ -3661,7 +3661,7 @@ function hud(){
     ctx.font='9px "JetBrains Mono",monospace';
     if(t%40<26){ ctx.fillStyle='#3ad1ff'; ctx.fillText('PROCEED TO STAGE 2 →', W/2, py+52); }
     ctx.fillStyle='#5c5670'; ctx.font='7px "JetBrains Mono",monospace';
-    ctx.fillText('STAGE 2 UNDER CONSTRUCTION', W/2, py+70);
+    ctx.fillText('INTO THE ALLEY', W/2, py+70);
     ctx.textAlign='left';
   }
 
@@ -3825,6 +3825,7 @@ function drawStoreFacade(){
   // window with the flashing neon OPEN, and the open doorway built INTO it — instead of a door
   // decal floating over whatever 3D building happens to scroll by. It's BamBam's one enterable
   // building; he jogs up into the lit doorway to go inside (the enterShop state in update()).
+  if(stageNum===2) return;   // the alley has no storefronts
   for(const b of BUILDINGS){ if(b.kind!=='store') continue;
     const dx=b.doorX-camX; if(dx<-150||dx>W+150) continue;
     const fx=dx-88, fw=124, top=88;
@@ -4012,8 +4013,11 @@ function render(){
     const storeXs3d = BUILDINGS.filter(b=>b.kind==='store' && !(chase&&chase.ph==='turn'&&Math.abs(b.doorX-chase.turnX)<350))
       .map(b=>(b.doorX-320)*0.0805);
     const aerial3d = (chase && chase.aerial) ? chase.aerial : 0;   // the corner turn's bird's-eye crane
-    // during the chase the sidewalk clears out — no props or bystanders, just the eviction-notice guys
-    globalThis.__bg3d.render(camX*0.0805, storeXs3d, b3, chaseTilt, alley3d, xs3d, yaw3d, heroBB, aerial3d, !!chase);
+    // during the chase the sidewalk clears out — no props or bystanders, just the eviction-notice guys.
+    // STAGE 2 runs INSIDE the alley Bam ducked into: the whole street swaps for the alley world.
+    const alleyMode2 = stageNum===2;
+    globalThis.__bg3d.render(camX*0.0805, alleyMode2?[]:storeXs3d, b3, chaseTilt, alleyMode2?null:alley3d,
+      alleyMode2?[]:xs3d, yaw3d, heroBB, aerial3d, !!chase, alleyMode2);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();
