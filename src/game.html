@@ -3999,7 +3999,9 @@ function render(){
     const xs3d = (chase && chase.ph==='turn' && chase.turnX!=null)
       ? [(chase.turnX-320)*0.0805]
       : XSTREETS.filter(x=>Math.abs(x-(camX+320))<W*2.4
-          && !(chase && chase.alleyX!=null && Math.abs(x-chase.alleyX)<900)).map(x=>(x-320)*0.0805);
+          && !(chase && chase.alleyX!=null && Math.abs(x-chase.alleyX)<900)
+          && !BUILDINGS.some(b=>b.kind==='store'&&Math.abs(b.doorX-x)<350)   // never carve an intersection into a store
+        ).map(x=>(x-320)*0.0805);
     const yaw3d = (chase && chase.yaw) ? chase.yaw : 0;
     // through the alley turn Bam rides IN the 3D scene as a billboard (bbX/bbZ), so he recedes up the
     // alley and grows back out while the flat 2D sprite layer is held off.
@@ -4010,7 +4012,8 @@ function render(){
     const storeXs3d = BUILDINGS.filter(b=>b.kind==='store' && !(chase&&chase.ph==='turn'&&Math.abs(b.doorX-chase.turnX)<350))
       .map(b=>(b.doorX-320)*0.0805);
     const aerial3d = (chase && chase.aerial) ? chase.aerial : 0;   // the corner turn's bird's-eye crane
-    globalThis.__bg3d.render(camX*0.0805, storeXs3d, b3, chaseTilt, alley3d, xs3d, yaw3d, heroBB, aerial3d);
+    // during the chase the sidewalk clears out — no props or bystanders, just the eviction-notice guys
+    globalThis.__bg3d.render(camX*0.0805, storeXs3d, b3, chaseTilt, alley3d, xs3d, yaw3d, heroBB, aerial3d, !!chase);
     ctx.drawImage(globalThis.__bg3d.canvas,0,0,W,H);
   }
   else bg();
