@@ -722,6 +722,62 @@ function buildFireEscape(floors, w){
   return g;
 }
 
+// ---- COLOR for the alley: light, paint, and objects (in the game's own accent palette) ----
+// Real multi-colour graffiti PIECES — canvas-painted bubble murals with dark outlines, white
+// highlights and paint drips — instead of flat tinted rectangles.
+function graffitiTexture(seed){
+  const W2=160,H2=64, c=document.createElement('canvas'); c.width=W2; c.height=H2; const x=c.getContext('2d');
+  const cols=['#ff2e88','#3ad1ff','#c9d13a','#ff9d3a','#c98aff','#7fd06a'];
+  const cA=cols[Math.floor(hash(seed)*6)], cB=cols[(Math.floor(hash(seed)*6)+2)%6];
+  const n=5+Math.floor(hash(seed+1)*3), lw=(W2-24)/n;
+  const letter=(i,pass)=>{                          // chunky rounded LETTERFORMS, not balloons
+    const lx=12+i*lw+lw/2+(hash(seed+i*5)-0.5)*3;
+    const lh=26+hash(seed+i*9)*14, lyy=H2/2+(hash(seed+i*13)-0.5)*7, w=lw*0.94;
+    x.save(); x.translate(lx,lyy); x.rotate((hash(seed+i*17)-0.5)*0.24);
+    x.beginPath(); x.roundRect(-w/2,-lh/2,w,lh,6);
+    if(pass===0){ x.lineWidth=7; x.strokeStyle='#100c16'; x.stroke(); x.fillStyle='#100c16'; x.fill(); }
+    else { x.fillStyle=i%2?cA:cB; x.fill(); x.lineWidth=2.4; x.strokeStyle='#100c16'; x.stroke();
+      x.fillStyle='rgba(255,255,255,.45)'; x.fillRect(-w/2+3,-lh/2+3,Math.max(2,w-10),3); }
+    x.restore();
+  };
+  for(let i=0;i<n;i++) letter(i,0);
+  for(let i=0;i<n;i++) letter(i,1);
+  x.strokeStyle=cA; x.lineWidth=4;                  // underline swash
+  x.beginPath(); x.moveTo(10,H2-10); x.quadraticCurveTo(W2/2,H2-2,W2-10,H2-12); x.stroke();
+  x.fillStyle='rgba(16,12,22,.5)';
+  for(let i=0;i<4;i++){ const dx2=20+hash(seed*13+i)*(W2-40); x.fillRect(dx2, H2/2+12, 2, 6+hash(seed*17+i)*8); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const GRAF_TEXES=[13,47,81].map(graffitiTexture);
+// wheat-paste posters: pale paper, a loud header band, text lines, a torn corner
+function posterTexture(seed){
+  const c=document.createElement('canvas'); c.width=40; c.height=56; const x=c.getContext('2d');
+  x.fillStyle='#e8e2d4'; x.fillRect(0,0,40,56);
+  x.fillStyle=['#ff2e88','#3ad1ff','#e0a83a','#7fd06a'][Math.floor(hash(seed)*4)]; x.fillRect(0,0,40,16);
+  x.fillStyle='#3a3444'; for(let i=0;i<5;i++) x.fillRect(5,24+i*6,30-hash(seed+i)*14,2.5);
+  x.globalCompositeOperation='destination-out';
+  x.beginPath(); x.moveTo(40,56); x.lineTo(27,56); x.lineTo(40,41); x.closePath(); x.fill();
+  x.globalCompositeOperation='source-over';
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const POSTER_TEXES=[7,29].map(posterTexture);
+// a buzzing neon sign for the businesses whose backs face the alley: ring / arrow / burst on a dark
+// backing, plus an additive glow — callers add the wall wash + ground pool in the sign's colour
+function neonSign(kind,colHex){
+  const g=new THREE.Group();
+  const back=new THREE.Mesh(boxGeo, toonMat({ color:'#1a1522', roughness:1 })); back.scale.set(2.0,2.0,0.14); g.add(back);
+  const M=new THREE.MeshBasicMaterial({ color:colHex });
+  const tube=(sx,sy,px,py,rz)=>{ const m=new THREE.Mesh(boxGeo,M); m.scale.set(sx,sy,0.08);
+    m.position.set(px,py,0.12); if(rz)m.rotation.z=rz; g.add(m); };
+  if(kind===0){ const ring=new THREE.Mesh(new THREE.TorusGeometry(0.6,0.07,8,20), M); ring.position.z=0.12; g.add(ring); }
+  else if(kind===1){ tube(1.0,0.1,-0.2,0); tube(0.55,0.1,0.32,0.22,-0.7); tube(0.55,0.1,0.32,-0.22,0.7); }
+  else { tube(1.2,0.1,0,0,0.65); tube(1.2,0.1,0,0,-0.65); tube(0.1,1.2,0,0); tube(1.2,0.1,0,0); }
+  const gs=new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTexture(), transparent:true, depthWrite:false,
+    blending:THREE.AdditiveBlending, color:new THREE.Color(colHex), opacity:.55 }));
+  gs.scale.set(3.4,3.4,1); gs.position.set(0,0,0.35); g.add(gs);
+  return g;
+}
+
 // ---- a back-alley, rebuilt from the user's reference photos (Cortlandt Alley et al.) ----
 // The real-photo signature: a SERVICE-LANE width (not a slot), FULL-height brick flanks, a black
 // zigzag FIRE ESCAPE on one wall, utility WIRES sagging down its length, dumpster + trash bags +
@@ -836,7 +892,8 @@ const alleySegs=[];
   const grafCols=[0xff2e88,0x3ad1ff,0xc9d13a,0xff9d3a];
   for(let k=0;k<N;k++){
     const g=new THREE.Group(), R=s=>hash(k*131+s);
-    const h=11.5+R(1)*4.5, wallCol=['#7a6450','#6a5a52','#75604a','#665648'][k%4];
+    // some walls are PAINTED brick — teal, violet, slate, wine — so the row isn't a brown monotone
+    const h=11.5+R(1)*4.5, wallCol=['#7a6450','#5a6a66','#6a5a52','#6d5a72','#75604a','#4f5f74','#665648','#7d5460'][k%8];
     const btex=brickTexture(); btex.repeat.set(5,Math.max(3,Math.round(h/4)));
     const wall=new THREE.Mesh(boxGeo, toonMat({ map:btex, color:wallCol, roughness:1 }));
     wall.scale.set(SEG+0.15,h,2); wall.position.set(0,h/2,-9.5); g.add(wall);       // face flush at z=-8.5
@@ -852,10 +909,37 @@ const alleySegs=[];
       const bulb=new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({ color:0xffca7a })); bulb.scale.set(0.15,0.15,0.15); bulb.position.set(dx,3.9,-8.2); g.add(bulb);
       const pool=new THREE.Mesh(new THREE.CircleGeometry(1.6,10), new THREE.MeshBasicMaterial({ color:0xffb35a, transparent:true, opacity:0.16 }));
       pool.rotation.x=-Math.PI/2; pool.position.set(dx,0.04,-7.2); g.add(pool); }
-    // graffiti tag at waist height
-    if(R(5)>0.5){ const gr=new THREE.Mesh(new THREE.PlaneGeometry(2.6+R(6)*1.6,1.1),
-      new THREE.MeshBasicMaterial({ color:grafCols[Math.floor(R(7)*grafCols.length)], transparent:true, opacity:0.5 }));
-      gr.position.set((R(8)-0.5)*18, 1.6+R(9)*0.8, -8.44); g.add(gr); }
+    // a real graffiti PIECE at waist height — the canvas murals, not tinted rectangles
+    if(R(5)>0.35){ const gr=new THREE.Mesh(new THREE.PlaneGeometry(5.2+R(6)*2.2, 2.4+R(9)*0.6),
+      new THREE.MeshBasicMaterial({ map:GRAF_TEXES[Math.floor(R(7)*GRAF_TEXES.length)], transparent:true }));
+      gr.position.set((R(8)-0.5)*15, 1.9+R(9)*0.9, -8.44); g.add(gr); }
+    // wheat-paste posters, slightly askew
+    if(R(50)>0.45){ const px2=(R(51)-0.5)*19;
+      for(let pi=0;pi<1+Math.round(R(54));pi++){
+        const po=new THREE.Mesh(new THREE.PlaneGeometry(1.05,1.45),
+          new THREE.MeshBasicMaterial({ map:POSTER_TEXES[(k+pi)%POSTER_TEXES.length], transparent:true }));
+        po.position.set(px2+pi*1.25, 2.4+R(52+pi)*1.4, -8.43); po.rotation.z=(R(53+pi)-0.5)*0.14; g.add(po); } }
+    // a neon sign from the business whose back faces the alley: glow + wall wash + colour pool below
+    if(R(60)>0.5){ const col=[0xff2e88,0x3ad1ff,0xc9d13a,0xff9d3a][Math.floor(R(62)*4)];
+      const ns=neonSign(Math.floor(R(63)*3), col);
+      ns.position.set((R(64)-0.5)*15, 5.4+R(65)*2.6, -8.35); g.add(ns);
+      const wash=new THREE.Mesh(new THREE.PlaneGeometry(5.5,4.5), new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.10, blending:THREE.AdditiveBlending, depthWrite:false }));
+      wash.position.set(ns.position.x, ns.position.y-0.4, -8.46); g.add(wash);
+      const npool=new THREE.Mesh(new THREE.CircleGeometry(2.2,12), new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.13, blending:THREE.AdditiveBlending, depthWrite:false }));
+      npool.rotation.x=-Math.PI/2; npool.position.set(ns.position.x, 0.05, -6.6); g.add(npool); }
+    // a laundry line strung along the wall, colored clothes facing the camera
+    if(k%3===2 && R(70)>0.25){ const lx2=(R(71)-0.5)*10, ly=7.6+R(72)*2.2;
+      const line=new THREE.Mesh(boxGeo, steel); line.scale.set(9,0.05,0.05); line.position.set(lx2,ly,-8.1); g.add(line);
+      const CLOTH=['#d55a6a','#5a9ad5','#e0d05a','#7fd06a','#e8e2d4','#c98aff'];
+      for(let ci=0;ci<4;ci++){ if(R(74+ci)<0.2) continue;
+        const cloth=new THREE.Mesh(new THREE.PlaneGeometry(0.95,1.15),
+          new THREE.MeshBasicMaterial({ color:CLOTH[Math.floor(R(78+ci)*CLOTH.length)], side:THREE.DoubleSide }));
+        cloth.position.set(lx2-3.4+ci*2.2+(R(82+ci)-0.5)*0.6, ly-0.62, -8.1); g.add(cloth); } }
+    // stacked milk crates — saturated primaries
+    if(R(90)>0.5){ const CR=['#d54a44','#3a7fd5','#e0a83a','#3fae5a'];
+      const n2=2+Math.floor(R(91)*3), bx2=(R(92)-0.5)*18;
+      for(let i=0;i<n2;i++){ const cr=new THREE.Mesh(boxGeo, toonMat({ color:CR[Math.floor(R(93+i)*CR.length)], roughness:.9 }));
+        cr.scale.set(0.62,0.5,0.62); cr.position.set(bx2+(i%2)*0.7-(i>1?0.33:0), 0.25+Math.floor(i/2)*0.52, -6.8); g.add(cr); } }
     // AC boxes bolted on
     if(R(10)>0.4){ const ac=new THREE.Mesh(boxGeo, acMat); ac.scale.set(1.2,0.9,0.7); ac.position.set((R(11)-0.5)*18, 4.5+R(12)*4, -8.2); g.add(ac); }
     // a REAL fire escape every third segment: railed landings, treaded runs, drop ladder
@@ -863,7 +947,7 @@ const alleySegs=[];
       fesc.position.set((R(13)-0.5)*12, 3.3, -8.4); g.add(fesc); }
     // ground clutter: dumpster + bags / a can — hugging the wall
     if(R(14)>0.55){ const dxx=(R(15)-0.5)*16;
-      const bin=new THREE.Mesh(boxGeo, toonMat({ color:['#2f5a3a','#5a2f34','#33475a'][Math.floor(R(16)*3)], roughness:1 }));
+      const bin=new THREE.Mesh(boxGeo, toonMat({ color:['#3fae5a','#d54a44','#3a7fd5','#e0a83a'][Math.floor(R(16)*4)], roughness:1 }));
       bin.scale.set(2.6,1.9,1.5); bin.position.set(dxx,0.95,-6.9); g.add(bin);
       const lid=new THREE.Mesh(boxGeo, capMat); lid.scale.set(2.7,0.3,1.6); lid.position.set(dxx,2.0,-6.9); g.add(lid);
       for(let b2=0;b2<2;b2++){ const bag=new THREE.Mesh(sphGeo, bagMat); bag.scale.set(0.8,0.55,0.7);
